@@ -1,0 +1,193 @@
+"use client";
+
+import { useState, useCallback, useRef, useEffect } from "react";
+
+interface SandboxState {
+    sandboxId: string | null;
+    url: string | null;
+    status: "idle" | "creating" | "running" | "updating" | "error";
+    error: string | null;
+    expiresAt: number | null;
+}
+
+interface UseSandboxOptions {
+    projectId: string;
+    autoCreate?: boolean;
+}
+
+export function useSandbox({ projectId, autoCreate = false }: UseSandboxOptions) {
+    const [state, setState] = useState<SandboxState>({
+        sandboxId: null,
+        url: null,
+        status: "idle",
+        error: null,
+        expiresAt: null,
+    });
+
+    const filesRef = useRef<Record<string, string>>({});
+
+    // Create sandbox
+    const create = useCallback(
+        async (files?: Record<string, string>) => {
+            setState((prev) => ({ ...prev, status: "creating", error: null }));
+
+            try {
+                const response = await fetch(`/api/projects/${projectId}/sandbox`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ action: "create", files }),
+                });
+
+                if (!response.ok) {
+                    const data = await response.json();
+                    throw new Error(data.error || "Failed to create sandbox");
+                }
+
+                const data = await response.json();
+                
+                if (files) {
+                    filesRef.current = files;
+                }
+
+                setState({
+                    sandboxId: data.sandboxId,
+                    url: data.url,
+                    status: "running",
+                    error: null,
+                    expiresAt: Date.now() + 10 * 60 * 1000,
+                });
+
+                return data;
+            } catch (error) {
+                const message = error instanceof Error ? error.message : "Failed to create sandbox";
+                setState((prev) => ({
+                    ...prev,
+                    status: "error",
+                    error: message,
+                }));
+                throw error;
+            }
+        },
+        [projectId]
+    );
+
+    // Update files in sandbox
+    const update = useCallback(
+        async (files: Record<string, string>) => {
+            if (state.status !== "running") {
+                // Create new sandbox if not running
+                return create(files);
+            }
+
+            setState((prev) => ({ ...prev, status: "updating" }));
+
+            try {
+                const response = await fetch(`/api/projects/${projectId}/sandbox`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ action: "update", files }),
+                });
+
+                if (!response.ok) {
+                    const data = await response.json();
+                    // If sandbox expired, create new one
+                    if (response.status === 404) {
+                        return create(files);
+                    }
+                    throw new Error(data.error || "Failed to update sandbox");
+                }
+
+                const data = await response.json();
+                filesRef.current = { ...filesRef.current, ...files };
+
+                setState((prev) => ({
+                    ...prev,
+                    url: data.url,
+                    status: "running",
+                }));
+
+                return data;
+            } catch (error) {
+                const message = error instanceof Error ? error.message : "Failed to update sandbox";
+                setState((prev) => ({
+                    ...prev,
+                    status: "error",
+                    error: message,
+                }));
+                throw error;
+            }
+        },
+        [projectId, state.status, create]
+    );
+
+    // Destroy sandbox
+    const destroy = useCallback(async () => {
+        try {
+            await fetch(`/api/projects/${projectId}/sandbox`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ action: "destroy" }),
+            });
+
+            setState({
+                sandboxId: null,
+                url: null,
+                status: "idle",
+                error: null,
+                expiresAt: null,
+            });
+
+            filesRef.current = {};
+        } catch (error) {
+            console.error("Failed to destroy sandbox:", error);
+        }
+    }, [projectId]);
+
+    // Get current URL
+    const getUrl = useCallback(async () => {
+        try {
+            const response = await fetch(`/api/projects/${projectId}/sandbox`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ action: "get-url" }),
+            });
+
+            if (!response.ok) {
+                return null;
+            }
+
+            const data = await response.json();
+            setState((prev) => ({
+                ...prev,
+                sandboxId: data.sandboxId,
+                url: data.url,
+                status: "running",
+                expiresAt: data.expiresAt,
+            }));
+
+            return data.url;
+        } catch {
+            return null;
+        }
+    }, [projectId]);
+
+    // Auto-create sandbox on mount if requested
+    useEffect(() => {
+        if (autoCreate && state.status === "idle") {
+            getUrl().then((url) => {
+                if (!url) {
+                    // No existing sandbox, could auto-create here
+                }
+            });
+        }
+    }, [autoCreate, state.status, getUrl]);
+
+    return {
+        ...state,
+        create,
+        update,
+        destroy,
+        getUrl,
+        isLoading: state.status === "creating" || state.status === "updating",
+    };
+}
