@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useCallback, useMemo, useEffect } from "react";
+import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import Link from "next/link";
-import { ArrowLeft, Settings, Code, Eye, PanelRightClose, PanelRight } from "lucide-react";
+import { ArrowLeft, Settings, Code, Eye, PanelRightClose, PanelRight, Save, Cloud, CloudOff } from "lucide-react";
 import { ChatInterface } from "@/components/chat";
 import CodeEditor from "@/components/CodeEditor";
 import { PreviewPanel } from "@/components/PreviewPanel";
@@ -16,6 +16,7 @@ interface BuilderClientProps {
 }
 
 type RightPanel = "code" | "preview";
+type SaveStatus = "saved" | "saving" | "unsaved" | "error";
 
 export default function BuilderClient({
     projectId,
@@ -25,6 +26,11 @@ export default function BuilderClient({
     const [files, setFiles] = useState(initialFiles);
     const [rightPanel, setRightPanel] = useState<RightPanel>("code");
     const [showRightPanel, setShowRightPanel] = useState(true);
+    const [saveStatus, setSaveStatus] = useState<SaveStatus>("saved");
+    
+    // Track pending save
+    const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const lastSavedFilesRef = useRef<string>(JSON.stringify(initialFiles));
 
     const sandbox = useSandbox({ projectId });
 
@@ -38,6 +44,62 @@ export default function BuilderClient({
             {} as Record<string, string>
         );
     }, [files]);
+
+    // Save files to database
+    const saveFiles = useCallback(async (filesToSave: { path: string; content: string }[]) => {
+        if (filesToSave.length === 0) return;
+        
+        const filesJson = JSON.stringify(filesToSave);
+        if (filesJson === lastSavedFilesRef.current) {
+            setSaveStatus("saved");
+            return;
+        }
+
+        setSaveStatus("saving");
+        try {
+            const response = await fetch(`/api/projects/${projectId}/files`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ files: filesToSave }),
+            });
+
+            if (!response.ok) {
+                throw new Error("Failed to save files");
+            }
+
+            lastSavedFilesRef.current = filesJson;
+            setSaveStatus("saved");
+        } catch (error) {
+            console.error("Failed to save files:", error);
+            setSaveStatus("error");
+        }
+    }, [projectId]);
+
+    // Auto-save files with debounce
+    useEffect(() => {
+        if (files.length === 0) return;
+
+        const filesJson = JSON.stringify(files);
+        if (filesJson === lastSavedFilesRef.current) return;
+
+        setSaveStatus("unsaved");
+
+        // Clear existing timeout
+        if (saveTimeoutRef.current) {
+            clearTimeout(saveTimeoutRef.current);
+        }
+
+        // Debounce save by 2 seconds
+        saveTimeoutRef.current = setTimeout(() => {
+            saveFiles(files);
+        }, 2000);
+
+        return () => {
+            if (saveTimeoutRef.current) {
+                clearTimeout(saveTimeoutRef.current);
+            }
+        };
+    }, [files, saveFiles]);
 
     // Handle new files generated from AI
     const handleFilesGenerated = useCallback(
@@ -78,6 +140,54 @@ export default function BuilderClient({
         }
     }, [sandbox, filesObject, needsSync]);
 
+    // Manual save
+    const handleManualSave = useCallback(() => {
+        if (saveTimeoutRef.current) {
+            clearTimeout(saveTimeoutRef.current);
+        }
+        saveFiles(files);
+    }, [files, saveFiles]);
+
+    // Save status indicator
+    const SaveIndicator = () => {
+        switch (saveStatus) {
+            case "saved":
+                return (
+                    <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <Cloud className="h-3 w-3" />
+                        Saved
+                    </span>
+                );
+            case "saving":
+                return (
+                    <span className="flex items-center gap-1 text-xs text-muted-foreground animate-pulse">
+                        <Cloud className="h-3 w-3" />
+                        Saving...
+                    </span>
+                );
+            case "unsaved":
+                return (
+                    <button 
+                        onClick={handleManualSave}
+                        className="flex items-center gap-1 text-xs text-amber-500 hover:text-amber-400"
+                    >
+                        <Save className="h-3 w-3" />
+                        Unsaved
+                    </button>
+                );
+            case "error":
+                return (
+                    <button 
+                        onClick={handleManualSave}
+                        className="flex items-center gap-1 text-xs text-red-500 hover:text-red-400"
+                    >
+                        <CloudOff className="h-3 w-3" />
+                        Error - Retry
+                    </button>
+                );
+        }
+    };
+
     return (
         <div className="fixed inset-0 flex flex-col lg:flex-row bg-background">
             {/* Chat panel */}
@@ -94,6 +204,7 @@ export default function BuilderClient({
                         <span className="font-semibold text-sm truncate max-w-[180px]">
                             {projectName}
                         </span>
+                        <SaveIndicator />
                     </div>
                     <Link
                         href={`/dashboard/projects/${projectId}/settings`}

@@ -1,5 +1,11 @@
 import mongoose, { Schema, model, models } from "mongoose";
 
+export interface IProjectFile {
+    path: string;
+    content: string;
+    updatedAt: Date;
+}
+
 export interface IProject {
     name: string;
     description?: string;
@@ -8,6 +14,8 @@ export interface IProject {
     userId: string;
     apiKey?: string;
     apiKeyHash?: string;
+    // Store project files directly in the document
+    files: IProjectFile[];
     providers: {
         auth: {
             enabled: boolean;
@@ -28,6 +36,15 @@ export interface IProject {
     createdAt: Date;
     updatedAt: Date;
 }
+
+const ProjectFileSchema = new Schema<IProjectFile>(
+    {
+        path: { type: String, required: true },
+        content: { type: String, required: true },
+        updatedAt: { type: Date, default: Date.now },
+    },
+    { _id: false }
+);
 
 const ProjectSchema = new Schema<IProject>(
     {
@@ -61,6 +78,10 @@ const ProjectSchema = new Schema<IProject>(
         },
         apiKeyHash: {
             type: String,
+        },
+        files: {
+            type: [ProjectFileSchema],
+            default: [],
         },
         providers: {
             type: {

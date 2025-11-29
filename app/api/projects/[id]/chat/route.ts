@@ -3,8 +3,9 @@ import { streamText, type CoreMessage } from "ai";
 import { auth } from "@clerk/nextjs/server";
 import connectToDatabase from "@/lib/db";
 import ChatMessage from "@/models/ChatMessage";
+import Project from "@/models/Project";
 import { SYSTEM_PROMPT, buildContextPrompt } from "@/lib/ai/prompts";
-import { parseGeneratedFiles, saveFilesToR2 } from "@/lib/ai/files";
+import { parseGeneratedFiles } from "@/lib/ai/files";
 import { type FileChange } from "@/lib/ai/tools";
 
 export const maxDuration = 60;
@@ -126,16 +127,26 @@ export async function POST(
                     });
                 }
 
-                // Save files to R2 if any
+                // Save files to Project model for persistence
                 if (Object.keys(generatedFiles).length > 0) {
                     try {
-                        const filesToSave = Object.entries(generatedFiles).map(([path, content]) => ({
-                            path,
-                            content,
-                        }));
-                        await saveFilesToR2(projectId, filesToSave);
+                        const project = await Project.findById(projectId);
+                        if (project) {
+                            // Merge with existing files
+                            const fileMap = new Map<string, { path: string; content: string; updatedAt: Date }>();
+                            for (const file of project.files || []) {
+                                fileMap.set(file.path, file);
+                            }
+                            const now = new Date();
+                            for (const [path, content] of Object.entries(generatedFiles)) {
+                                fileMap.set(path, { path, content, updatedAt: now });
+                            }
+                            project.files = Array.from(fileMap.values());
+                            await project.save();
+                            console.log(`Saved ${Object.keys(generatedFiles).length} files to project ${projectId}`);
+                        }
                     } catch (error) {
-                        console.error("Failed to save files to R2:", error);
+                        console.error("Failed to save files to project:", error);
                     }
                 }
 
