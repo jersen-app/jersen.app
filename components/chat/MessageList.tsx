@@ -65,7 +65,7 @@ export function MessageList({
               </span>
               <div className="space-y-2">
                 {streamingBlocks.map((block, idx) => {
-                  if (block.type === "file") {
+                  if (block.type === "file" || block.type === "diff") {
                     return (
                       <FileBlock key={idx} block={block} onAddFile={onAddFile} />
                     );

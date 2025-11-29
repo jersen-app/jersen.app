@@ -134,11 +134,20 @@ export function ChatInterface({
     setStreamingContent("");
     setStreamingBlocks(null);
 
+    // Get current files from ref for context
+    const currentFiles = Array.from(filesRef.current.entries()).map(([path, content]) => ({
+      path,
+      content,
+    }));
+
     try {
       const response = await fetch(`/api/projects/${projectId}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: content }),
+        body: JSON.stringify({ 
+          message: content,
+          files: currentFiles, // Send existing files so AI knows what exists
+        }),
       });
 
       if (!response.ok) {

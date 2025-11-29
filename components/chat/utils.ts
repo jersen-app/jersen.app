@@ -42,8 +42,12 @@ export function parseAIResponse(content: string): {
   const blocks: ParsedBlock[] = [];
   const files: FileData[] = [];
 
-  // Match all code blocks with their language
+  // Match all COMPLETE code blocks with their language
   const codeBlockRegex = /```(\w+)?\n([\s\S]*?)```/g;
+  
+  // Also check for incomplete code block at the end (streaming)
+  const incompleteBlockMatch = content.match(/```(\w+)?\n([\s\S]*)$/);
+  const hasIncompleteBlock = incompleteBlockMatch && !content.endsWith('```');
 
   let lastIndex = 0;
   let match;
@@ -204,8 +208,45 @@ export function parseAIResponse(content: string): {
 
   // Add remaining text after last code block
   if (lastIndex < content.length) {
-    const textContent = content.slice(lastIndex).trim();
-    if (textContent) {
+    let textContent = content.slice(lastIndex).trim();
+    
+    // If there's an incomplete code block at the end (during streaming),
+    // show it as a "streaming" code block instead of text
+    if (hasIncompleteBlock && incompleteBlockMatch) {
+      const incompleteStart = content.lastIndexOf('```');
+      textContent = content.slice(lastIndex, incompleteStart).trim();
+      
+      if (textContent) {
+        blocks.push({ type: "text", content: textContent });
+      }
+      
+      // Parse the incomplete block
+      const language = incompleteBlockMatch[1] || "plaintext";
+      const blockContent = incompleteBlockMatch[2] || "";
+      const lines = blockContent.split("\n");
+      const firstLine = lines[0]?.trim() || "";
+      
+      // Check for filepath
+      const filepathMatch = firstLine.match(/^filepath:\s*(.+)$/i);
+      if (filepathMatch) {
+        const filepath = filepathMatch[1].trim();
+        const restContent = lines.slice(1).join("\n");
+        blocks.push({
+          type: "file",
+          content: restContent + "\n...", // Show it's still streaming
+          language: language === "diff" ? "tsx" : language,
+          filename: filepath,
+          isFullFile: true,
+        });
+      } else if (blockContent.trim()) {
+        // Regular code block still streaming
+        blocks.push({
+          type: "code",
+          content: blockContent + "\n...",
+          language,
+        });
+      }
+    } else if (textContent) {
       blocks.push({ type: "text", content: textContent });
     }
   }

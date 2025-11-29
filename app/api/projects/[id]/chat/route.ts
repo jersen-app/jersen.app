@@ -42,6 +42,9 @@ export async function POST(
         return new Response("No message provided", { status: 400 });
     }
 
+    // Get existing files from frontend (current editor state)
+    const frontendFiles: Array<{ path: string; content: string }> = body.files || [];
+
     if (!userContent.trim()) {
         return new Response("Empty message", { status: 400 });
     }
@@ -50,17 +53,24 @@ export async function POST(
     await connectToDatabase();
     const chatHistory = await ChatMessage.find({ projectId }).sort({ createdAt: 1 }).lean();
 
-    // Get existing files for context
-    const existingFiles: Array<{ path: string; content: string }> = [];
-    const assistantsWithFiles = chatHistory.filter(
-        (msg: any) => msg.role === "assistant" && msg.files && Object.keys(msg.files).length > 0
-    );
-    const lastAssistantWithFiles = assistantsWithFiles[assistantsWithFiles.length - 1];
+    // Get existing files - prefer frontend files (current state), fallback to chat history
+    let existingFiles: Array<{ path: string; content: string }> = [];
     
-    if (lastAssistantWithFiles?.files) {
-        Object.entries(lastAssistantWithFiles.files).forEach(([path, content]) => {
-            existingFiles.push({ path, content: content as string });
-        });
+    if (frontendFiles.length > 0) {
+        // Use files from frontend - this is the current editor state
+        existingFiles = frontendFiles;
+    } else {
+        // Fallback: reconstruct from chat history
+        const assistantsWithFiles = chatHistory.filter(
+            (msg: any) => msg.role === "assistant" && msg.files && Object.keys(msg.files).length > 0
+        );
+        const lastAssistantWithFiles = assistantsWithFiles[assistantsWithFiles.length - 1];
+        
+        if (lastAssistantWithFiles?.files) {
+            Object.entries(lastAssistantWithFiles.files).forEach(([path, content]) => {
+                existingFiles.push({ path, content: content as string });
+            });
+        }
     }
 
     // Build context with file structure

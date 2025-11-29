@@ -97,6 +97,20 @@ async function createSandbox(
         }));
         await sandbox.files.write(fileWrites);
         console.log(`Wrote ${fileWrites.length} files to sandbox:`, fileWrites.map(f => f.path).join(', '));
+        
+        // Check if package.json was updated and install dependencies
+        if (files['package.json']) {
+            console.log('package.json detected, installing dependencies...');
+            try {
+                const installResult = await sandbox.commands.run('cd /home/user && bun install', { timeoutMs: 60000 });
+                console.log('bun install result:', installResult.exitCode === 0 ? 'success' : 'failed');
+                if (installResult.stderr) {
+                    console.log('bun install stderr:', installResult.stderr);
+                }
+            } catch (error) {
+                console.error('Failed to run bun install:', error);
+            }
+        }
     }
 
     // Dev server is already running from template start command
@@ -143,6 +157,17 @@ async function updateSandbox(
             }));
             await sandbox.files.write(fileWrites);
             console.log(`Updated files in sandbox:`, fileWrites.map(f => f.path).join(', '));
+            
+            // Check if package.json was updated and install dependencies
+            if (files['package.json']) {
+                console.log('package.json updated, installing dependencies...');
+                try {
+                    const installResult = await sandbox.commands.run('cd /home/user && bun install', { timeoutMs: 60000 });
+                    console.log('bun install result:', installResult.exitCode === 0 ? 'success' : 'failed');
+                } catch (error) {
+                    console.error('Failed to run bun install:', error);
+                }
+            }
         }
 
         const url = `https://${sandbox.getHost(3000)}`;
