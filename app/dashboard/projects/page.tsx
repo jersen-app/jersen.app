@@ -90,7 +90,7 @@ export default async function ProjectsPage() {
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-2">
                                         <div className={`h-2 w-2 rounded-full ${project.status === 'completed' ? 'bg-green-500' :
-                                                project.status === 'in-progress' ? 'bg-blue-500' : 'bg-gray-400'
+                                            project.status === 'in-progress' ? 'bg-blue-500' : 'bg-gray-400'
                                             }`} />
                                         <span className="text-xs font-medium uppercase tracking-wider text-gray-500">
                                             {project.status}
@@ -105,9 +105,17 @@ export default async function ProjectsPage() {
                                 </p>
                             </div>
                             <div className="mt-6 border-t border-gray-100 pt-4 dark:border-gray-800">
-                                <p className="text-xs text-gray-400">
-                                    Created {new Date(project.createdAt).toLocaleDateString()}
-                                </p>
+                                <div className="flex items-center justify-between">
+                                    <p className="text-xs text-gray-400">
+                                        Created {new Date(project.createdAt).toLocaleDateString()}
+                                    </p>
+                                    <Link
+                                        href={`/dashboard/projects/${project._id}/settings`}
+                                        className="text-xs font-medium text-gray-600 hover:text-black dark:text-gray-400 dark:hover:text-white"
+                                    >
+                                        Settings →
+                                    </Link>
+                                </div>
                             </div>
                         </div>
                     ))

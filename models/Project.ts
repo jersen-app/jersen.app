@@ -6,6 +6,25 @@ export interface IProject {
     status: "planning" | "in-progress" | "completed";
     orgId: string;
     userId: string;
+    apiKey?: string;
+    apiKeyHash?: string;
+    providers: {
+        auth: {
+            enabled: boolean;
+        };
+        storage: {
+            enabled: boolean;
+            quota: number; // in MB
+        };
+        database: {
+            enabled: boolean;
+            dbName?: string;
+            credentials?: {
+                username: string;
+                password: string;
+            };
+        };
+    };
     createdAt: Date;
     updatedAt: Date;
 }
@@ -33,6 +52,39 @@ const ProjectSchema = new Schema<IProject>(
         userId: {
             type: String,
             required: [true, "User ID is required"],
+        },
+        apiKey: {
+            type: String,
+            unique: true,
+            sparse: true,
+            index: true,
+        },
+        apiKeyHash: {
+            type: String,
+        },
+        providers: {
+            type: {
+                auth: {
+                    enabled: { type: Boolean, default: true },
+                },
+                storage: {
+                    enabled: { type: Boolean, default: true },
+                    quota: { type: Number, default: 1024 }, // 1GB default
+                },
+                database: {
+                    enabled: { type: Boolean, default: true },
+                    dbName: String,
+                    credentials: {
+                        username: String,
+                        password: String,
+                    },
+                },
+            },
+            default: {
+                auth: { enabled: true },
+                storage: { enabled: true, quota: 1024 },
+                database: { enabled: true },
+            },
         },
     },
     {
