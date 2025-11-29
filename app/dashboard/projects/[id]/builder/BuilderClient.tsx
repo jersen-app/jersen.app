@@ -3,7 +3,7 @@
 import { useState, useCallback } from "react";
 import Link from "next/link";
 import { ArrowLeft, Settings } from "lucide-react";
-import ChatInterface from "@/components/ChatInterface";
+import { ChatInterface } from "@/components/chat";
 import CodeEditor from "@/components/CodeEditor";
 
 interface BuilderClientProps {
@@ -35,32 +35,32 @@ export default function BuilderClient({
     );
 
     return (
-        <div className="flex h-[100dvh] flex-col lg:flex-row overflow-hidden bg-background">
+        <div className="fixed inset-0 flex flex-col lg:flex-row bg-background">
             {/* Chat panel */}
-            <div className="flex flex-col h-[50dvh] w-full border-b lg:h-full lg:w-[380px] lg:min-w-[320px] lg:max-w-[450px] lg:border-b-0 lg:border-r xl:w-[400px]">
-                {/* Compact header inside chat */}
-                <div className="flex items-center justify-between border-b px-3 py-2 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+            <div className="flex flex-col w-full h-[50vh] lg:h-full lg:w-[420px] lg:min-w-[360px] lg:max-w-[500px] border-b lg:border-b-0 lg:border-r">
+                {/* Header */}
+                <div className="shrink-0 flex items-center justify-between border-b px-3 py-2.5 bg-background">
                     <div className="flex items-center gap-2">
                         <Link
                             href="/dashboard/projects"
-                            className="rounded-md p-1 transition-colors hover:bg-muted"
+                            className="rounded-md p-1.5 transition-colors hover:bg-muted"
                         >
                             <ArrowLeft className="h-4 w-4" />
                         </Link>
-                        <span className="font-medium text-sm truncate max-w-[180px]">
+                        <span className="font-semibold text-sm truncate max-w-[200px]">
                             {projectName}
                         </span>
                     </div>
                     <Link
                         href={`/dashboard/projects/${projectId}/settings`}
-                        className="rounded-md p-1 transition-colors hover:bg-muted"
+                        className="rounded-md p-1.5 transition-colors hover:bg-muted"
                     >
                         <Settings className="h-4 w-4" />
                     </Link>
                 </div>
-                
-                {/* Chat content */}
-                <div className="flex-1 min-h-0">
+
+                {/* Chat - takes remaining height */}
+                <div className="flex-1 min-h-0 overflow-hidden">
                     <ChatInterface
                         projectId={projectId}
                         onFilesGenerated={handleFilesGenerated}
@@ -69,7 +69,7 @@ export default function BuilderClient({
             </div>
 
             {/* Code editor */}
-            <div className="flex-1 h-[50dvh] lg:h-full min-h-0">
+            <div className="flex-1 h-[50vh] lg:h-full min-h-0 overflow-hidden">
                 <CodeEditor files={files} projectId={projectId} />
             </div>
         </div>

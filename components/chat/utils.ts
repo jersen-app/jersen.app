@@ -36,6 +36,19 @@ export function parseAIResponse(content: string): {
     const blockContent = match[2] || "";
     const lines = blockContent.split("\n");
     const firstLine = lines[0]?.trim() || "";
+    const secondLine = lines[1]?.trim() || "";
+
+    // Skip empty or tool-related blocks
+    if (
+      language === "json" ||
+      language === "tool_code" ||
+      blockContent.trim().startsWith('{"') ||
+      blockContent.trim().startsWith('[{')
+    ) {
+      // Skip JSON/tool blocks entirely
+      lastIndex = match.index + match[0].length;
+      continue;
+    }
 
     // Try to extract filepath from first line
     let filepath: string | null = null;
@@ -55,32 +68,58 @@ export function parseAIResponse(content: string): {
       codeStartIndex = 1;
     }
 
-    // Pattern 3: First line is just a path like "app/page.tsx"
+    // Pattern 3: Check second line for filepath (if first line is empty)
+    if (!filepath && !firstLine && secondLine) {
+      const secondFilepathMatch = secondLine.match(/^filepath:\s*(.+)$/i);
+      if (secondFilepathMatch) {
+        filepath = secondFilepathMatch[1].trim();
+        codeStartIndex = 2;
+      }
+    }
+
+    // Pattern 4: First line is just a path like "app/page.tsx"
     const pathMatch = firstLine.match(
-      /^([a-zA-Z0-9_\-\/]+\.(tsx?|jsx?|css|json|md))$/i
+      /^([a-zA-Z0-9_\-\/\.]+\.(tsx?|jsx?|css|json|md|html))$/i
     );
     if (!filepath && pathMatch) {
       filepath = pathMatch[1].trim();
       codeStartIndex = 1;
     }
 
+    // Pattern 5: Language hints a file type (tsx, ts, css) - try to infer from content
+    if (!filepath && (language === "tsx" || language === "typescript" || language === "ts")) {
+      // Look for export default function ComponentName pattern
+      const componentMatch = blockContent.match(/export\s+default\s+function\s+(\w+)/);
+      if (componentMatch) {
+        const name = componentMatch[1];
+        // Try to guess the path
+        if (name === "RootLayout" || name === "Layout") {
+          filepath = "app/layout.tsx";
+        } else if (name === "Page" || name === "Home" || name === "HomePage") {
+          filepath = "app/page.tsx";
+        } else {
+          filepath = `components/${name}.tsx`;
+        }
+      }
+    }
+
     // Get the actual code content
     const codeContent = lines.slice(codeStartIndex).join("\n").trim();
 
-    if (filepath) {
+    if (filepath && codeContent) {
       // This is a file block
       blocks.push({
         type: "file",
-        content: codeContent || blockContent.trim(),
-        language,
+        content: codeContent,
+        language: language === "typescript" ? "tsx" : language,
         filename: filepath,
       });
       files.push({ path: filepath, content: codeContent });
-    } else {
-      // Regular code block
+    } else if (codeContent) {
+      // Regular code block (only if has content)
       blocks.push({
         type: "code",
-        content: blockContent.trim(),
+        content: codeContent || blockContent.trim(),
         language,
       });
     }

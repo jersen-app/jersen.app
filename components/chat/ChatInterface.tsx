@@ -160,7 +160,7 @@ export function ChatInterface({
   };
 
   return (
-    <div className="flex flex-col h-full overflow-hidden">
+    <div className="flex flex-col h-full">
       <MessageList
         messages={messages}
         isLoading={isLoading}

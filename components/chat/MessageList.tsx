@@ -35,12 +35,16 @@ export function MessageList({
   }, [messages, streamingContent]);
 
   if (messages.length === 0 && !isLoading) {
-    return <EmptyState />;
+    return (
+      <div className="flex-1 overflow-hidden">
+        <EmptyState />
+      </div>
+    );
   }
 
   return (
-    <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden px-4">
-      <div className="py-4 space-y-1">
+    <div ref={scrollRef} className="flex-1 overflow-y-auto px-4">
+      <div className="py-4 space-y-2">
         {messages.map((message) => (
           <MessageBubble
             key={message.id}
