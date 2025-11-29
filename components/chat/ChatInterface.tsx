@@ -1,20 +1,73 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import type { Message, FileData, ParsedBlock } from "./types";
 import { generateId, parseAIResponse } from "./utils";
+import { applyDiffBlocks } from "@/lib/ai/diff";
 import { MessageList } from "./MessageList";
 import { ChatInput } from "./ChatInput";
 
 interface ChatInterfaceProps {
   projectId: string;
   onFilesGenerated?: (files: FileData[]) => void;
+  existingFiles?: { path: string; content: string }[];
 }
 
 export function ChatInterface({
   projectId,
   onFilesGenerated,
+  existingFiles = [],
 }: ChatInterfaceProps) {
+  // Keep a ref to existing files so we can apply diffs
+  const filesRef = useRef<Map<string, string>>(new Map());
+  
+  // Update files ref when existingFiles changes
+  useEffect(() => {
+    existingFiles.forEach(file => {
+      filesRef.current.set(file.path, file.content);
+    });
+  }, [existingFiles]);
+
+  /**
+   * Process files - apply diffs to existing files or use new content
+   */
+  const processFiles = useCallback((rawFiles: FileData[]): FileData[] => {
+    return rawFiles.map(file => {
+      // If it's a full file (not an edit), return as-is
+      if (!file.isEdit || !file.diffBlocks || file.diffBlocks.length === 0) {
+        // Update our ref with this new file content
+        filesRef.current.set(file.path, file.content);
+        return file;
+      }
+      
+      // It's a diff - we need to apply it to the existing file
+      const existingContent = filesRef.current.get(file.path);
+      
+      if (!existingContent) {
+        // No existing file - this is an error in the AI output, but we can't apply a diff
+        console.warn(`Cannot apply diff to ${file.path} - file does not exist`);
+        return file;
+      }
+      
+      // Apply the diff blocks
+      const result = applyDiffBlocks(existingContent, file.diffBlocks);
+      
+      if (!result.success) {
+        console.warn(`Failed to apply some diff blocks to ${file.path}:`, result.failedBlocks);
+      }
+      
+      // Update our ref with the new content
+      filesRef.current.set(file.path, result.content);
+      
+      // Return the file with the applied content
+      return {
+        ...file,
+        content: result.content,
+        isEdit: false, // It's now a full file
+      };
+    });
+  }, []);
+
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -112,21 +165,28 @@ export function ChatInterface({
         const { blocks, files } = parseAIResponse(fullContent);
         setStreamingBlocks(blocks);
 
-        // Real-time file detection during streaming
+        // Real-time file detection during streaming (don't process diffs during streaming)
         if (files.length > 0 && onFilesGenerated) {
-          onFilesGenerated(files);
+          // Only send full files during streaming, diffs will be processed at the end
+          const fullFiles = files.filter(f => !f.isEdit);
+          if (fullFiles.length > 0) {
+            onFilesGenerated(processFiles(fullFiles));
+          }
         }
       }
 
       // Parse the final content
       const { blocks, files } = parseAIResponse(fullContent);
+      
+      // Process all files (apply diffs to existing files)
+      const processedFiles = processFiles(files);
 
       const assistantMessage: Message = {
         id: generateId(),
         role: "assistant",
         content: fullContent,
         parsedBlocks: blocks,
-        files,
+        files: processedFiles,
         timestamp: new Date(),
       };
 
@@ -134,9 +194,9 @@ export function ChatInterface({
       setStreamingContent("");
       setStreamingBlocks(null);
 
-      // Final file notification
-      if (files.length > 0 && onFilesGenerated) {
-        onFilesGenerated(files);
+      // Final file notification with processed files
+      if (processedFiles.length > 0 && onFilesGenerated) {
+        onFilesGenerated(processedFiles);
       }
     } catch (error) {
       console.error("Failed to send message:", error);

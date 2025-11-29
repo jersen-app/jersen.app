@@ -1,4 +1,4 @@
-import type { ParsedBlock, FileData } from "./types";
+import type { ParsedBlock, FileData, DiffBlock } from "./types";
 
 /**
  * Generate unique ID for messages
@@ -8,7 +8,32 @@ export function generateId(): string {
 }
 
 /**
- * Parse AI response into blocks (text, code, files)
+ * Parse SEARCH/REPLACE blocks from diff content
+ */
+function parseDiffBlocks(content: string): DiffBlock[] {
+  const blocks: DiffBlock[] = [];
+  const blockRegex = /<<<<<<< SEARCH\n([\s\S]*?)\n=======\n([\s\S]*?)\n>>>>>>> REPLACE/g;
+  
+  let match;
+  while ((match = blockRegex.exec(content)) !== null) {
+    blocks.push({
+      search: match[1],
+      replace: match[2],
+    });
+  }
+  
+  return blocks;
+}
+
+/**
+ * Check if content contains diff markers
+ */
+function isDiffContent(content: string): boolean {
+  return content.includes('<<<<<<< SEARCH') && content.includes('>>>>>>> REPLACE');
+}
+
+/**
+ * Parse AI response into blocks (text, code, files, diffs)
  */
 export function parseAIResponse(content: string): {
   blocks: ParsedBlock[];
@@ -45,7 +70,6 @@ export function parseAIResponse(content: string): {
       blockContent.trim().startsWith('{"') ||
       blockContent.trim().startsWith('[{')
     ) {
-      // Skip JSON/tool blocks entirely
       lastIndex = match.index + match[0].length;
       continue;
     }
@@ -86,42 +110,93 @@ export function parseAIResponse(content: string): {
       codeStartIndex = 1;
     }
 
-    // Pattern 5: Language hints a file type (tsx, ts, css) - try to infer from content
-    if (!filepath && (language === "tsx" || language === "typescript" || language === "ts")) {
-      // Look for export default function ComponentName pattern
-      const componentMatch = blockContent.match(/export\s+default\s+function\s+(\w+)/);
-      if (componentMatch) {
-        const name = componentMatch[1];
-        // Try to guess the path
-        if (name === "RootLayout" || name === "Layout") {
-          filepath = "app/layout.tsx";
-        } else if (name === "Page" || name === "Home" || name === "HomePage") {
-          filepath = "app/page.tsx";
-        } else {
-          filepath = `components/${name}.tsx`;
+    // Get the rest of the content after filepath line
+    const restContent = lines.slice(codeStartIndex).join("\n");
+    
+    // Check if this is a diff block
+    if (filepath && (language === "diff" || isDiffContent(restContent))) {
+      const diffBlocks = parseDiffBlocks(restContent);
+      
+      if (diffBlocks.length > 0) {
+        // This is a diff/edit block
+        blocks.push({
+          type: "diff",
+          content: restContent,
+          language: "diff",
+          filename: filepath,
+          diffBlocks,
+          isFullFile: false,
+        });
+        
+        files.push({
+          path: filepath,
+          content: restContent,
+          isEdit: true,
+          diffBlocks,
+        });
+      } else {
+        // Has filepath but no valid diff blocks - treat as full file
+        const codeContent = restContent.trim();
+        if (codeContent) {
+          blocks.push({
+            type: "file",
+            content: codeContent,
+            language: language === "diff" ? "tsx" : language,
+            filename: filepath,
+            isFullFile: true,
+          });
+          files.push({ path: filepath, content: codeContent, isEdit: false });
         }
       }
-    }
-
-    // Get the actual code content
-    const codeContent = lines.slice(codeStartIndex).join("\n").trim();
-
-    if (filepath && codeContent) {
-      // This is a file block
-      blocks.push({
-        type: "file",
-        content: codeContent,
-        language: language === "typescript" ? "tsx" : language,
-        filename: filepath,
-      });
-      files.push({ path: filepath, content: codeContent });
-    } else if (codeContent) {
-      // Regular code block (only if has content)
-      blocks.push({
-        type: "code",
-        content: codeContent || blockContent.trim(),
-        language,
-      });
+    } else if (filepath) {
+      // Regular file block (full file)
+      const codeContent = restContent.trim();
+      if (codeContent) {
+        blocks.push({
+          type: "file",
+          content: codeContent,
+          language: language === "typescript" ? "tsx" : language,
+          filename: filepath,
+          isFullFile: true,
+        });
+        files.push({ path: filepath, content: codeContent, isEdit: false });
+      }
+    } else {
+      // Try to infer filepath from content
+      let inferredPath: string | null = null;
+      
+      if (language === "tsx" || language === "typescript" || language === "ts") {
+        const componentMatch = blockContent.match(/export\s+default\s+function\s+(\w+)/);
+        if (componentMatch) {
+          const name = componentMatch[1];
+          if (name === "RootLayout" || name === "Layout") {
+            inferredPath = "app/layout.tsx";
+          } else if (name === "Page" || name === "Home" || name === "HomePage") {
+            inferredPath = "app/page.tsx";
+          } else {
+            inferredPath = `components/${name}.tsx`;
+          }
+        }
+      }
+      
+      const codeContent = blockContent.trim();
+      if (inferredPath && codeContent) {
+        blocks.push({
+          type: "file",
+          content: codeContent,
+          language: language === "typescript" ? "tsx" : language,
+          filename: inferredPath,
+          isFullFile: true,
+        });
+        files.push({ path: inferredPath, content: codeContent, isEdit: false });
+      } else if (codeContent) {
+        // Regular code block
+        blocks.push({
+          type: "code",
+          content: codeContent,
+          language,
+        });
+      }
     }
 
     lastIndex = match.index + match[0].length;

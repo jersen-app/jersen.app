@@ -2,7 +2,7 @@
 export { ChatInterface } from "./ChatInterface";
 
 // Types
-export type { Message, ParsedBlock, FileData } from "./types";
+export type { Message, ParsedBlock, FileData, DiffBlock } from "./types";
 
 // Components (for custom usage)
 export { MessageBubble } from "./MessageBubble";
@@ -13,6 +13,7 @@ export { CodeBlock } from "./CodeBlock";
 export { MarkdownContent } from "./MarkdownContent";
 export { StreamingIndicator } from "./StreamingIndicator";
 export { EmptyState } from "./EmptyState";
+export { DiffPreview } from "./DiffPreview";
 
 // Utils
 export { generateId, parseAIResponse } from "./utils";

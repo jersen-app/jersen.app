@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   FileCode,
   ChevronDown,
@@ -10,9 +9,11 @@ import {
   Copy,
   Check,
   Plus,
+  Pencil,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ParsedBlock, FileData } from "./types";
+import { DiffPreview } from "./DiffPreview";
 
 interface FileBlockProps {
   block: ParsedBlock;
@@ -24,6 +25,8 @@ export function FileBlock({ block, onAddFile }: FileBlockProps) {
   const [copied, setCopied] = useState(false);
   const [added, setAdded] = useState(false);
 
+  const isDiff = block.type === "diff" || (block.diffBlocks && block.diffBlocks.length > 0);
+
   const copyToClipboard = async () => {
     await navigator.clipboard.writeText(block.content);
     setCopied(true);
@@ -32,7 +35,12 @@ export function FileBlock({ block, onAddFile }: FileBlockProps) {
 
   const handleAddFile = () => {
     if (block.filename && onAddFile) {
-      onAddFile({ path: block.filename, content: block.content });
+      onAddFile({ 
+        path: block.filename, 
+        content: block.content,
+        isEdit: isDiff,
+        diffBlocks: block.diffBlocks,
+      });
       setAdded(true);
       setTimeout(() => setAdded(false), 2000);
     }
@@ -41,6 +49,20 @@ export function FileBlock({ block, onAddFile }: FileBlockProps) {
   const displayName = block.filename?.split("/").pop() || "file";
   const filePath = block.filename || "";
 
+  // Render diff view
+  if (isDiff && block.diffBlocks && block.diffBlocks.length > 0) {
+    return (
+      <div className="my-2">
+        <DiffPreview
+          filename={filePath}
+          diffBlocks={block.diffBlocks}
+          onApply={onAddFile ? handleAddFile : undefined}
+        />
+      </div>
+    );
+  }
+
+  // Render full file view
   return (
     <div className="my-2 rounded-lg border border-emerald-500/30 bg-emerald-500/5 overflow-hidden">
       {/* Header */}
@@ -60,6 +82,12 @@ export function FileBlock({ block, onAddFile }: FileBlockProps) {
               </span>
             )}
           </div>
+          {block.isFullFile === false && (
+            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-500/20 text-amber-700 dark:text-amber-400">
+              <Pencil className="h-2.5 w-2.5" />
+              EDIT
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-1 shrink-0">
           {onAddFile && (

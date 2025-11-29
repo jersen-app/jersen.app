@@ -108,6 +108,7 @@ export default function BuilderClient({
                     <ChatInterface
                         projectId={projectId}
                         onFilesGenerated={handleFilesGenerated}
+                        existingFiles={files}
                     />
                 </div>
             </div>
