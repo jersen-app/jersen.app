@@ -4,8 +4,9 @@ import ApiKeyDisplay from "@/components/ApiKeyDisplay";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 
-export default async function ProjectSettingsPage({ params }: { params: { id: string } }) {
-    const project = await getProjectById(params.id);
+export default async function ProjectSettingsPage({ params }: { params: Promise<{ id: string }> }) {
+    const { id } = await params;
+    const project = await getProjectById(id);
 
     if (!project) {
         notFound();
@@ -34,7 +35,7 @@ export default async function ProjectSettingsPage({ params }: { params: { id: st
                         Use this key to authenticate API requests to Jersen providers.
                     </p>
                 </div>
-                <ApiKeyDisplay initialApiKey={project.apiKey} projectId={project._id} />
+                <ApiKeyDisplay initialApiKey={project.apiKey} projectId={id} />
             </div>
 
             {/* Providers Status */}

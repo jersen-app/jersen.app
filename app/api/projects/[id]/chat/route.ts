@@ -1,0 +1,170 @@
+import { google } from "@ai-sdk/google";
+import { streamText, type CoreMessage } from "ai";
+import { auth } from "@clerk/nextjs/server";
+import connectToDatabase from "@/lib/db";
+import ChatMessage from "@/models/ChatMessage";
+import { SYSTEM_PROMPT, buildContextPrompt } from "@/lib/ai/prompts";
+import { parseGeneratedFiles, saveFilesToR2 } from "@/lib/ai/files";
+import { type FileChange, type Todo } from "@/lib/ai/tools";
+
+export const maxDuration = 60;
+
+export async function POST(
+    request: Request,
+    { params }: { params: Promise<{ id: string }> }
+) {
+    const { userId } = await auth();
+
+    if (!userId) {
+        return new Response("Unauthorized", { status: 401 });
+    }
+
+    let body;
+    try {
+        body = await request.json();
+    } catch {
+        return new Response("Invalid JSON", { status: 400 });
+    }
+
+    const incomingMessages = body.messages;
+    const { id: projectId } = await params;
+
+    // Validate messages
+    if (!incomingMessages || !Array.isArray(incomingMessages) || incomingMessages.length === 0) {
+        return new Response("No messages provided", { status: 400 });
+    }
+
+    // Get chat history from DB
+    await connectToDatabase();
+    const chatHistory = await ChatMessage.find({ projectId }).sort({ createdAt: 1 }).lean();
+
+    // Get existing files for context
+    const existingFiles: Array<{ path: string; content: string }> = [];
+    const assistantsWithFiles = chatHistory.filter(
+        (msg: any) => msg.role === "assistant" && msg.files && Object.keys(msg.files).length > 0
+    );
+    const lastAssistantWithFiles = assistantsWithFiles[assistantsWithFiles.length - 1];
+    
+    if (lastAssistantWithFiles?.files) {
+        Object.entries(lastAssistantWithFiles.files).forEach(([path, content]) => {
+            existingFiles.push({ path, content: content as string });
+        });
+    }
+
+    // Build context with file structure
+    const contextPrompt = buildContextPrompt(existingFiles);
+
+    // Build conversation history from DB
+    const historyMessages: CoreMessage[] = chatHistory.map((msg: any) => ({
+        role: msg.role as "user" | "assistant",
+        content: String(msg.content || ""),
+    }));
+
+    // Combine system prompt with context
+    const fullSystemPrompt = `${SYSTEM_PROMPT}\n\n${contextPrompt}`;
+
+    // Build the full message array with proper types
+    const allMessages: CoreMessage[] = [
+        { role: "system", content: fullSystemPrompt },
+        ...historyMessages,
+        ...incomingMessages.map((msg: any) => ({
+            role: msg.role as "user" | "assistant",
+            content: String(msg.content || ""),
+        })),
+    ];
+
+    // Track file changes
+    const fileChanges: FileChange[] = [];
+
+    // Stream response from Gemini
+    const result = streamText({
+        model: google("gemini-2.5-flash"),
+        messages: allMessages,
+        temperature: 0.7,
+        async onFinish({ text }) {
+            // Save messages to DB
+            try {
+                await connectToDatabase();
+
+                // Save user message
+                const userMessage = incomingMessages[incomingMessages.length - 1];
+                if (userMessage?.content) {
+                    await ChatMessage.create({
+                        projectId,
+                        role: "user",
+                        content: String(userMessage.content),
+                    });
+                }
+
+                // Parse generated files from response
+                const parsedFiles = parseGeneratedFiles(text);
+                const generatedFiles: Record<string, string> = {};
+                
+                for (const file of parsedFiles) {
+                    generatedFiles[file.path] = file.content;
+                    fileChanges.push({
+                        path: file.path,
+                        content: file.content,
+                        changeType: existingFiles.some(f => f.path === file.path) ? "modified" : "created",
+                        description: `Generated ${file.path}`,
+                    });
+                }
+
+                // Save files to R2 if any
+                if (Object.keys(generatedFiles).length > 0) {
+                    try {
+                        const filesToSave = Object.entries(generatedFiles).map(([path, content]) => ({
+                            path,
+                            content,
+                        }));
+                        await saveFilesToR2(projectId, filesToSave);
+                    } catch (error) {
+                        console.error("Failed to save files to R2:", error);
+                    }
+                }
+
+                // Save assistant message with files
+                await ChatMessage.create({
+                    projectId,
+                    role: "assistant",
+                    content: text,
+                    files: generatedFiles,
+                    metadata: { fileChanges },
+                });
+            } catch (error) {
+                console.error("Error in onFinish:", error);
+            }
+        },
+    });
+
+    return result.toTextStreamResponse();
+}
+
+// GET chat history
+export async function GET(
+    request: Request,
+    { params }: { params: Promise<{ id: string }> }
+) {
+    const { userId } = await auth();
+
+    if (!userId) {
+        return new Response("Unauthorized", { status: 401 });
+    }
+
+    const { id } = await params;
+
+    await connectToDatabase();
+    const messages = await ChatMessage.find({ projectId: id }).sort({
+        createdAt: 1,
+    });
+
+    // Format messages for the chat UI
+    const formattedMessages = messages.map((msg) => ({
+        id: msg._id.toString(),
+        role: msg.role as "user" | "assistant",
+        content: msg.content,
+        createdAt: msg.createdAt,
+    }));
+
+    return Response.json(formattedMessages);
+}

@@ -1,5 +1,7 @@
-import { createProject, getProjects } from "@/lib/actions/projects";
-import { Plus, FolderKanban } from "lucide-react";
+import { getProjects } from "@/lib/actions/projects";
+import { FolderKanban } from "lucide-react";
+import Link from "next/link";
+import CreateProjectForm from "@/components/CreateProjectForm";
 
 export default async function ProjectsPage() {
     const projects = await getProjects();
@@ -16,59 +18,7 @@ export default async function ProjectsPage() {
             </div>
 
             {/* Create Project Form */}
-            <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-black">
-                <h2 className="mb-4 text-lg font-medium">New Project</h2>
-                <form action={createProject} className="space-y-4">
-                    <div className="grid gap-4 md:grid-cols-2">
-                        <div className="space-y-2">
-                            <label htmlFor="name" className="text-sm font-medium">
-                                Project Name
-                            </label>
-                            <input
-                                type="text"
-                                name="name"
-                                id="name"
-                                placeholder="e.g. Mobile App MVP"
-                                required
-                                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-black focus:outline-none focus:ring-1 focus:ring-black dark:border-gray-700 dark:bg-gray-900 dark:focus:border-white dark:focus:ring-white"
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <label htmlFor="status" className="text-sm font-medium">
-                                Status
-                            </label>
-                            <select
-                                name="status"
-                                id="status"
-                                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-black focus:outline-none focus:ring-1 focus:ring-black dark:border-gray-700 dark:bg-gray-900 dark:focus:border-white dark:focus:ring-white"
-                            >
-                                <option value="planning">Planning</option>
-                                <option value="in-progress">In Progress</option>
-                                <option value="completed">Completed</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div className="space-y-2">
-                        <label htmlFor="description" className="text-sm font-medium">
-                            Description
-                        </label>
-                        <textarea
-                            name="description"
-                            id="description"
-                            rows={3}
-                            placeholder="Project details..."
-                            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-black focus:outline-none focus:ring-1 focus:ring-black dark:border-gray-700 dark:bg-gray-900 dark:focus:border-white dark:focus:ring-white"
-                        />
-                    </div>
-                    <button
-                        type="submit"
-                        className="inline-flex items-center justify-center rounded-md bg-black px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-800 dark:bg-white dark:text-black dark:hover:bg-gray-200"
-                    >
-                        <Plus className="mr-2 h-4 w-4" />
-                        Create Project
-                    </button>
-                </form>
-            </div>
+            <CreateProjectForm />
 
             {/* Projects List */}
             <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -109,12 +59,20 @@ export default async function ProjectsPage() {
                                     <p className="text-xs text-gray-400">
                                         Created {new Date(project.createdAt).toLocaleDateString()}
                                     </p>
-                                    <Link
-                                        href={`/dashboard/projects/${project._id}/settings`}
-                                        className="text-xs font-medium text-gray-600 hover:text-black dark:text-gray-400 dark:hover:text-white"
-                                    >
-                                        Settings →
-                                    </Link>
+                                    <div className="flex gap-2">
+                                        <Link
+                                            href={`/dashboard/projects/${project._id}/builder`}
+                                            className="text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                                        >
+                                            Builder →
+                                        </Link>
+                                        <Link
+                                            href={`/dashboard/projects/${project._id}/settings`}
+                                            className="text-xs font-medium text-gray-600 hover:text-black dark:text-gray-400 dark:hover:text-white"
+                                        >
+                                            Settings →
+                                        </Link>
+                                    </div>
                                 </div>
                             </div>
                         </div>

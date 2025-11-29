@@ -3,12 +3,14 @@ import { regenerateApiKey } from "@/lib/actions/api-keys";
 
 export async function POST(
     request: NextRequest,
-    { params }: { params: { id: string } }
+    { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        const { apiKey } = await regenerateApiKey(params.id);
+        const { id } = await params;
+        const { apiKey } = await regenerateApiKey(id);
         return NextResponse.json({ apiKey });
     } catch (error: any) {
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }
+
