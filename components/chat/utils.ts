@@ -42,20 +42,35 @@ export function parseAIResponse(content: string): {
   const blocks: ParsedBlock[] = [];
   const files: FileData[] = [];
 
+  // Pre-process: Handle "filepath: xxx\n\n```lang" pattern (filepath outside code block)
+  // Convert to "```lang\nfilepath: xxx" pattern
+  let processedContent = content.replace(
+    /filepath:\s*([^\n]+)\n\n```(\w+)?/gi,
+    (_, filepath, lang) => `\`\`\`${lang || 'tsx'}\nfilepath: ${filepath.trim()}`
+  );
+  
+  // Also handle single newline variant
+  processedContent = processedContent.replace(
+    /filepath:\s*([^\n]+)\n```(\w+)?/gi,
+    (_, filepath, lang) => `\`\`\`${lang || 'tsx'}\nfilepath: ${filepath.trim()}`
+  );
+
   // Match all COMPLETE code blocks with their language
   const codeBlockRegex = /```(\w+)?\n([\s\S]*?)```/g;
   
   // Also check for incomplete code block at the end (streaming)
-  const incompleteBlockMatch = content.match(/```(\w+)?\n([\s\S]*)$/);
-  const hasIncompleteBlock = incompleteBlockMatch && !content.endsWith('```');
+  const incompleteBlockMatch = processedContent.match(/```(\w+)?\n([\s\S]*)$/);
+  const hasIncompleteBlock = incompleteBlockMatch && !processedContent.endsWith('```');
 
   let lastIndex = 0;
   let match;
 
-  while ((match = codeBlockRegex.exec(content)) !== null) {
+  while ((match = codeBlockRegex.exec(processedContent)) !== null) {
     // Add text before this code block
     if (match.index > lastIndex) {
-      const textContent = content.slice(lastIndex, match.index).trim();
+      let textContent = processedContent.slice(lastIndex, match.index).trim();
+      // Remove standalone "filepath: xxx" lines that we couldn't match
+      textContent = textContent.replace(/^filepath:\s*[^\n]+$/gim, '').trim();
       if (textContent) {
         blocks.push({ type: "text", content: textContent });
       }
@@ -207,14 +222,17 @@ export function parseAIResponse(content: string): {
   }
 
   // Add remaining text after last code block
-  if (lastIndex < content.length) {
-    let textContent = content.slice(lastIndex).trim();
+  if (lastIndex < processedContent.length) {
+    let textContent = processedContent.slice(lastIndex).trim();
+    // Remove standalone "filepath: xxx" lines
+    textContent = textContent.replace(/^filepath:\s*[^\n]+$/gim, '').trim();
     
     // If there's an incomplete code block at the end (during streaming),
     // show it as a "streaming" code block instead of text
     if (hasIncompleteBlock && incompleteBlockMatch) {
-      const incompleteStart = content.lastIndexOf('```');
-      textContent = content.slice(lastIndex, incompleteStart).trim();
+      const incompleteStart = processedContent.lastIndexOf('```');
+      textContent = processedContent.slice(lastIndex, incompleteStart).trim();
+      textContent = textContent.replace(/^filepath:\s*[^\n]+$/gim, '').trim();
       
       if (textContent) {
         blocks.push({ type: "text", content: textContent });
@@ -252,9 +270,60 @@ export function parseAIResponse(content: string): {
   }
 
   // If no blocks were parsed, treat the whole thing as text
-  if (blocks.length === 0 && content.trim()) {
-    blocks.push({ type: "text", content: content.trim() });
+  if (blocks.length === 0 && processedContent.trim()) {
+    blocks.push({ type: "text", content: processedContent.trim() });
   }
 
-  return { blocks, files };
+  // Deduplicate file blocks with the same filename
+  // Keep only the last occurrence (most complete version)
+  const seenFiles = new Map<string, number>();
+  const indicesToRemove = new Set<number>();
+  
+  blocks.forEach((block, index) => {
+    if ((block.type === "file" || block.type === "diff") && block.filename) {
+      const prevIndex = seenFiles.get(block.filename);
+      if (prevIndex !== undefined) {
+        // Mark the previous (older) one for removal
+        indicesToRemove.add(prevIndex);
+      }
+      seenFiles.set(block.filename, index);
+    }
+  });
+  
+  const deduplicatedBlocks = blocks.filter((_, index) => !indicesToRemove.has(index));
+  
+  // Also deduplicate files array
+  const uniqueFiles = new Map<string, FileData>();
+  for (const file of files) {
+    uniqueFiles.set(file.path, file); // Later files overwrite earlier ones
+  }
+  
+  // Filter out config files that shouldn't be generated
+  const configFilesToIgnore = new Set([
+    'tailwind.config.ts',
+    'tailwind.config.js',
+    'postcss.config.js',
+    'postcss.config.mjs',
+    'next.config.ts',
+    'next.config.js',
+    'next.config.mjs',
+    'tsconfig.json',
+    'package.json',
+    'app/globals.css',
+    'app/layout.tsx',
+  ]);
+  
+  const filteredFiles = Array.from(uniqueFiles.values()).filter(
+    file => !configFilesToIgnore.has(file.path)
+  );
+  
+  // Also filter blocks
+  const filteredBlocks = deduplicatedBlocks.filter(block => {
+    if ((block.type === "file" || block.type === "diff") && block.filename) {
+      return !configFilesToIgnore.has(block.filename);
+    }
+    return true;
+  });
+
+  return { blocks: filteredBlocks, files: filteredFiles };
 }

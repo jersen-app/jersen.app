@@ -30,15 +30,29 @@ function extractDiffBlocks(content: string): DiffBlock[] {
  * Handles:
  * 1. Full file format: ```tsx\nfilepath: path/to/file.tsx\n[content]```
  * 2. Diff format: ```diff\nfilepath: path/to/file.tsx\n<<<<<<< SEARCH...```
+ * 3. Filepath outside code block: filepath: path\n```tsx\n[content]```
  */
 export function parseGeneratedFiles(aiResponse: string): ParsedFile[] {
     const files: ParsedFile[] = [];
+    
+    // Pre-process: Handle "filepath: xxx\n\n```lang" pattern (filepath outside code block)
+    // Convert to "```lang\nfilepath: xxx" pattern
+    let processedContent = aiResponse.replace(
+        /filepath:\s*([^\n]+)\n\n```(\w+)?/gi,
+        (_, filepath, lang) => `\`\`\`${lang || 'tsx'}\nfilepath: ${filepath.trim()}`
+    );
+    
+    // Also handle single newline variant
+    processedContent = processedContent.replace(
+        /filepath:\s*([^\n]+)\n```(\w+)?/gi,
+        (_, filepath, lang) => `\`\`\`${lang || 'tsx'}\nfilepath: ${filepath.trim()}`
+    );
     
     // Match code blocks with language
     const codeBlockRegex = /```(\w+)?\n([\s\S]*?)```/g;
     let match;
 
-    while ((match = codeBlockRegex.exec(aiResponse)) !== null) {
+    while ((match = codeBlockRegex.exec(processedContent)) !== null) {
         const language = match[1] || '';
         const blockContent = match[2] || '';
         
@@ -101,8 +115,39 @@ export function parseGeneratedFiles(aiResponse: string): ParsedFile[] {
             }
         }
     }
+    
+    // Deduplicate - keep last occurrence of each file
+    const fileMap = new Map<string, ParsedFile>();
+    for (const file of files) {
+        fileMap.set(file.path, file);
+    }
+    
+    // Filter out config files that shouldn't be generated
+    const configFilesToIgnore = [
+        'tailwind.config.ts',
+        'tailwind.config.js',
+        'postcss.config.js',
+        'postcss.config.mjs',
+        'next.config.ts',
+        'next.config.js',
+        'next.config.mjs',
+        'tsconfig.json',
+        'package.json',
+        'package-lock.json',
+        'pnpm-lock.yaml',
+        'yarn.lock',
+        '.eslintrc.json',
+        '.eslintrc.js',
+        'eslint.config.mjs',
+        'app/globals.css',
+        'app/layout.tsx', // E2B template already has this
+    ];
+    
+    const filteredFiles = Array.from(fileMap.values()).filter(
+        file => !configFilesToIgnore.includes(file.path)
+    );
 
-    return files;
+    return filteredFiles;
 }
 
 /**
