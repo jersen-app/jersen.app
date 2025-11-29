@@ -10,6 +10,13 @@ import { type FileChange } from "@/lib/ai/tools";
 
 export const maxDuration = 60;
 
+interface AttachmentData {
+    type: "image" | "pdf";
+    name: string;
+    mimeType: string;
+    data: string; // base64
+}
+
 export async function POST(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
@@ -45,8 +52,11 @@ export async function POST(
 
     // Get existing files from frontend (current editor state)
     const frontendFiles: Array<{ path: string; content: string }> = body.files || [];
+    
+    // Get attachments (images, PDFs)
+    const attachments: AttachmentData[] = body.attachments || [];
 
-    if (!userContent.trim()) {
+    if (!userContent.trim() && attachments.length === 0) {
         return new Response("Empty message", { status: 400 });
     }
 
@@ -86,11 +96,51 @@ export async function POST(
     // Combine system prompt with context
     const fullSystemPrompt = `${SYSTEM_PROMPT}\n\n${contextPrompt}`;
 
+    // Build user message content - can be multimodal with images
+    type MessageContent = string | Array<{ type: "text"; text: string } | { type: "image"; image: string; mimeType?: string }>;
+    
+    let userMessageContent: MessageContent;
+    
+    if (attachments.length > 0) {
+        // Multimodal message with images/files
+        const contentParts: Array<{ type: "text"; text: string } | { type: "image"; image: string; mimeType?: string }> = [];
+        
+        // Add images first
+        for (const attachment of attachments) {
+            if (attachment.type === "image") {
+                contentParts.push({
+                    type: "image",
+                    image: attachment.data, // base64 data
+                    mimeType: attachment.mimeType,
+                });
+            }
+            // For PDFs, we could add text extraction here in the future
+        }
+        
+        // Add text content
+        if (userContent.trim()) {
+            contentParts.push({
+                type: "text",
+                text: userContent,
+            });
+        } else {
+            // If no text but has images, add a default prompt
+            contentParts.push({
+                type: "text",
+                text: "Please analyze this image and help me recreate or work with what you see.",
+            });
+        }
+        
+        userMessageContent = contentParts;
+    } else {
+        userMessageContent = userContent;
+    }
+
     // Build the full message array with proper types
     const allMessages: CoreMessage[] = [
         { role: "system", content: fullSystemPrompt },
         ...historyMessages,
-        { role: "user", content: userContent },
+        { role: "user", content: userMessageContent },
     ];
 
     // Track file changes
@@ -106,11 +156,16 @@ export async function POST(
             try {
                 await connectToDatabase();
 
-                // Save user message
+                // Save user message (store text content only for history)
                 await ChatMessage.create({
                     projectId,
                     role: "user",
-                    content: userContent,
+                    content: userContent || "[Image attached]",
+                    metadata: attachments.length > 0 ? { 
+                        hasAttachments: true, 
+                        attachmentCount: attachments.length,
+                        attachmentTypes: attachments.map(a => a.type),
+                    } : undefined,
                 });
 
                 // Parse generated files from response

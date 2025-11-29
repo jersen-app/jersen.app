@@ -2,7 +2,7 @@
 export { ChatInterface } from "./ChatInterface";
 
 // Types
-export type { Message, ParsedBlock, FileData, DiffBlock } from "./types";
+export type { Message, ParsedBlock, FileData, DiffBlock, Attachment } from "./types";
 
 // Components (for custom usage)
 export { MessageBubble } from "./MessageBubble";

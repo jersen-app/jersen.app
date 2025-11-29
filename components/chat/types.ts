@@ -13,12 +13,22 @@ export interface ParsedBlock {
   isFullFile?: boolean;
 }
 
+export interface Attachment {
+  id: string;
+  type: "image" | "pdf";
+  name: string;
+  size: number;
+  url: string; // base64 or blob URL
+  file?: File;
+}
+
 export interface Message {
   id: string;
   role: "user" | "assistant";
   content: string;
   parsedBlocks?: ParsedBlock[];
   files?: FileData[];
+  attachments?: Attachment[];
   timestamp?: Date;
 }
 

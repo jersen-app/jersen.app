@@ -1,11 +1,26 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import type { Message, FileData, ParsedBlock } from "./types";
+import type { Message, FileData, ParsedBlock, Attachment } from "./types";
 import { generateId, parseAIResponse } from "./utils";
 import { applyDiffBlocks } from "@/lib/ai/diff";
 import { MessageList } from "./MessageList";
 import { ChatInput } from "./ChatInput";
+
+// Helper to convert File to base64
+const fileToBase64 = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      // Remove data URL prefix (e.g., "data:image/png;base64,")
+      const base64 = result.split(",")[1];
+      resolve(base64);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+};
 
 interface ChatInterfaceProps {
   projectId: string;
@@ -117,14 +132,15 @@ export function ChatInterface({
   );
 
   // Send message
-  const sendMessage = async () => {
+  const sendMessage = async (attachments?: Attachment[]) => {
     const content = input.trim();
-    if (!content || isLoading) return;
+    if ((!content && (!attachments || attachments.length === 0)) || isLoading) return;
 
     const userMessage: Message = {
       id: generateId(),
       role: "user",
       content,
+      attachments,
       timestamp: new Date(),
     };
 
@@ -140,6 +156,22 @@ export function ChatInterface({
       content,
     }));
 
+    // Prepare attachments for API (convert to base64)
+    const attachmentData = attachments ? await Promise.all(
+      attachments.map(async (att) => {
+        if (att.file) {
+          const base64 = await fileToBase64(att.file);
+          return {
+            type: att.type,
+            name: att.name,
+            mimeType: att.file.type,
+            data: base64,
+          };
+        }
+        return null;
+      })
+    ) : [];
+
     try {
       const response = await fetch(`/api/projects/${projectId}/chat`, {
         method: "POST",
@@ -147,6 +179,7 @@ export function ChatInterface({
         body: JSON.stringify({ 
           message: content,
           files: currentFiles, // Send existing files so AI knows what exists
+          attachments: attachmentData.filter(Boolean),
         }),
       });
 
