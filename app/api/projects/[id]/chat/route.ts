@@ -5,7 +5,7 @@ import connectToDatabase from "@/lib/db";
 import ChatMessage from "@/models/ChatMessage";
 import { SYSTEM_PROMPT, buildContextPrompt } from "@/lib/ai/prompts";
 import { parseGeneratedFiles, saveFilesToR2 } from "@/lib/ai/files";
-import { type FileChange, type Todo } from "@/lib/ai/tools";
+import { type FileChange } from "@/lib/ai/tools";
 
 export const maxDuration = 60;
 
@@ -26,12 +26,24 @@ export async function POST(
         return new Response("Invalid JSON", { status: 400 });
     }
 
-    const incomingMessages = body.messages;
     const { id: projectId } = await params;
 
-    // Validate messages
-    if (!incomingMessages || !Array.isArray(incomingMessages) || incomingMessages.length === 0) {
-        return new Response("No messages provided", { status: 400 });
+    // Support both { message: string } and { messages: array } formats
+    let userContent: string;
+    
+    if (body.message && typeof body.message === "string") {
+        // Simple format: { message: "..." }
+        userContent = body.message;
+    } else if (body.messages && Array.isArray(body.messages) && body.messages.length > 0) {
+        // Array format: { messages: [...] }
+        const lastMessage = body.messages[body.messages.length - 1];
+        userContent = String(lastMessage?.content || "");
+    } else {
+        return new Response("No message provided", { status: 400 });
+    }
+
+    if (!userContent.trim()) {
+        return new Response("Empty message", { status: 400 });
     }
 
     // Get chat history from DB
@@ -67,10 +79,7 @@ export async function POST(
     const allMessages: CoreMessage[] = [
         { role: "system", content: fullSystemPrompt },
         ...historyMessages,
-        ...incomingMessages.map((msg: any) => ({
-            role: msg.role as "user" | "assistant",
-            content: String(msg.content || ""),
-        })),
+        { role: "user", content: userContent },
     ];
 
     // Track file changes
@@ -87,14 +96,11 @@ export async function POST(
                 await connectToDatabase();
 
                 // Save user message
-                const userMessage = incomingMessages[incomingMessages.length - 1];
-                if (userMessage?.content) {
-                    await ChatMessage.create({
-                        projectId,
-                        role: "user",
-                        content: String(userMessage.content),
-                    });
-                }
+                await ChatMessage.create({
+                    projectId,
+                    role: "user",
+                    content: userContent,
+                });
 
                 // Parse generated files from response
                 const parsedFiles = parseGeneratedFiles(text);
@@ -158,13 +164,13 @@ export async function GET(
         createdAt: 1,
     });
 
-    // Format messages for the chat UI
+    // Format messages for the chat UI (keep _id for compatibility)
     const formattedMessages = messages.map((msg) => ({
-        id: msg._id.toString(),
+        _id: msg._id.toString(),
         role: msg.role as "user" | "assistant",
         content: msg.content,
         createdAt: msg.createdAt,
     }));
 
-    return Response.json(formattedMessages);
+    return Response.json({ messages: formattedMessages });
 }

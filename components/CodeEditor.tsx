@@ -1,8 +1,9 @@
 "use client";
 
 import { Editor } from "@monaco-editor/react";
-import { useState } from "react";
-import { Code2, FileCode } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Code2, FileCode, Sparkles } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export default function CodeEditor({
     files,
@@ -12,7 +13,50 @@ export default function CodeEditor({
     projectId: string;
 }) {
     const [selectedFile, setSelectedFile] = useState(files[0]?.path || "");
-    const [code, setCode] = useState(files[0]?.content || "");
+    const [recentlyAdded, setRecentlyAdded] = useState<Set<string>>(new Set());
+    const previousFilePaths = useRef<Set<string>>(new Set(files.map((f) => f.path)));
+
+    // Track file changes and highlight new files
+    useEffect(() => {
+        const currentPaths = new Set(files.map((f) => f.path));
+        const newPaths: string[] = [];
+
+        // Find newly added files
+        currentPaths.forEach((path) => {
+            if (!previousFilePaths.current.has(path)) {
+                newPaths.push(path);
+            }
+        });
+
+        if (newPaths.length > 0) {
+            // Mark as recently added
+            setRecentlyAdded((prev) => {
+                const updated = new Set(prev);
+                newPaths.forEach((p) => updated.add(p));
+                return updated;
+            });
+
+            // Auto-select the newest file
+            setSelectedFile(newPaths[newPaths.length - 1]);
+
+            // Remove highlight after 2 seconds
+            setTimeout(() => {
+                setRecentlyAdded((prev) => {
+                    const updated = new Set(prev);
+                    newPaths.forEach((p) => updated.delete(p));
+                    return updated;
+                });
+            }, 2000);
+        }
+
+        // Update selected file if current selection was removed
+        if (selectedFile && !currentPaths.has(selectedFile) && files.length > 0) {
+            setSelectedFile(files[files.length - 1].path);
+        }
+
+        // Update the ref for next comparison
+        previousFilePaths.current = currentPaths;
+    }, [files, selectedFile]);
 
     const currentFile = files.find((f) => f.path === selectedFile);
 
@@ -38,15 +82,21 @@ export default function CodeEditor({
                                 key={file.path}
                                 onClick={() => {
                                     setSelectedFile(file.path);
-                                    setCode(file.content);
                                 }}
-                                className={`flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+                                className={cn(
+                                    "flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-all",
                                     selectedFile === file.path
                                         ? "bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400"
-                                        : "text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
-                                }`}
+                                        : "text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800",
+                                    recentlyAdded.has(file.path) &&
+                                        "animate-pulse ring-2 ring-green-500 ring-offset-1"
+                                )}
                             >
-                                <FileCode className="h-3.5 w-3.5" />
+                                {recentlyAdded.has(file.path) ? (
+                                    <Sparkles className="h-3.5 w-3.5 text-green-500" />
+                                ) : (
+                                    <FileCode className="h-3.5 w-3.5" />
+                                )}
                                 {file.path.split("/").pop()}
                             </button>
                         ))}
@@ -58,8 +108,7 @@ export default function CodeEditor({
                             height="100%"
                             defaultLanguage="typescript"
                             language={getLanguage(currentFile?.path || "")}
-                            value={code}
-                            onChange={(value) => setCode(value || "")}
+                            value={currentFile?.content || ""}
                             theme="vs-dark"
                             options={{
                                 minimap: { enabled: false },
@@ -73,6 +122,7 @@ export default function CodeEditor({
                                 renderLineHighlight: "line",
                                 cursorBlinking: "smooth",
                                 smoothScrolling: true,
+                                readOnly: true,
                             }}
                         />
                     </div>
