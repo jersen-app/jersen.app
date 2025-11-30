@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { validateApiKey } from "@/lib/middleware/validateApiKey";
 import mongoose from "mongoose";
-import { getProjectConnectionString } from "@/lib/database/provisioner";
+
+// Separate database for all project data
+const PROJECT_DB_URI = process.env.PROJECT_DB_URI || process.env.MONGO_URI;
 
 // Check if origin is a valid E2B sandbox URL
 function isValidE2BSandbox(origin: string | null): boolean {
@@ -29,39 +31,39 @@ export async function OPTIONS(request: NextRequest) {
     });
 }
 
-// Helper to get project database connection
-async function getProjectDb(project: any) {
-    if (!project.providers?.database?.enabled) {
-        throw new Error("Database provider is not enabled for this project");
+// Cached connection for project database
+let projectDbConnection: mongoose.Connection | null = null;
+
+// Get connection to the shared project database
+async function getProjectDb() {
+    if (projectDbConnection && projectDbConnection.readyState === 1) {
+        return projectDbConnection;
     }
 
-    if (!project.providers.database.dbName || !project.providers.database.credentials) {
-        throw new Error("Database not provisioned for this project");
+    if (!PROJECT_DB_URI) {
+        throw new Error("PROJECT_DB_URI is not configured");
     }
 
-    const connectionString = getProjectConnectionString(
-        project.providers.database.dbName,
-        project.providers.database.credentials
-    );
+    // Connect to the projectdb database
+    projectDbConnection = await mongoose.createConnection(PROJECT_DB_URI, {
+        dbName: "projectdb",
+    }).asPromise();
 
-    // Create connection
-    const conn = await mongoose.createConnection(connectionString).asPromise();
-    
-    if (!conn.db) {
-        throw new Error("Failed to connect to database");
-    }
-    
-    return conn as mongoose.Connection & { db: mongoose.mongo.Db };
+    return projectDbConnection;
 }
 
-// POST /api/providers/database/insert
+// Get collection name with project prefix for isolation
+function getCollectionName(projectId: string, collection: string): string {
+    return `proj_${projectId}_${collection}`;
+}
+
+// POST /api/providers/database
 export async function POST(request: NextRequest) {
     const origin = request.headers.get("origin");
     const corsHeaders = getCorsHeaders(origin);
 
     const auth = await validateApiKey(request);
     if (auth instanceof NextResponse) {
-        // Add CORS headers to error response
         const headers = new Headers(auth.headers);
         Object.entries(corsHeaders).forEach(([key, value]) => headers.set(key, value));
         return new NextResponse(auth.body, { status: auth.status, headers });
@@ -80,9 +82,9 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        const conn = await getProjectDb(project);
-        const result = await conn.db.collection(collection).insertOne(document);
-        await conn.close();
+        const conn = await getProjectDb();
+        const fullCollectionName = getCollectionName(project._id.toString(), collection);
+        const result = await conn.db!.collection(fullCollectionName).insertOne(document);
 
         return NextResponse.json({
             success: true,
@@ -97,7 +99,7 @@ export async function POST(request: NextRequest) {
     }
 }
 
-// GET /api/providers/database/find?collection=xxx&query={}
+// GET /api/providers/database?collection=xxx&query={}
 export async function GET(request: NextRequest) {
     const origin = request.headers.get("origin");
     const corsHeaders = getCorsHeaders(origin);
@@ -127,13 +129,13 @@ export async function GET(request: NextRequest) {
         const query = JSON.parse(queryStr);
         const limit = parseInt(limitStr, 10);
 
-        const conn = await getProjectDb(project);
-        const documents = await conn.db
-            .collection(collection)
+        const conn = await getProjectDb();
+        const fullCollectionName = getCollectionName(project._id.toString(), collection);
+        const documents = await conn.db!
+            .collection(fullCollectionName)
             .find(query)
             .limit(limit)
             .toArray();
-        await conn.close();
 
         return NextResponse.json({
             success: true,
@@ -149,7 +151,7 @@ export async function GET(request: NextRequest) {
     }
 }
 
-// PATCH /api/providers/database/update
+// PATCH /api/providers/database
 export async function PATCH(request: NextRequest) {
     const origin = request.headers.get("origin");
     const corsHeaders = getCorsHeaders(origin);
@@ -174,11 +176,14 @@ export async function PATCH(request: NextRequest) {
             );
         }
 
-        const conn = await getProjectDb(project);
-        const result = await conn.db
-            .collection(collection)
-            .updateMany(query, { $set: update });
-        await conn.close();
+        const conn = await getProjectDb();
+        const fullCollectionName = getCollectionName(project._id.toString(), collection);
+        
+        // Handle both $set style and direct field updates
+        const updateOp = update.$set ? update : { $set: update };
+        const result = await conn.db!
+            .collection(fullCollectionName)
+            .updateMany(query, updateOp);
 
         return NextResponse.json({
             success: true,
@@ -194,7 +199,7 @@ export async function PATCH(request: NextRequest) {
     }
 }
 
-// DELETE /api/providers/database
+// DELETE /api/providers/database?collection=xxx&query={}
 export async function DELETE(request: NextRequest) {
     const origin = request.headers.get("origin");
     const corsHeaders = getCorsHeaders(origin);
@@ -222,9 +227,9 @@ export async function DELETE(request: NextRequest) {
 
         const query = JSON.parse(queryStr);
 
-        const conn = await getProjectDb(project);
-        const result = await conn.db.collection(collection).deleteMany(query);
-        await conn.close();
+        const conn = await getProjectDb();
+        const fullCollectionName = getCollectionName(project._id.toString(), collection);
+        const result = await conn.db!.collection(fullCollectionName).deleteMany(query);
 
         return NextResponse.json({
             success: true,

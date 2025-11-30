@@ -581,6 +581,18 @@ const API_URL = '__JERSEN_URL__';      // Automatically replaced
 - \`MONGODB_URI\` or any database connection strings
 
 ### Database Client (COPY THIS EXACTLY)
+
+**⚠️ IMPORTANT: Use the EXACT API endpoints shown below!**
+- Insert: \`POST /api/providers/database\` with \`{ collection, document }\`
+- Find: \`GET /api/providers/database?collection=X&query={}\`
+- Update: \`PATCH /api/providers/database\` with \`{ collection, query, update }\`
+- Delete: \`DELETE /api/providers/database?collection=X&query={}\`
+
+❌ **WRONG endpoints (DO NOT USE):**
+- \`/api/providers/database/insertOne/\${collection}\` - WRONG!
+- \`/api/providers/database/find/\${collection}\` - WRONG!
+- \`/api/providers/database/collections/\${collection}\` - WRONG!
+
 \`\`\`typescript
 filepath: lib/jersen-db.ts
 // These values are automatically injected by Jersen
@@ -613,7 +625,7 @@ interface DeleteResult {
   error?: string;
 }
 
-// Insert a document
+// Insert a document - POST to /api/providers/database
 export async function insertOne<T extends Record<string, any>>(
   collection: string, 
   document: T
@@ -629,7 +641,7 @@ export async function insertOne<T extends Record<string, any>>(
   return res.json();
 }
 
-// Find documents
+// Find documents - GET /api/providers/database?collection=X&query={}
 export async function find<T = any>(
   collection: string, 
   query: Record<string, any> = {}, 
@@ -649,7 +661,7 @@ export async function find<T = any>(
   return res.json();
 }
 
-// Update documents
+// Update documents - PATCH /api/providers/database
 export async function updateMany(
   collection: string,
   query: Record<string, any>,
@@ -666,7 +678,7 @@ export async function updateMany(
   return res.json();
 }
 
-// Delete documents
+// Delete documents - DELETE /api/providers/database?collection=X&query={}
 export async function deleteMany(
   collection: string,
   query: Record<string, any>
