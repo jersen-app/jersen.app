@@ -114,15 +114,19 @@ async function createSandbox(
         ...(files || {}),
     };
 
-    // Write files to sandbox
+    // Write files to sandbox one by one
     // Note: nextjs-developer template uses /home/user as working directory
     if (Object.keys(filesToWrite).length > 0) {
-        const fileWrites = Object.entries(filesToWrite).map(([path, content]) => ({
-            path: `/home/user/${path}`,
-            data: content,
-        }));
-        await sandbox.files.write(fileWrites);
-        console.log(`Wrote ${fileWrites.length} files to sandbox:`, fileWrites.map(f => f.path).join(', '));
+        console.log(`Writing ${Object.keys(filesToWrite).length} files to sandbox...`);
+        for (const [path, content] of Object.entries(filesToWrite)) {
+            const fullPath = `/home/user/${path}`;
+            try {
+                await sandbox.files.write(fullPath, content);
+                console.log(`Wrote: ${fullPath}`);
+            } catch (error) {
+                console.error(`Failed to write ${fullPath}:`, error);
+            }
+        }
     }
     
     // Install stored dependencies from the project
@@ -240,14 +244,18 @@ async function updateSandbox(
         await connectToDatabase();
         const project = await Project.findById(projectId);
 
-        // Update files
+        // Update files one by one
         if (files && Object.keys(files).length > 0) {
-            const fileWrites = Object.entries(files).map(([path, content]) => ({
-                path: `/home/user/${path}`,
-                data: content,
-            }));
-            await sandbox.files.write(fileWrites);
-            console.log(`Updated files in sandbox:`, fileWrites.map(f => f.path).join(', '));
+            console.log(`Updating ${Object.keys(files).length} files in sandbox...`);
+            for (const [path, content] of Object.entries(files)) {
+                const fullPath = `/home/user/${path}`;
+                try {
+                    await sandbox.files.write(fullPath, content);
+                    console.log(`Updated: ${fullPath}`);
+                } catch (error) {
+                    console.error(`Failed to update ${fullPath}:`, error);
+                }
+            }
         }
         
         // Install any new dependencies from the project

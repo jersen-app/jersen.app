@@ -104,20 +104,39 @@ export default function BuilderClient({
 
     // Handle new files generated from AI
     const handleFilesGenerated = useCallback(
-        (newFiles: { path: string; content: string }[]) => {
+        async (newFiles: { path: string; content: string }[]) => {
             console.log(`[BuilderClient] Received ${newFiles.length} new files:`, newFiles.map(f => f.path));
-            setFiles((prevFiles) => {
-                // Merge new files with existing ones
-                const fileMap = new Map(prevFiles.map((f) => [f.path, f]));
+            
+            // Merge new files with existing ones
+            const updatedFiles = (() => {
+                const fileMap = new Map(files.map((f) => [f.path, f]));
                 newFiles.forEach((file) => {
                     fileMap.set(file.path, file);
                 });
-                const merged = Array.from(fileMap.values());
-                console.log(`[BuilderClient] Total files after merge: ${merged.length}`, merged.map(f => f.path));
-                return merged;
-            });
+                return Array.from(fileMap.values());
+            })();
+            
+            setFiles(updatedFiles);
+            console.log(`[BuilderClient] Total files after merge: ${updatedFiles.length}`, updatedFiles.map(f => f.path));
+            
+            // Auto-sync to sandbox if running
+            if (sandbox.status === "running") {
+                const filesObj = updatedFiles.reduce((acc, f) => {
+                    acc[f.path] = f.content;
+                    return acc;
+                }, {} as Record<string, string>);
+                
+                try {
+                    await sandbox.update(filesObj);
+                    setNeedsSync(false);
+                    console.log(`[BuilderClient] Auto-synced files to sandbox`);
+                } catch (error) {
+                    console.error('[BuilderClient] Failed to sync:', error);
+                    setNeedsSync(true);
+                }
+            }
         },
-        []
+        [files, sandbox]
     );
 
     // Track if we need to sync files to sandbox

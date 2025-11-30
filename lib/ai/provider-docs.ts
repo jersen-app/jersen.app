@@ -1,8 +1,8 @@
 /**
  * Provider Documentation for AI Code Generation
  * 
- * These docs are injected into the AI context ONLY when needed,
- * triggered by the getProviderDocs tool or detected context.
+ * These docs are injected into the AI context when needed,
+ * based on detected context from user messages.
  */
 
 export interface ProjectConfig {
@@ -767,9 +767,7 @@ export function getProviderOverview(config: ProjectConfig): string {
     return `## Jersen Providers Available
 This project has these Jersen providers enabled: **${enabled.join(', ')}**
 
-When implementing features that need authentication, file storage, or database operations, use the \`getProviderDocs\` tool to get implementation details and code templates.
-
-Example: If user asks for "login page", call getProviderDocs with provider="auth" first.
+Provider documentation is automatically included below when features like login, file upload, or database operations are detected. Just follow the code patterns shown.
 `;
 }
 

@@ -69,19 +69,23 @@ This project runs on Jersen, which provides backend services as wrapped provider
 
 **IMPORTANT**: Provider documentation is AUTOMATICALLY included below when needed. Just use the code patterns shown in the "Provider Implementation Docs" section at the bottom of this prompt.
 
-## JERSEN AUTH - SIMPLE REDIRECT FLOW
+## JERSEN AUTH - SIMPLE REDIRECT FLOW (CLIENT-ONLY)
 
-Jersen Auth uses a simple redirect-based OAuth flow:
+Jersen Auth uses a simple redirect-based OAuth flow. **All auth code is CLIENT-SIDE ONLY**.
+
+**DO NOT use \`next/headers\` or \`cookies()\` for auth - they don't work with client-side localStorage!**
+
+How it works:
 1. User clicks login button → redirects to Jersen's OAuth page
 2. User picks provider (Google, GitHub, etc.) on Jersen's page
-3. After login, Jersen redirects back with session_token
-4. Your app stores the token and uses it for auth
+3. After login, Jersen redirects back with session_token in URL
+4. Your app stores the token in localStorage
 
-**Key files for auth:**
-- \`lib/auth.ts\` - login(), logout(), getUser(), getToken()
-- \`app/auth/callback/page.tsx\` - handles OAuth redirect
-- \`hooks/useAuth.ts\` - React hook for auth state
-- \`components/LoginButton.tsx\` - simple button that calls login()
+**Key files for auth (all client-side):**
+- \`lib/auth.ts\` - login(), logout(), getUser(), getToken() - uses localStorage
+- \`app/auth/callback/page.tsx\` - "use client" - handles OAuth redirect
+- \`hooks/useAuth.ts\` - "use client" - React hook for auth state
+- \`components/LoginButton.tsx\` - "use client" - simple button that calls login()
 
 **NO complex AuthProvider needed!** Just use the useAuth hook.
 
@@ -303,6 +307,7 @@ import { Home, User, Settings, ArrowRight, Menu, X, Search, Plus } from 'lucide-
 9. **Always add "use client" for client components** (useState, useEffect, onClick, etc.)
 10. **Handle loading and error states** when fetching data
 11. **Review existing code first** - understand before changing
+12. **NEVER import \`next/headers\` or \`cookies()\` in client components** - they only work in Server Components and API routes!
 
 ## PLACEHOLDER IMAGES
 
