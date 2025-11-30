@@ -28,6 +28,10 @@ import {
 } from "@/components/ui/tooltip";
 import CreditDisplay from "@/components/CreditDisplay";
 
+// Chat limits
+const MAX_MESSAGES = 50; // Maximum messages per conversation
+const MAX_INPUT_LENGTH = 4000; // Maximum characters per message
+
 // Helper to convert File to base64
 const fileToBase64 = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
@@ -380,9 +384,6 @@ export function ChatInterface({
       {/* Chat Header with controls */}
       <div className="shrink-0 flex items-center justify-between px-3 py-2 border-b bg-background/50">
         <div className="flex items-center gap-3">
-          <span className="text-xs font-medium text-muted-foreground">
-            {messages.length > 0 ? `${messages.length} messages` : "New conversation"}
-          </span>
           {hasMemory && (
             <Tooltip>
               <TooltipTrigger asChild>
@@ -475,12 +476,34 @@ export function ChatInterface({
         streamingContent={streamingContent}
         streamingBlocks={streamingBlocks}
       />
-      <ChatInput
-        value={input}
-        onChange={setInput}
-        onSend={sendMessage}
-        isLoading={isLoading}
-      />
+      
+      {/* Message limit reached */}
+      {messages.length >= MAX_MESSAGES ? (
+        <div className="shrink-0 border-t bg-muted/50 p-4">
+          <div className="text-center space-y-2">
+            <p className="text-sm text-muted-foreground">
+              Message limit reached. Please start a new chat to continue.
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleNewChat}
+              className="gap-2"
+            >
+              <MessageSquarePlus className="h-4 w-4" />
+              New Chat
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <ChatInput
+          value={input}
+          onChange={(v) => setInput(v.slice(0, MAX_INPUT_LENGTH))}
+          onSend={sendMessage}
+          isLoading={isLoading}
+          maxLength={MAX_INPUT_LENGTH}
+        />
+      )}
     </div>
   );
 }

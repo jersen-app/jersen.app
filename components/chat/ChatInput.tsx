@@ -32,6 +32,7 @@ interface ChatInputProps {
   onChange: (value: string) => void;
   onSend: (attachments?: Attachment[]) => void;
   isLoading: boolean;
+  maxLength?: number;
 }
 
 export function ChatInput({
@@ -39,6 +40,7 @@ export function ChatInput({
   onChange,
   onSend,
   isLoading,
+  maxLength = 4000,
 }: ChatInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -292,13 +294,14 @@ export function ChatInput({
           <Textarea
             ref={textareaRef}
             value={value}
-            onChange={(e) => onChange(e.target.value)}
+            onChange={(e) => onChange(e.target.value.slice(0, maxLength))}
             onKeyDown={handleKeyDown}
             onPaste={handlePaste}
             placeholder="What do you want to build? Paste images or attach files..."
             className="min-h-[80px] max-h-[200px] resize-none border-0 bg-transparent px-4 pt-4 pb-14 text-sm focus-visible:ring-0 focus-visible:ring-offset-0"
             disabled={isLoading || isRecording || isTranscribing}
             rows={3}
+            maxLength={maxLength}
           />
 
           {/* Bottom toolbar */}
@@ -399,9 +402,17 @@ export function ChatInput({
           </div>
         </div>
 
-        <p className="text-[10px] text-muted-foreground mt-2 text-center">
-          Enter to send • Shift+Enter for new line • Paste images directly
-        </p>
+        <div className="flex items-center justify-between mt-2 px-1">
+          <p className="text-[10px] text-muted-foreground">
+            Enter to send • Shift+Enter for new line • Paste images directly
+          </p>
+          <span className={cn(
+            "text-[10px] tabular-nums",
+            value.length > maxLength * 0.9 ? "text-destructive" : "text-muted-foreground"
+          )}>
+            {value.length}/{maxLength}
+          </span>
+        </div>
       </div>
     </div>
   );
