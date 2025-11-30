@@ -13,19 +13,36 @@ interface SessionPayload {
     exp: number;
 }
 
-// CORS headers for cross-origin requests from sandboxes
-const corsHeaders = {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET, DELETE, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization, x-api-key",
-};
+// Get CORS headers based on the project's sandbox URL
+function getCorsHeaders(origin: string | null, allowedOrigin: string | null): Record<string, string> {
+    // Check if origin matches the allowed sandbox URL
+    const isAllowed = origin && allowedOrigin && origin === allowedOrigin;
+    
+    return {
+        "Access-Control-Allow-Origin": isAllowed ? origin : "",
+        "Access-Control-Allow-Methods": "GET, DELETE, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization, x-api-key",
+        "Access-Control-Allow-Credentials": "true",
+    };
+}
 
 /**
  * OPTIONS /api/providers/auth/session
- * Handle CORS preflight
+ * Handle CORS preflight - need to allow all origins for preflight, then validate on actual request
  */
-export async function OPTIONS() {
-    return new NextResponse(null, { status: 204, headers: corsHeaders });
+export async function OPTIONS(request: NextRequest) {
+    const origin = request.headers.get("origin");
+    
+    // For preflight, we allow it but the actual request will be validated
+    return new NextResponse(null, { 
+        status: 204, 
+        headers: {
+            "Access-Control-Allow-Origin": origin || "*",
+            "Access-Control-Allow-Methods": "GET, DELETE, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization, x-api-key",
+            "Access-Control-Allow-Credentials": "true",
+        }
+    });
 }
 
 /**
@@ -33,6 +50,8 @@ export async function OPTIONS() {
  * Verify a session token and return user data
  */
 export async function GET(request: NextRequest) {
+    const origin = request.headers.get("origin");
+    
     try {
         const authHeader = request.headers.get("authorization");
         const apiKey = request.headers.get("x-api-key");
@@ -40,7 +59,7 @@ export async function GET(request: NextRequest) {
         if (!apiKey) {
             return NextResponse.json(
                 { error: "Missing API key" },
-                { status: 401, headers: corsHeaders }
+                { status: 401, headers: getCorsHeaders(origin, null) }
             );
         }
 
@@ -58,18 +77,31 @@ export async function GET(request: NextRequest) {
         if (!sessionToken) {
             return NextResponse.json(
                 { error: "Missing session token" },
-                { status: 401, headers: corsHeaders }
+                { status: 401, headers: getCorsHeaders(origin, null) }
             );
         }
 
-        // Validate API key
+        // Validate API key and get project (includes sandboxUrl)
         await connectToDatabase();
         const project = await Project.findOne({ apiKey }).lean();
 
         if (!project) {
             return NextResponse.json(
                 { error: "Invalid API key" },
-                { status: 401, headers: corsHeaders }
+                { status: 401, headers: getCorsHeaders(origin, null) }
+            );
+        }
+
+        // Get allowed origin from project's sandbox URL
+        const allowedOrigin = (project as any).sandboxUrl || null;
+        const corsHeaders = getCorsHeaders(origin, allowedOrigin);
+        
+        // Check if origin is allowed
+        if (origin && allowedOrigin && origin !== allowedOrigin) {
+            console.log(`CORS rejected: origin ${origin} !== allowed ${allowedOrigin}`);
+            return NextResponse.json(
+                { error: "Origin not allowed" },
+                { status: 403, headers: corsHeaders }
             );
         }
 
@@ -118,7 +150,7 @@ export async function GET(request: NextRequest) {
         console.error("Session verification error:", error);
         return NextResponse.json(
             { error: "Failed to verify session" },
-            { status: 500, headers: corsHeaders }
+            { status: 500, headers: getCorsHeaders(origin, null) }
         );
     }
 }
@@ -127,12 +159,14 @@ export async function GET(request: NextRequest) {
  * DELETE /api/providers/auth/session
  * Logout - invalidate session (client should delete the token)
  */
-export async function DELETE() {
+export async function DELETE(request: NextRequest) {
+    const origin = request.headers.get("origin");
+    
     // For JWT-based auth, the client just needs to delete the token
     // We can optionally track invalidated tokens in a blacklist
     
     return NextResponse.json({
         success: true,
         message: "Session invalidated. Please delete the token from client storage."
-    }, { headers: corsHeaders });
+    }, { headers: getCorsHeaders(origin, origin) }); // Allow the requesting origin for logout
 }

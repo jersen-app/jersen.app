@@ -181,6 +181,13 @@ async function createSandbox(
     });
 
     const url = `https://${sandbox.getHost(3000)}`;
+    
+    // Save sandbox URL to project for CORS whitelist
+    await Project.updateOne(
+        { _id: projectId },
+        { $set: { sandboxUrl: url } }
+    );
+    console.log(`Saved sandbox URL to project: ${url}`);
 
     return NextResponse.json({
         sandboxId: sandbox.sandboxId,
