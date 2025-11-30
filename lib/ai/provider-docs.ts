@@ -40,17 +40,14 @@ This project uses Jersen Auth for user authentication with OAuth social logins (
 5. Your app stores the token and uses it for authenticated requests
 
 ### Environment Setup
-The \`.env.local\` file is automatically configured with:
-\`\`\`
-NEXT_PUBLIC_JERSEN_API_KEY=<your-project-api-key>
-NEXT_PUBLIC_JERSEN_API_URL=https://jersen.app
-\`\`\`
+The \`.env.local\` file is automatically configured with your API key. The Jersen URL defaults to https://jersen.app.
 
 ### Auth Library
 \`\`\`typescript
 // filepath: lib/auth.ts
-const API_KEY = process.env.NEXT_PUBLIC_JERSEN_API_KEY!;
-const JERSEN_URL = process.env.NEXT_PUBLIC_JERSEN_API_URL || 'https://jersen.app';
+const API_KEY = process.env.NEXT_PUBLIC_JERSEN_API_KEY || '';
+// Jersen API URL - falls back to localhost for development
+const JERSEN_URL = process.env.NEXT_PUBLIC_JERSEN_API_URL || 'http://localhost:3000';
 const SESSION_KEY = 'jersen_session';
 
 export interface User {
@@ -63,6 +60,10 @@ export interface User {
 
 // Redirect to Jersen OAuth login page
 export function login() {
+  if (!API_KEY) {
+    console.error('NEXT_PUBLIC_JERSEN_API_KEY is not set');
+    return;
+  }
   const callbackUrl = encodeURIComponent(window.location.origin + '/auth/callback');
   window.location.href = \`\${JERSEN_URL}/auth/oauth?api_key=\${API_KEY}&redirect_uri=\${callbackUrl}\`;
 }
