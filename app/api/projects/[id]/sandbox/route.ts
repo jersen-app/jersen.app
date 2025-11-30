@@ -10,9 +10,17 @@ const SANDBOX_TIMEOUT = 10 * 60 * 1000; // 10 minutes
 const TEMPLATE_ID = "nextjs-developer-song-dev";
 
 // Get the Jersen API URL based on environment
-const JERSEN_API_URL = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL 
-    ? `https://${process.env.VERCEL_URL}` 
-    : "http://localhost:3000";
+function getJersenApiUrl(): string {
+    if (process.env.NEXT_PUBLIC_APP_URL) {
+        return process.env.NEXT_PUBLIC_APP_URL;
+    }
+    if (process.env.VERCEL_URL) {
+        return `https://${process.env.VERCEL_URL}`;
+    }
+    return 'http://localhost:3000';
+}
+
+const JERSEN_API_URL = getJersenApiUrl();
 
 // Store active sandboxes in memory (in production, use Redis)
 const activeSandboxes = new Map<
@@ -104,21 +112,17 @@ async function createSandbox(
     });
 
     console.log(`Created E2B sandbox ${sandbox.sandboxId} for project ${projectId}`);
+    console.log(`JERSEN_API_URL for sandbox: ${JERSEN_API_URL}`);
 
-    // Generate .env.local content with Jersen provider credentials
-    const envContent = generateEnvFile(project);
+    // Replace placeholders in files with actual values
+    const apiKey = project.apiKey || '';
+    const processedFiles = injectCredentials(files || {}, apiKey, JERSEN_API_URL);
     
-    // Prepare files to write (including .env.local)
-    const filesToWrite: Record<string, string> = {
-        '.env.local': envContent,
-        ...(files || {}),
-    };
-
     // Write files to sandbox one by one
     // Note: nextjs-developer template uses /home/user as working directory
-    if (Object.keys(filesToWrite).length > 0) {
-        console.log(`Writing ${Object.keys(filesToWrite).length} files to sandbox...`);
-        for (const [path, content] of Object.entries(filesToWrite)) {
+    if (Object.keys(processedFiles).length > 0) {
+        console.log(`Writing ${Object.keys(processedFiles).length} files to sandbox...`);
+        for (const [path, content] of Object.entries(processedFiles)) {
             const fullPath = `/home/user/${path}`;
             try {
                 await sandbox.files.write(fullPath, content);
@@ -186,42 +190,24 @@ async function createSandbox(
 }
 
 /**
- * Generate .env.local content for the sandbox with Jersen provider credentials
+ * Replace placeholders in file contents with actual credentials
  */
-function generateEnvFile(project: any): string {
-    const lines: string[] = [
-        '# Jersen Platform Environment Variables',
-        '# Auto-generated for sandbox preview',
-        '',
-        `# Jersen API Configuration`,
-        `NEXT_PUBLIC_JERSEN_API_KEY=${project.apiKey || ''}`,
-        `NEXT_PUBLIC_JERSEN_API_URL=${JERSEN_API_URL}`,
-        '',
-    ];
-
-    // Add database connection string if provisioned
-    if (project.providers?.database?.enabled && project.providers?.database?.dbName) {
-        lines.push('# Database (for server-side use only)');
-        lines.push(`JERSEN_DB_NAME=${project.providers.database.dbName}`);
-        lines.push('');
+function injectCredentials(
+    files: Record<string, string>,
+    apiKey: string,
+    jersenUrl: string
+): Record<string, string> {
+    const processed: Record<string, string> = {};
+    
+    for (const [path, content] of Object.entries(files)) {
+        let processedContent = content;
+        // Replace placeholders
+        processedContent = processedContent.replace(/__JERSEN_API_KEY__/g, apiKey);
+        processedContent = processedContent.replace(/__JERSEN_URL__/g, jersenUrl);
+        processed[path] = processedContent;
     }
-
-    // Add storage info if enabled
-    if (project.providers?.storage?.enabled) {
-        lines.push('# Storage');
-        lines.push(`JERSEN_STORAGE_ENABLED=true`);
-        lines.push(`JERSEN_STORAGE_QUOTA=${project.providers.storage.quota || 1024}`);
-        lines.push('');
-    }
-
-    // Add auth info if enabled
-    if (project.providers?.auth?.enabled) {
-        lines.push('# Auth (Clerk)');
-        lines.push(`NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY || ''}`);
-        lines.push('');
-    }
-
-    return lines.join('\n');
+    
+    return processed;
 }
 
 async function updateSandbox(
@@ -240,14 +226,18 @@ async function updateSandbox(
     try {
         const sandbox = await Sandbox.connect(existing.sandboxId);
 
-        // Fetch project to check for new dependencies
+        // Fetch project to get API key and check for new dependencies
         await connectToDatabase();
         const project = await Project.findById(projectId);
+        
+        // Replace placeholders with actual values
+        const apiKey = (project as any)?.apiKey || '';
+        const processedFiles = files ? injectCredentials(files, apiKey, JERSEN_API_URL) : {};
 
         // Update files one by one
-        if (files && Object.keys(files).length > 0) {
-            console.log(`Updating ${Object.keys(files).length} files in sandbox...`);
-            for (const [path, content] of Object.entries(files)) {
+        if (Object.keys(processedFiles).length > 0) {
+            console.log(`Updating ${Object.keys(processedFiles).length} files in sandbox...`);
+            for (const [path, content] of Object.entries(processedFiles)) {
                 const fullPath = `/home/user/${path}`;
                 try {
                     await sandbox.files.write(fullPath, content);

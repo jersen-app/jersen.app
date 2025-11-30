@@ -40,14 +40,14 @@ This project uses Jersen Auth for user authentication with OAuth social logins (
 5. Your app stores the token and uses it for authenticated requests
 
 ### Environment Setup
-The \`.env.local\` file is automatically configured with your API key. The Jersen URL defaults to https://jersen.app.
+Credentials are automatically injected when you preview.
 
 ### Auth Library
 \`\`\`typescript
 // filepath: lib/auth.ts
-const API_KEY = process.env.NEXT_PUBLIC_JERSEN_API_KEY || '';
-// Jersen API URL - falls back to localhost for development
-const JERSEN_URL = process.env.NEXT_PUBLIC_JERSEN_API_URL || 'http://localhost:3000';
+// These values are automatically injected by Jersen
+const API_KEY = '__JERSEN_API_KEY__';
+const JERSEN_URL = '__JERSEN_URL__';
 const SESSION_KEY = 'jersen_session';
 
 export interface User {
@@ -299,13 +299,14 @@ This project uses Jersen Storage (built on Cloudflare R2) for file storage.
 **Quota:** ${config.providers.storage.quota || 1024}MB
 
 ### Environment Setup
-The \`.env.local\` file is automatically created when you preview. It contains the API key and URL.
+Credentials are automatically injected when you preview.
 
 ### Storage Client
 \`\`\`typescript
 filepath: lib/jersen-storage.ts
-const API_KEY = process.env.NEXT_PUBLIC_JERSEN_API_KEY!;
-const API_URL = process.env.NEXT_PUBLIC_JERSEN_API_URL || 'https://api.jersen.app';
+// These values are automatically injected by Jersen
+const API_KEY = '__JERSEN_API_KEY__';
+const API_URL = '__JERSEN_URL__';
 
 interface UploadResult {
   success: boolean;
@@ -466,13 +467,14 @@ This project uses Jersen Database (MongoDB) for data storage.
 ${dbInfo}
 
 ### Environment Setup
-The \`.env.local\` file is automatically created when you preview. It contains the API key and URL.
+Credentials are automatically injected when you preview.
 
 ### Database Client
 \`\`\`typescript
 filepath: lib/jersen-db.ts
-const API_KEY = process.env.NEXT_PUBLIC_JERSEN_API_KEY!;
-const API_URL = process.env.NEXT_PUBLIC_JERSEN_API_URL || 'https://api.jersen.app';
+// These values are automatically injected by Jersen
+const API_KEY = '__JERSEN_API_KEY__';
+const API_URL = '__JERSEN_URL__';
 
 interface InsertResult {
   success: boolean;
