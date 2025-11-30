@@ -13,6 +13,21 @@ interface SessionPayload {
     exp: number;
 }
 
+// CORS headers for cross-origin requests from sandboxes
+const corsHeaders = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET, DELETE, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization, x-api-key",
+};
+
+/**
+ * OPTIONS /api/providers/auth/session
+ * Handle CORS preflight
+ */
+export async function OPTIONS() {
+    return new NextResponse(null, { status: 204, headers: corsHeaders });
+}
+
 /**
  * GET /api/providers/auth/session
  * Verify a session token and return user data
@@ -25,7 +40,7 @@ export async function GET(request: NextRequest) {
         if (!apiKey) {
             return NextResponse.json(
                 { error: "Missing API key" },
-                { status: 401 }
+                { status: 401, headers: corsHeaders }
             );
         }
 
@@ -43,7 +58,7 @@ export async function GET(request: NextRequest) {
         if (!sessionToken) {
             return NextResponse.json(
                 { error: "Missing session token" },
-                { status: 401 }
+                { status: 401, headers: corsHeaders }
             );
         }
 
@@ -54,7 +69,7 @@ export async function GET(request: NextRequest) {
         if (!project) {
             return NextResponse.json(
                 { error: "Invalid API key" },
-                { status: 401 }
+                { status: 401, headers: corsHeaders }
             );
         }
 
@@ -64,7 +79,7 @@ export async function GET(request: NextRequest) {
         if (!payload) {
             return NextResponse.json(
                 { error: "Invalid or expired session token" },
-                { status: 401 }
+                { status: 401, headers: corsHeaders }
             );
         }
 
@@ -72,7 +87,7 @@ export async function GET(request: NextRequest) {
         if (payload.projectId !== project._id.toString()) {
             return NextResponse.json(
                 { error: "Session token does not belong to this project" },
-                { status: 401 }
+                { status: 401, headers: corsHeaders }
             );
         }
 
@@ -82,7 +97,7 @@ export async function GET(request: NextRequest) {
         if (!user) {
             return NextResponse.json(
                 { error: "User not found" },
-                { status: 404 }
+                { status: 404, headers: corsHeaders }
             );
         }
 
@@ -98,12 +113,12 @@ export async function GET(request: NextRequest) {
                 lastLoginAt: user.lastLoginAt,
             },
             expiresAt: new Date(payload.exp * 1000).toISOString(),
-        });
+        }, { headers: corsHeaders });
     } catch (error) {
         console.error("Session verification error:", error);
         return NextResponse.json(
             { error: "Failed to verify session" },
-            { status: 500 }
+            { status: 500, headers: corsHeaders }
         );
     }
 }
@@ -112,12 +127,12 @@ export async function GET(request: NextRequest) {
  * DELETE /api/providers/auth/session
  * Logout - invalidate session (client should delete the token)
  */
-export async function DELETE(request: NextRequest) {
+export async function DELETE() {
     // For JWT-based auth, the client just needs to delete the token
     // We can optionally track invalidated tokens in a blacklist
     
     return NextResponse.json({
         success: true,
         message: "Session invalidated. Please delete the token from client storage."
-    });
+    }, { headers: corsHeaders });
 }
