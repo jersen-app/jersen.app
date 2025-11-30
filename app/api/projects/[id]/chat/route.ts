@@ -4,6 +4,7 @@ import { auth } from "@clerk/nextjs/server";
 import connectToDatabase from "@/lib/db";
 import ChatMessage from "@/models/ChatMessage";
 import Project from "@/models/Project";
+import { getPlatformSettings } from "@/models/PlatformSettings";
 import { SYSTEM_PROMPT, buildContextPrompt } from "@/lib/ai/prompts";
 import { parseGeneratedFiles, extractDependencies } from "@/lib/ai/files";
 import { type FileChange } from "@/lib/ai/tools";
@@ -248,9 +249,13 @@ ${autoInjectedDocs}`;
     // Track file changes
     const fileChanges: FileChange[] = [];
 
+    // Get configured AI model
+    const platformSettings = await getPlatformSettings();
+    const modelId = platformSettings.aiModel || "gemini-2.5-flash";
+
     // Stream response from Gemini
     const result = streamText({
-        model: google("gemini-2.5-flash"),
+        model: google(modelId),
         messages: allMessages,
         temperature: 0.7,
         async onFinish({ text }) {
@@ -375,7 +380,7 @@ ${autoInjectedDocs}`;
                     {
                         messageLength: userContent.length,
                         hasAttachments: attachments.length > 0,
-                        model: "gemini-2.5-flash",
+                        model: modelId,
                     }
                 );
 
