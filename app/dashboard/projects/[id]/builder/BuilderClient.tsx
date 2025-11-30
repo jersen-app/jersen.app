@@ -6,6 +6,7 @@ import { ArrowLeft, Settings, Code, Eye, PanelRightClose, PanelRight, Save, Clou
 import { ChatInterface } from "@/components/chat";
 import CodeEditor from "@/components/CodeEditor";
 import { PreviewPanel } from "@/components/PreviewPanel";
+import { DeployDialog } from "@/components/DeployDialog";
 import { useSandbox } from "@/hooks/use-sandbox";
 import { cn } from "@/lib/utils";
 
@@ -206,12 +207,19 @@ export default function BuilderClient({
                         </span>
                         <SaveIndicator />
                     </div>
-                    <Link
-                        href={`/dashboard/projects/${projectId}/settings`}
-                        className="rounded-md p-1.5 transition-colors hover:bg-muted"
-                    >
-                        <Settings className="h-4 w-4" />
-                    </Link>
+                    <div className="flex items-center gap-1">
+                        <DeployDialog 
+                            projectId={projectId} 
+                            projectName={projectName} 
+                            hasFiles={files.length > 0}
+                        />
+                        <Link
+                            href={`/dashboard/projects/${projectId}/settings`}
+                            className="rounded-md p-1.5 transition-colors hover:bg-muted"
+                        >
+                            <Settings className="h-4 w-4" />
+                        </Link>
+                    </div>
                 </div>
 
                 {/* Chat - takes remaining height */}
