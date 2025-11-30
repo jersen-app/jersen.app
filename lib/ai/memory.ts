@@ -3,6 +3,7 @@ import { generateText } from "ai";
 import connectToDatabase from "@/lib/db";
 import ProjectMemory, { IProjectMemory } from "@/models/ProjectMemory";
 import ChatMessage from "@/models/ChatMessage";
+import Project from "@/models/Project";
 import {
     getAuthDocs,
     getStorageDocs,
@@ -348,4 +349,45 @@ export function executeGetProviderDocs(
     }
     
     return { docs, provider };
+}
+
+/**
+ * Execute addDependencies tool - stores packages needed for the project
+ */
+export async function executeAddDependencies(
+    projectId: string,
+    packages: string[],
+    reason: string
+): Promise<{ added: string[]; existing: string[]; total: string[] }> {
+    await connectToDatabase();
+    
+    const project = await Project.findById(projectId);
+    if (!project) {
+        throw new Error('Project not found');
+    }
+    
+    const existingDeps = new Set<string>(project.dependencies || []);
+    const added: string[] = [];
+    const existing: string[] = [];
+    
+    for (const pkg of packages) {
+        if (existingDeps.has(pkg)) {
+            existing.push(pkg);
+        } else {
+            added.push(pkg);
+            existingDeps.add(pkg);
+        }
+    }
+    
+    if (added.length > 0) {
+        project.dependencies = Array.from(existingDeps);
+        await project.save();
+        console.log(`Added dependencies to project ${projectId}: ${added.join(', ')} (reason: ${reason})`);
+    }
+    
+    return {
+        added,
+        existing,
+        total: Array.from(existingDeps),
+    };
 }

@@ -5,7 +5,7 @@ import connectToDatabase from "@/lib/db";
 import ChatMessage from "@/models/ChatMessage";
 import Project from "@/models/Project";
 import { SYSTEM_PROMPT, buildContextPrompt } from "@/lib/ai/prompts";
-import { parseGeneratedFiles } from "@/lib/ai/files";
+import { parseGeneratedFiles, extractDependencies } from "@/lib/ai/files";
 import { type FileChange } from "@/lib/ai/tools";
 import { checkCredits, consumeCredit } from "@/lib/subscription";
 import { 
@@ -196,16 +196,7 @@ ${memoryContext ? `\n${memoryContext}\n` : ''}
 ${providerOverview}
 
 ${contextPrompt}
-
-## Available Tools
-Before making changes, you should:
-1. Use \`getProviderDocs\` when implementing auth, storage, or database features
-2. Use \`searchFiles\` to find relevant files
-3. Use \`readFile\` to understand existing code
-4. Use \`listDirectory\` to explore project structure
-5. Then make informed changes
-
-When using tools, the results will be provided and you should incorporate them into your response.${autoInjectedDocs}`;
+${autoInjectedDocs}`;
 
     // Build user message content - can be multimodal with images
     type MessageContent = string | Array<{ type: "text"; text: string } | { type: "image"; image: string; mimeType?: string }>;
@@ -283,11 +274,35 @@ When using tools, the results will be provided and you should incorporate them i
                 const parsedFiles = parseGeneratedFiles(text);
                 const generatedFiles: Record<string, string> = {};
                 
+                // Build existing files map for diff application
+                const existingFilesMap: Record<string, string> = {};
+                for (const f of existingFiles) {
+                    existingFilesMap[f.path] = f.content;
+                }
+                
                 for (const file of parsedFiles) {
-                    generatedFiles[file.path] = file.content;
+                    let finalContent = file.content;
+                    
+                    // If this is a diff/edit, apply it to the existing file
+                    if (file.isEdit && file.diffBlocks && file.diffBlocks.length > 0) {
+                        const existingContent = existingFilesMap[file.path] || '';
+                        const { applyDiffBlocks } = await import("@/lib/ai/diff");
+                        const diffResult = applyDiffBlocks(existingContent, file.diffBlocks);
+                        
+                        if (diffResult.success || diffResult.appliedBlocks > 0) {
+                            finalContent = diffResult.content;
+                            console.log(`Applied ${diffResult.appliedBlocks} diff blocks to ${file.path}`);
+                        } else {
+                            // Diff failed - use the REPLACE content as the new file
+                            console.warn(`Diff failed for ${file.path}, using REPLACE content as full file`);
+                            finalContent = file.diffBlocks[file.diffBlocks.length - 1].replace;
+                        }
+                    }
+                    
+                    generatedFiles[file.path] = finalContent;
                     fileChanges.push({
                         path: file.path,
-                        content: file.content,
+                        content: finalContent,
                         changeType: existingFiles.some(f => f.path === file.path) ? "modified" : "created",
                         description: `Generated ${file.path}`,
                     });
@@ -307,9 +322,34 @@ When using tools, the results will be provided and you should incorporate them i
                             for (const [path, content] of Object.entries(generatedFiles)) {
                                 fileMap.set(path, { path, content, updatedAt: now });
                             }
-                            project.files = Array.from(fileMap.values());
-                            await project.save();
-                            console.log(`Saved ${Object.keys(generatedFiles).length} files to project ${projectId}`);
+                            
+                            // Extract dependencies from imports
+                            const newDeps = extractDependencies(parsedFiles);
+                            const existingDeps: string[] = (project as any).dependencies || [];
+                            const allDeps = [...new Set([...existingDeps, ...newDeps])];
+                            
+                            if (newDeps.length > 0) {
+                                console.log(`Adding dependencies to project ${projectId}: ${newDeps.join(', ')}`);
+                            }
+                            
+                            // Use updateOne with $set for both files and dependencies
+                            const result = await Project.updateOne(
+                                { _id: projectId },
+                                { 
+                                    $set: { 
+                                        files: Array.from(fileMap.values()),
+                                        dependencies: allDeps
+                                    } 
+                                }
+                            );
+                            
+                            console.log(`Saved ${Object.keys(generatedFiles).length} files to project ${projectId}. Modified: ${result.modifiedCount}`);
+                            
+                            // Verify the save
+                            if (newDeps.length > 0) {
+                                const updatedProject = await Project.findById(projectId).select('dependencies').lean();
+                                console.log(`Project dependencies after save: [${(updatedProject as any)?.dependencies?.join(', ') || 'empty'}]`);
+                            }
                         }
                     } catch (error) {
                         console.error("Failed to save files to project:", error);

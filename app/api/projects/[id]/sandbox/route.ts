@@ -84,13 +84,15 @@ async function createSandbox(
         }
     }
 
-    // Fetch project to get API key for environment variables
+    // Fetch project to get API key and dependencies - use fresh query
     await connectToDatabase();
-    const project = await Project.findById(projectId);
+    const project = await Project.findById(projectId).lean();
     
     if (!project) {
         return NextResponse.json({ error: "Project not found" }, { status: 404 });
     }
+    
+    console.log(`Project ${projectId} has dependencies:`, project.dependencies || []);
 
     // Create new sandbox
     const sandbox = await Sandbox.create(TEMPLATE_ID, {
@@ -121,19 +123,41 @@ async function createSandbox(
         }));
         await sandbox.files.write(fileWrites);
         console.log(`Wrote ${fileWrites.length} files to sandbox:`, fileWrites.map(f => f.path).join(', '));
-        
-        // Check if package.json was updated and install dependencies
-        if (files && files['package.json']) {
-            console.log('package.json detected, installing dependencies...');
-            try {
-                const installResult = await sandbox.commands.run('cd /home/user && bun install', { timeoutMs: 60000 });
-                console.log('bun install result:', installResult.exitCode === 0 ? 'success' : 'failed');
-                if (installResult.stderr) {
-                    console.log('bun install stderr:', installResult.stderr);
-                }
-            } catch (error) {
-                console.error('Failed to run bun install:', error);
+    }
+    
+    // Install stored dependencies from the project
+    const projectDeps: string[] = (project as any).dependencies || [];
+    console.log(`Project dependencies to install: [${projectDeps.join(', ')}]`);
+    if (projectDeps.length > 0) {
+        console.log(`Installing project dependencies: ${projectDeps.join(', ')}`);
+        try {
+            const depsString = projectDeps.join(' ');
+            const installResult = await sandbox.commands.run(`cd /home/user && bun add ${depsString}`, { timeoutMs: 120000 });
+            console.log('bun add result:', installResult.exitCode === 0 ? 'success' : 'failed');
+            if (installResult.stderr) {
+                console.log('bun add stderr:', installResult.stderr);
             }
+            if (installResult.stdout) {
+                console.log('bun add stdout:', installResult.stdout);
+            }
+        } catch (error) {
+            console.error('Failed to install dependencies:', error);
+        }
+    } else {
+        console.log('No dependencies to install');
+    }
+    
+    // Check if package.json was updated and install additional dependencies
+    if (files && files['package.json']) {
+        console.log('package.json detected, running bun install...');
+        try {
+            const installResult = await sandbox.commands.run('cd /home/user && bun install', { timeoutMs: 60000 });
+            console.log('bun install result:', installResult.exitCode === 0 ? 'success' : 'failed');
+            if (installResult.stderr) {
+                console.log('bun install stderr:', installResult.stderr);
+            }
+        } catch (error) {
+            console.error('Failed to run bun install:', error);
         }
     }
 
@@ -212,6 +236,10 @@ async function updateSandbox(
     try {
         const sandbox = await Sandbox.connect(existing.sandboxId);
 
+        // Fetch project to check for new dependencies
+        await connectToDatabase();
+        const project = await Project.findById(projectId);
+
         // Update files
         if (files && Object.keys(files).length > 0) {
             const fileWrites = Object.entries(files).map(([path, content]) => ({
@@ -220,16 +248,29 @@ async function updateSandbox(
             }));
             await sandbox.files.write(fileWrites);
             console.log(`Updated files in sandbox:`, fileWrites.map(f => f.path).join(', '));
-            
-            // Check if package.json was updated and install dependencies
-            if (files['package.json']) {
-                console.log('package.json updated, installing dependencies...');
-                try {
-                    const installResult = await sandbox.commands.run('cd /home/user && bun install', { timeoutMs: 60000 });
-                    console.log('bun install result:', installResult.exitCode === 0 ? 'success' : 'failed');
-                } catch (error) {
-                    console.error('Failed to run bun install:', error);
-                }
+        }
+        
+        // Install any new dependencies from the project
+        const projectDeps = project?.dependencies || [];
+        if (projectDeps.length > 0) {
+            console.log(`Ensuring dependencies installed: ${projectDeps.join(', ')}`);
+            try {
+                const depsString = projectDeps.join(' ');
+                const installResult = await sandbox.commands.run(`cd /home/user && bun add ${depsString}`, { timeoutMs: 120000 });
+                console.log('bun add result:', installResult.exitCode === 0 ? 'success' : 'failed');
+            } catch (error) {
+                console.error('Failed to install dependencies:', error);
+            }
+        }
+        
+        // Check if package.json was updated and run bun install
+        if (files && files['package.json']) {
+            console.log('package.json updated, running bun install...');
+            try {
+                const installResult = await sandbox.commands.run('cd /home/user && bun install', { timeoutMs: 60000 });
+                console.log('bun install result:', installResult.exitCode === 0 ? 'success' : 'failed');
+            } catch (error) {
+                console.error('Failed to run bun install:', error);
             }
         }
 

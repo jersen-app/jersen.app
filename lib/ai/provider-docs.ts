@@ -30,208 +30,255 @@ export function getAuthDocs(config: ProjectConfig): string {
 
     return `## Jersen Authentication Provider
 
-This project uses Clerk for user authentication, powered by the Jersen platform.
+This project uses Jersen Auth for user authentication with OAuth social logins (Google, GitHub, Facebook, TikTok).
+
+### How It Works
+1. User clicks a login button in your app
+2. Your app redirects to Jersen's hosted OAuth page
+3. User authenticates with their chosen provider (Google, GitHub, etc.)
+4. Jersen redirects back to your app with a session token
+5. Your app stores the token and uses it for authenticated requests
 
 ### Environment Setup
-The \`.env.local\` file is automatically created when you preview. It contains:
+The \`.env.local\` file is automatically configured with:
 \`\`\`
-NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=<auto-configured>
-\`\`\`
-
-### CRITICAL: Setup app/layout.tsx with ClerkProvider
-**You MUST wrap your app with ClerkProvider in layout.tsx. Without this, Clerk hooks will throw errors!**
-
-\`\`\`tsx
-// filepath: app/layout.tsx
-import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
-import './globals.css';
-import { ClerkProvider } from '@clerk/nextjs';
-
-const inter = Inter({ subsets: ['latin'] });
-
-export const metadata: Metadata = {
-  title: 'Your App Name',
-  description: 'Your app description',
-};
-
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  return (
-    <ClerkProvider>
-      <html lang="en">
-        <body className={inter.className}>
-          {children}
-        </body>
-      </html>
-    </ClerkProvider>
-  );
-}
+NEXT_PUBLIC_JERSEN_API_KEY=<your-project-api-key>
+NEXT_PUBLIC_JERSEN_API_URL=https://jersen.app
 \`\`\`
 
-### Pre-built Auth Components
-Clerk provides beautiful, customizable pre-built components:
-
-#### Sign In Page
-\`\`\`tsx
-// filepath: app/sign-in/[[...sign-in]]/page.tsx
-import { SignIn } from '@clerk/nextjs';
-
-export default function SignInPage() {
-  return (
-    <div className="min-h-screen flex items-center justify-center">
-      <SignIn />
-    </div>
-  );
-}
-\`\`\`
-
-#### Sign Up Page
-\`\`\`tsx
-// filepath: app/sign-up/[[...sign-up]]/page.tsx
-import { SignUp } from '@clerk/nextjs';
-
-export default function SignUpPage() {
-  return (
-    <div className="min-h-screen flex items-center justify-center">
-      <SignUp />
-    </div>
-  );
-}
-\`\`\`
-
-### User Button Component
-The UserButton shows the user's avatar and provides a dropdown for account management:
-
-\`\`\`tsx
-"use client";
-import { UserButton } from '@clerk/nextjs';
-
-export function Header() {
-  return (
-    <header className="flex justify-between items-center p-4">
-      <h1>My App</h1>
-      <UserButton afterSignOutUrl="/" />
-    </header>
-  );
-}
-\`\`\`
-
-### Using Clerk Hooks
-Access user data and authentication state with hooks:
-
-\`\`\`tsx
-"use client";
-import { useUser, useAuth, SignedIn, SignedOut } from '@clerk/nextjs';
-
-export function ProfilePage() {
-  const { user, isLoaded } = useUser();
-  const { signOut } = useAuth();
-
-  if (!isLoaded) return <div>Loading...</div>;
-
-  return (
-    <div>
-      <SignedIn>
-        <p>Welcome, {user?.firstName}!</p>
-        <p>Email: {user?.emailAddresses[0]?.emailAddress}</p>
-        <button onClick={() => signOut()}>Sign Out</button>
-      </SignedIn>
-      
-      <SignedOut>
-        <p>Please sign in to continue.</p>
-      </SignedOut>
-    </div>
-  );
-}
-\`\`\`
-
-### Protecting Routes with Middleware
-Create \`middleware.ts\` at the root of your project:
-
+### Auth Library
 \`\`\`typescript
-// filepath: middleware.ts
-import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
+// filepath: lib/auth.ts
+const API_KEY = process.env.NEXT_PUBLIC_JERSEN_API_KEY!;
+const JERSEN_URL = process.env.NEXT_PUBLIC_JERSEN_API_URL || 'https://jersen.app';
+const SESSION_KEY = 'jersen_session';
 
-const isPublicRoute = createRouteMatcher([
-  '/',
-  '/sign-in(.*)',
-  '/sign-up(.*)',
-]);
-
-export default clerkMiddleware(async (auth, req) => {
-  if (!isPublicRoute(req)) {
-    await auth.protect();
-  }
-});
-
-export const config = {
-  matcher: [
-    '/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)',
-    '/(api|trpc)(.*)',
-  ],
-};
-\`\`\`
-
-### Server-Side Auth (API Routes)
-Access the user in server components and API routes:
-
-\`\`\`typescript
-// filepath: app/api/user/route.ts
-import { auth, currentUser } from '@clerk/nextjs/server';
-import { NextResponse } from 'next/server';
-
-export async function GET() {
-  const { userId } = await auth();
-  
-  if (!userId) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  const user = await currentUser();
-  
-  return NextResponse.json({
-    id: userId,
-    email: user?.emailAddresses[0]?.emailAddress,
-    firstName: user?.firstName,
-    lastName: user?.lastName,
-  });
+export interface User {
+  id: string;
+  email: string;
+  name: string;
+  avatarUrl?: string;
+  provider: string;
 }
-\`\`\`
 
-### Available Clerk Components
-- \`<SignIn />\` - Full sign-in form with social logins
-- \`<SignUp />\` - Full sign-up form
-- \`<UserButton />\` - User avatar with dropdown menu
-- \`<UserProfile />\` - Full user profile management
-- \`<OrganizationSwitcher />\` - Switch between organizations
-- \`<SignedIn>\` - Render children only when signed in
-- \`<SignedOut>\` - Render children only when signed out
+// Redirect to Jersen OAuth login page
+export function login() {
+  const callbackUrl = encodeURIComponent(window.location.origin + '/auth/callback');
+  window.location.href = \`\${JERSEN_URL}/auth/oauth?api_key=\${API_KEY}&redirect_uri=\${callbackUrl}\`;
+}
 
-### Available Clerk Hooks
-- \`useUser()\` - Get current user data
-- \`useAuth()\` - Get auth state and methods (signOut, getToken)
-- \`useClerk()\` - Access Clerk instance
-- \`useSignIn()\` - Control sign-in flow programmatically
-- \`useSignUp()\` - Control sign-up flow programmatically
+// Handle callback - extract and store token
+export function handleAuthCallback(): boolean {
+  if (typeof window === 'undefined') return false;
+  
+  const params = new URLSearchParams(window.location.search);
+  const token = params.get('session_token');
+  
+  if (token) {
+    localStorage.setItem(SESSION_KEY, token);
+    window.history.replaceState({}, '', '/auth/callback');
+    return true;
+  }
+  return false;
+}
 
-### Customizing Appearance
-You can customize Clerk components with the appearance prop:
+// Get current session token
+export function getToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem(SESSION_KEY);
+}
 
-\`\`\`tsx
-<SignIn 
-  appearance={{
-    elements: {
-      rootBox: "mx-auto",
-      card: "bg-white shadow-xl",
-      formButtonPrimary: "bg-blue-500 hover:bg-blue-600",
+// Check if user is logged in
+export function isLoggedIn(): boolean {
+  return !!getToken();
+}
+
+// Get current user from token
+export async function getUser(): Promise<User | null> {
+  const token = getToken();
+  if (!token) return null;
+
+  try {
+    const res = await fetch(\`\${JERSEN_URL}/api/providers/auth/session\`, {
+      headers: {
+        'Authorization': \`Bearer \${token}\`,
+        'x-api-key': API_KEY,
+      },
+    });
+    if (!res.ok) {
+      localStorage.removeItem(SESSION_KEY);
+      return null;
     }
-  }}
-/>
+    const data = await res.json();
+    return data.user;
+  } catch {
+    return null;
+  }
+}
+
+// Logout
+export function logout() {
+  localStorage.removeItem(SESSION_KEY);
+  window.location.href = '/';
+}
 \`\`\`
+
+### Login Button Component
+\`\`\`tsx
+// filepath: components/LoginButton.tsx
+"use client";
+import { login } from '@/lib/auth';
+
+export function LoginButton() {
+  return (
+    <button
+      onClick={login}
+      className="px-6 py-3 bg-violet-600 hover:bg-violet-700 text-white font-medium rounded-lg transition-colors"
+    >
+      Sign In
+    </button>
+  );
+}
+\`\`\`
+
+### Auth Callback Page
+\`\`\`tsx
+// filepath: app/auth/callback/page.tsx
+"use client";
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { handleAuthCallback } from '@/lib/auth';
+
+export default function AuthCallbackPage() {
+  const router = useRouter();
+
+  useEffect(() => {
+    const success = handleAuthCallback();
+    // Redirect to dashboard on success, home on failure
+    router.replace(success ? '/dashboard' : '/?error=auth_failed');
+  }, [router]);
+
+  return (
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-violet-600"></div>
+    </div>
+  );
+}
+\`\`\`
+
+### Home Page with Login
+\`\`\`tsx
+// filepath: app/page.tsx
+import { LoginButton } from '@/components/LoginButton';
+
+export default function HomePage() {
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
+      <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-4">
+        Welcome to My App
+      </h1>
+      <p className="text-gray-600 dark:text-gray-400 mb-8">
+        Sign in to get started
+      </p>
+      <LoginButton />
+    </div>
+  );
+}
+\`\`\`
+
+### useAuth Hook (Optional)
+\`\`\`tsx
+// filepath: hooks/useAuth.ts
+"use client";
+import { useState, useEffect } from 'react';
+import { getUser, isLoggedIn, logout, type User } from '@/lib/auth';
+
+export function useAuth() {
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadUser() {
+      if (isLoggedIn()) {
+        const userData = await getUser();
+        setUser(userData);
+      }
+      setLoading(false);
+    }
+    loadUser();
+  }, []);
+
+  return {
+    user,
+    loading,
+    isAuthenticated: !!user,
+    logout,
+  };
+}
+\`\`\`
+
+### Protected Dashboard Page
+\`\`\`tsx
+// filepath: app/dashboard/page.tsx
+"use client";
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/hooks/useAuth';
+
+export default function DashboardPage() {
+  const { user, loading, isAuthenticated, logout } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!loading && !isAuthenticated) {
+      router.replace('/');
+    }
+  }, [loading, isAuthenticated, router]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-violet-600"></div>
+      </div>
+    );
+  }
+
+  if (!user) return null;
+
+  return (
+    <div className="min-h-screen p-8">
+      <div className="max-w-4xl mx-auto">
+        <div className="flex justify-between items-center mb-8">
+          <h1 className="text-2xl font-bold">Dashboard</h1>
+          <div className="flex items-center gap-4">
+            {user.avatarUrl && (
+              <img src={user.avatarUrl} alt="" className="w-8 h-8 rounded-full" />
+            )}
+            <span>{user.name}</span>
+            <button
+              onClick={logout}
+              className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+            >
+              Sign Out
+            </button>
+          </div>
+        </div>
+        
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+          <p>Welcome, {user.name}!</p>
+          <p className="text-gray-600 dark:text-gray-400">Email: {user.email}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+\`\`\`
+
+### Key Points
+- **No OAuth provider icons needed** - users login on Jersen's page which has all the provider buttons
+- **Simple redirect flow** - just call \`login()\` to start the auth process
+- **Token stored in localStorage** - automatically included in API calls
+- **useAuth hook** - easy access to user data and auth state
 `;
 }
 
@@ -254,8 +301,8 @@ This project uses Jersen Storage (built on Cloudflare R2) for file storage.
 The \`.env.local\` file is automatically created when you preview. It contains the API key and URL.
 
 ### Storage Client
-Create \`lib/jersen-storage.ts\`:
 \`\`\`typescript
+filepath: lib/jersen-storage.ts
 const API_KEY = process.env.NEXT_PUBLIC_JERSEN_API_KEY!;
 const API_URL = process.env.NEXT_PUBLIC_JERSEN_API_URL || 'https://api.jersen.app';
 
@@ -310,6 +357,7 @@ export async function deleteFile(key: string): Promise<{ success: boolean; error
 
 ### React Upload Component
 \`\`\`tsx
+filepath: components/FileUpload.tsx
 "use client";
 import { useState } from 'react';
 import { uploadFile, getFileUrl } from '@/lib/jersen-storage';
@@ -368,6 +416,7 @@ export function FileUpload({ onUpload, accept = "image/*" }: FileUploadProps) {
 
 ### Image Display with Signed URLs
 \`\`\`tsx
+filepath: components/StorageImage.tsx
 "use client";
 import { useState, useEffect } from 'react';
 import { getFileUrl } from '@/lib/jersen-storage';
@@ -419,8 +468,8 @@ ${dbInfo}
 The \`.env.local\` file is automatically created when you preview. It contains the API key and URL.
 
 ### Database Client
-Create \`lib/jersen-db.ts\`:
 \`\`\`typescript
+filepath: lib/jersen-db.ts
 const API_KEY = process.env.NEXT_PUBLIC_JERSEN_API_KEY!;
 const API_URL = process.env.NEXT_PUBLIC_JERSEN_API_URL || 'https://api.jersen.app';
 
@@ -525,6 +574,7 @@ export async function deleteMany(
 
 ### React Hook for Data Fetching
 \`\`\`tsx
+filepath: hooks/useCollection.tsx
 "use client";
 import { useState, useEffect, useCallback } from 'react';
 import { find, insertOne, updateMany, deleteMany } from '@/lib/jersen-db';
@@ -584,6 +634,7 @@ export function useCollection<T = any>(collection: string, initialQuery: Record<
 
 ### Usage Example - Todo App
 \`\`\`tsx
+filepath: app/todos/page.tsx
 "use client";
 import { useCollection } from '@/hooks/useCollection';
 
@@ -652,7 +703,7 @@ export default function TodosPage() {
 
 ### Server-Side Usage (API Routes)
 \`\`\`typescript
-// app/api/todos/route.ts
+filepath: app/api/todos/route.ts
 import { find, insertOne } from '@/lib/jersen-db';
 
 export async function GET() {

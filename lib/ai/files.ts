@@ -31,6 +31,8 @@ function extractDiffBlocks(content: string): DiffBlock[] {
  * 1. Full file format: ```tsx\nfilepath: path/to/file.tsx\n[content]```
  * 2. Diff format: ```diff\nfilepath: path/to/file.tsx\n<<<<<<< SEARCH...```
  * 3. Filepath outside code block: filepath: path\n```tsx\n[content]```
+ * 4. Comment filepath: ```typescript\n// filepath: path/to/file.ts\n[content]```
+ * 5. Inline filepath comment: // filepath: app/api/todos/route.ts anywhere in first 3 lines
  */
 export function parseGeneratedFiles(aiResponse: string): ParsedFile[] {
     const files: ParsedFile[] = [];
@@ -51,41 +53,55 @@ export function parseGeneratedFiles(aiResponse: string): ParsedFile[] {
     // Match code blocks with language
     const codeBlockRegex = /```(\w+)?\n([\s\S]*?)```/g;
     let match;
+    let blockCount = 0;
 
     while ((match = codeBlockRegex.exec(processedContent)) !== null) {
+        blockCount++;
         const language = match[1] || '';
         const blockContent = match[2] || '';
         
         const lines = blockContent.split('\n');
-        const firstLine = lines[0]?.trim() || '';
         
-        // Extract filepath
+        // Extract filepath - check first 3 lines for various patterns
         let filepath: string | null = null;
         let contentStartIndex = 0;
         
-        const filepathMatch = firstLine.match(/^filepath:\s*(.+)$/i);
-        if (filepathMatch) {
-            filepath = filepathMatch[1].trim();
-            contentStartIndex = 1;
-        }
-        
-        if (!filepath) {
-            const commentFilepathMatch = firstLine.match(/^\/\/\s*filepath:\s*(.+)$/i);
+        for (let i = 0; i < Math.min(3, lines.length); i++) {
+            const line = lines[i]?.trim() || '';
+            
+            // Pattern 1: filepath: path/to/file.tsx
+            const filepathMatch = line.match(/^filepath:\s*(.+)$/i);
+            if (filepathMatch) {
+                filepath = filepathMatch[1].trim();
+                contentStartIndex = i + 1;
+                break;
+            }
+            
+            // Pattern 2: // filepath: path/to/file.tsx
+            const commentFilepathMatch = line.match(/^\/\/\s*filepath:\s*(.+)$/i);
             if (commentFilepathMatch) {
                 filepath = commentFilepathMatch[1].trim();
-                contentStartIndex = 1;
+                contentStartIndex = i + 1;
+                break;
+            }
+            
+            // Pattern 3: Just a path-like first line: app/page.tsx or lib/db.ts
+            if (i === 0) {
+                const pathLikeMatch = line.match(/^([a-zA-Z0-9_\-\/\[\]\.]+\.(tsx?|jsx?|css|json|md))$/i);
+                if (pathLikeMatch) {
+                    filepath = pathLikeMatch[1].trim();
+                    contentStartIndex = 1;
+                    break;
+                }
             }
         }
         
         if (!filepath) {
-            const pathLikeMatch = firstLine.match(/^([a-zA-Z0-9_\-\/]+\.(tsx?|jsx?|css|json|md|ts))$/i);
-            if (pathLikeMatch) {
-                filepath = pathLikeMatch[1].trim();
-                contentStartIndex = 1;
-            }
+            console.log(`[parseGeneratedFiles] Block ${blockCount} (${language}): No filepath found. First line: "${lines[0]?.slice(0, 50)}..."`);
+            continue;
         }
         
-        if (!filepath) continue;
+        console.log(`[parseGeneratedFiles] Block ${blockCount}: Found file ${filepath}`);
         
         const restContent = lines.slice(contentStartIndex).join('\n');
         
@@ -175,11 +191,19 @@ export function applyFilesToExisting(
                 result[file.path] = diffResult.content;
                 console.log(`Applied ${diffResult.appliedBlocks} edits to ${file.path}`);
                 if (diffResult.failedBlocks.length > 0) {
-                    console.warn(`Failed to apply ${diffResult.failedBlocks.length} edits to ${file.path}`);
+                    console.warn(`Failed to apply ${diffResult.failedBlocks.length} edits to ${file.path}:`, diffResult.failedBlocks);
                 }
             } else {
-                console.warn(`Could not apply any edits to ${file.path}, using as full replacement`);
-                result[file.path] = file.content;
+                // Diff failed - use the REPLACE content from the last block as fallback
+                // This is better than using raw diff content with markers
+                console.warn(`Could not apply any edits to ${file.path}`);
+                if (file.diffBlocks.length > 0) {
+                    // Use the replacement content from the diff block
+                    const lastBlock = file.diffBlocks[file.diffBlocks.length - 1];
+                    console.warn(`Using REPLACE content as full file for ${file.path}`);
+                    result[file.path] = lastBlock.replace;
+                }
+                // If no diff blocks, keep the existing file unchanged
             }
         } else {
             // Full file replacement
@@ -217,4 +241,64 @@ export async function getProjectFiles(projectId: string): Promise<ParsedFile[]> 
     // For now, return empty array - we'll implement R2 listing later
     // In production, you'd list all objects with prefix `projects/${projectId}/files/`
     return [];
+}
+
+/**
+ * Extract npm packages from import statements in generated files
+ * Returns packages that are NOT in the base Next.js template
+ */
+export function extractDependencies(files: ParsedFile[]): string[] {
+    // Packages already in the base nextjs-developer template
+    const basePackages = new Set([
+        'react',
+        'react-dom',
+        'next',
+        'lucide-react',
+        'tailwindcss',
+        // Internal/relative imports start with . or @/
+    ]);
+
+    const packages = new Set<string>();
+    
+    // Regex to match import statements
+    // Matches: import X from 'package' or import { X } from "package"
+    const importRegex = /import\s+(?:[\w\s{},*]+\s+from\s+)?['"]([^'"]+)['"]/g;
+    
+    for (const file of files) {
+        let match;
+        while ((match = importRegex.exec(file.content)) !== null) {
+            const importPath = match[1];
+            
+            // Skip relative imports (., .., @/)
+            if (importPath.startsWith('.') || importPath.startsWith('@/')) {
+                continue;
+            }
+            
+            // Extract package name (handle scoped packages like @clerk/nextjs)
+            let packageName: string;
+            if (importPath.startsWith('@')) {
+                // Scoped package: @scope/package or @scope/package/subpath
+                const parts = importPath.split('/');
+                packageName = `${parts[0]}/${parts[1]}`;
+            } else {
+                // Regular package: package or package/subpath
+                packageName = importPath.split('/')[0];
+            }
+            
+            // Skip base packages and Node.js built-ins
+            if (basePackages.has(packageName)) {
+                continue;
+            }
+            
+            // Skip Node.js built-in modules
+            const nodeBuiltins = ['fs', 'path', 'os', 'http', 'https', 'crypto', 'stream', 'util', 'events', 'buffer', 'url', 'querystring', 'child_process', 'cluster', 'dgram', 'dns', 'net', 'readline', 'repl', 'tls', 'tty', 'v8', 'vm', 'zlib'];
+            if (nodeBuiltins.includes(packageName)) {
+                continue;
+            }
+            
+            packages.add(packageName);
+        }
+    }
+    
+    return Array.from(packages);
 }

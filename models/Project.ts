@@ -17,6 +17,8 @@ export interface IProject {
     apiKeyHash?: string;
     // Store project files directly in the document
     files: IProjectFile[];
+    // NPM dependencies to install in sandbox
+    dependencies: string[];
     providers: {
         auth: {
             enabled: boolean;
@@ -87,6 +89,10 @@ const ProjectSchema = new Schema<IProject>(
         },
         files: {
             type: [ProjectFileSchema],
+            default: [],
+        },
+        dependencies: {
+            type: [String],
             default: [],
         },
         providers: {

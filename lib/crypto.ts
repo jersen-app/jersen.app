@@ -1,5 +1,10 @@
 import { nanoid } from "nanoid";
 import bcrypt from "bcryptjs";
+import { SignJWT, jwtVerify } from "jose";
+
+const JWT_SECRET = new TextEncoder().encode(
+    process.env.JWT_SECRET || process.env.CLERK_SECRET_KEY || "jersen-secret-key"
+);
 
 /**
  * Generate a new API key for a project
@@ -8,6 +13,33 @@ import bcrypt from "bcryptjs";
 export function generateApiKey(): string {
     const key = nanoid(32); // 32 character random string
     return `jersen_proj_${key}`;
+}
+
+/**
+ * Create a secure JWT token for session data
+ */
+export async function createSecureToken(payload: string, expiresIn = "7d"): Promise<string> {
+    const data = JSON.parse(payload);
+    
+    const token = await new SignJWT(data)
+        .setProtectedHeader({ alg: "HS256" })
+        .setIssuedAt()
+        .setExpirationTime(expiresIn)
+        .sign(JWT_SECRET);
+
+    return token;
+}
+
+/**
+ * Verify and decode a secure JWT token
+ */
+export async function verifySecureToken<T = Record<string, unknown>>(token: string): Promise<T | null> {
+    try {
+        const { payload } = await jwtVerify(token, JWT_SECRET);
+        return payload as T;
+    } catch {
+        return null;
+    }
 }
 
 /**

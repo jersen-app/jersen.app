@@ -2,9 +2,15 @@ import mongoose, { Schema, model, models } from "mongoose";
 
 export interface IProjectUser {
     projectId: string;
-    projectUserId: string; // Customer-facing user ID
-    clerkUserId: string; // Internal Jersen Clerk user ID
+    projectUserId?: string; // Customer-facing user ID (optional, auto-generated)
+    clerkUserId?: string; // Internal Jersen Clerk user ID (optional for OAuth)
     email: string;
+    name?: string;
+    avatarUrl?: string;
+    provider?: string; // OAuth provider: google, facebook, tiktok, etc.
+    providerId?: string; // OAuth provider user ID
+    passwordHash?: string; // For email/password auth
+    lastLoginAt?: Date;
     metadata?: Record<string, any>;
     createdAt: Date;
     updatedAt: Date;
@@ -19,19 +25,39 @@ const ProjectUserSchema = new Schema<IProjectUser>(
         },
         projectUserId: {
             type: String,
-            required: [true, "Project User ID is required"],
             index: true,
         },
         clerkUserId: {
             type: String,
-            required: [true, "Clerk User ID is required"],
             index: true,
+            sparse: true,
         },
         email: {
             type: String,
             required: [true, "Email is required"],
             lowercase: true,
             trim: true,
+        },
+        name: {
+            type: String,
+            trim: true,
+        },
+        avatarUrl: {
+            type: String,
+        },
+        provider: {
+            type: String,
+            default: "email",
+        },
+        providerId: {
+            type: String,
+            sparse: true,
+        },
+        passwordHash: {
+            type: String,
+        },
+        lastLoginAt: {
+            type: Date,
         },
         metadata: {
             type: Schema.Types.Mixed,
@@ -46,6 +72,13 @@ const ProjectUserSchema = new Schema<IProjectUser>(
 // Compound index for project + email uniqueness
 ProjectUserSchema.index({ projectId: 1, email: 1 }, { unique: true });
 
-const ProjectUser = models.ProjectUser || model<IProjectUser>("ProjectUser", ProjectUserSchema);
+// Generate projectUserId before save if not set
+ProjectUserSchema.pre("save", function () {
+    if (!this.projectUserId) {
+        this.projectUserId = new mongoose.Types.ObjectId().toString();
+    }
+});
 
-export default ProjectUser;
+export const ProjectUserModel = models.ProjectUser || model<IProjectUser>("ProjectUser", ProjectUserSchema);
+
+export default ProjectUserModel;
