@@ -1,11 +1,29 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { MessageSquarePlus, Trash2, Loader2 } from "lucide-react";
 import type { Message, FileData, ParsedBlock, Attachment } from "./types";
 import { generateId, parseAIResponse } from "./utils";
 import { applyDiffBlocks } from "@/lib/ai/diff";
 import { MessageList } from "./MessageList";
 import { ChatInput } from "./ChatInput";
+import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 // Helper to convert File to base64
 const fileToBase64 = (file: File): Promise<string> => {
@@ -26,12 +44,14 @@ interface ChatInterfaceProps {
   projectId: string;
   onFilesGenerated?: (files: FileData[]) => void;
   existingFiles?: { path: string; content: string }[];
+  onNewChat?: () => void;
 }
 
 export function ChatInterface({
   projectId,
   onFilesGenerated,
   existingFiles = [],
+  onNewChat,
 }: ChatInterfaceProps) {
   // Keep a ref to existing files so we can apply diffs
   const filesRef = useRef<Map<string, string>>(new Map());
@@ -86,6 +106,7 @@ export function ChatInterface({
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isClearing, setIsClearing] = useState(false);
   const [streamingContent, setStreamingContent] = useState("");
   const [streamingBlocks, setStreamingBlocks] = useState<ParsedBlock[] | null>(
     null
@@ -130,6 +151,39 @@ export function ChatInterface({
     },
     [onFilesGenerated]
   );
+
+  // Clear chat history
+  const handleClearHistory = async () => {
+    setIsClearing(true);
+    try {
+      const res = await fetch(`/api/projects/${projectId}/chat`, {
+        method: "DELETE",
+      });
+      
+      if (res.ok) {
+        setMessages([]);
+        // Also clear the files ref to start fresh
+        filesRef.current.clear();
+      } else {
+        console.error("Failed to clear chat history");
+      }
+    } catch (error) {
+      console.error("Failed to clear chat history:", error);
+    } finally {
+      setIsClearing(false);
+    }
+  };
+
+  // Start new chat (clear messages but keep files)
+  const handleNewChat = () => {
+    setMessages([]);
+    setInput("");
+    setStreamingContent("");
+    setStreamingBlocks(null);
+    if (onNewChat) {
+      onNewChat();
+    }
+  };
 
   // Send message
   const sendMessage = async (attachments?: Attachment[]) => {
@@ -263,6 +317,69 @@ export function ChatInterface({
 
   return (
     <div className="flex flex-col h-full">
+      {/* Chat Header with controls */}
+      <div className="shrink-0 flex items-center justify-between px-3 py-2 border-b bg-background/50">
+        <span className="text-xs font-medium text-muted-foreground">
+          {messages.length > 0 ? `${messages.length} messages` : "New conversation"}
+        </span>
+        <div className="flex items-center gap-1">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                onClick={handleNewChat}
+                disabled={isLoading || messages.length === 0}
+              >
+                <MessageSquarePlus className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>New chat (keep files)</TooltipContent>
+          </Tooltip>
+
+          <AlertDialog>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                    disabled={isLoading || isClearing || messages.length === 0}
+                  >
+                    {isClearing ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-4 w-4" />
+                    )}
+                  </Button>
+                </AlertDialogTrigger>
+              </TooltipTrigger>
+              <TooltipContent>Clear all history</TooltipContent>
+            </Tooltip>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Clear chat history?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will permanently delete all {messages.length} messages in this conversation. 
+                  Your generated files will remain, but the AI will lose context of previous discussions.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={handleClearHistory}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  Clear history
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
+      </div>
+
       <MessageList
         messages={messages}
         isLoading={isLoading}

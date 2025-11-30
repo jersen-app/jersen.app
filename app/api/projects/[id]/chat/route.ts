@@ -250,3 +250,34 @@ export async function GET(
 
     return Response.json({ messages: formattedMessages });
 }
+
+// DELETE chat history (clear all messages for a project)
+export async function DELETE(
+    request: Request,
+    { params }: { params: Promise<{ id: string }> }
+) {
+    const { userId } = await auth();
+
+    if (!userId) {
+        return new Response("Unauthorized", { status: 401 });
+    }
+
+    const { id: projectId } = await params;
+
+    try {
+        await connectToDatabase();
+        
+        // Delete all messages for this project
+        const result = await ChatMessage.deleteMany({ projectId });
+        
+        console.log(`Cleared ${result.deletedCount} messages for project ${projectId}`);
+        
+        return Response.json({ 
+            success: true, 
+            deletedCount: result.deletedCount 
+        });
+    } catch (error) {
+        console.error("Failed to clear chat history:", error);
+        return new Response("Failed to clear chat history", { status: 500 });
+    }
+}
