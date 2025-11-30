@@ -3,6 +3,13 @@ import { generateText } from "ai";
 import connectToDatabase from "@/lib/db";
 import ProjectMemory, { IProjectMemory } from "@/models/ProjectMemory";
 import ChatMessage from "@/models/ChatMessage";
+import {
+    getAuthDocs,
+    getStorageDocs,
+    getDatabaseDocs,
+    getAllProviderDocs,
+    type ProjectConfig,
+} from "./provider-docs";
 
 const SUMMARY_THRESHOLD = 10; // Re-summarize every 10 messages
 
@@ -311,4 +318,34 @@ export function executeFindRelated(
     }
     
     return results.slice(0, 10);
+}
+
+/**
+ * Execute getProviderDocs tool - returns implementation docs for a provider
+ */
+export function executeGetProviderDocs(
+    projectConfig: ProjectConfig,
+    provider: 'auth' | 'storage' | 'database' | 'all',
+    context?: string
+): { docs: string; provider: string } {
+    let docs: string;
+    
+    switch (provider) {
+        case 'auth':
+            docs = getAuthDocs(projectConfig);
+            break;
+        case 'storage':
+            docs = getStorageDocs(projectConfig);
+            break;
+        case 'database':
+            docs = getDatabaseDocs(projectConfig);
+            break;
+        case 'all':
+            docs = getAllProviderDocs(projectConfig);
+            break;
+        default:
+            docs = `Unknown provider: ${provider}`;
+    }
+    
+    return { docs, provider };
 }

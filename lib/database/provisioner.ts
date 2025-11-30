@@ -1,10 +1,10 @@
-import mongoose from "mongoose";
 import { nanoid } from "nanoid";
 
 const MONGO_URI = process.env.MONGO_URI;
 
 /**
  * Generate database credentials for a project
+ * These are stored for reference but the main app connection is used
  */
 export function generateDbCredentials() {
     return {
@@ -14,48 +14,49 @@ export function generateDbCredentials() {
 }
 
 /**
- * Provision a new database for a project
- * Creates a database with format: jersen_proj_{projectId}
+ * Provision a "virtual" database namespace for a project
+ * 
+ * Note: MongoDB Atlas doesn't allow programmatic user creation via the driver.
+ * Instead, we use collection namespacing within the same database.
+ * Each project gets collections prefixed with: proj_{projectId}_
+ * 
+ * For true database isolation, use MongoDB Atlas Admin API to create users,
+ * or use self-hosted MongoDB.
  */
 export async function provisionDatabase(projectId: string) {
     const dbName = `jersen_proj_${projectId}`;
     const credentials = generateDbCredentials();
+    const collectionPrefix = `proj_${projectId}_`;
 
-    try {
-        // Connect to admin database
-        const adminConn = await mongoose.createConnection(MONGO_URI!).asPromise();
-
-        // Create database user with access to project database
-        await adminConn.db.admin().command({
-            createUser: credentials.username,
-            pwd: credentials.password,
-            roles: [
-                {
-                    role: "readWrite",
-                    db: dbName,
-                },
-            ],
-        });
-
-        await adminConn.close();
-
-        return {
-            dbName,
-            credentials,
-        };
-    } catch (error: any) {
-        console.error("Database provisioning error:", error);
-        throw new Error(`Failed to provision database: ${error.message}`);
-    }
+    // No need to create a separate user on Atlas
+    // The project will use the main connection with collection namespacing
+    
+    return {
+        dbName,
+        credentials,
+        collectionPrefix,
+        // Flag to indicate this uses the shared connection
+        useSharedConnection: true,
+    };
 }
 
 /**
  * Get connection string for a project database
+ * 
+ * For Atlas, we return the main connection string since we use collection namespacing.
+ * For self-hosted MongoDB with real user isolation, build a custom connection string.
  */
 export function getProjectConnectionString(
     dbName: string,
-    credentials: { username: string; password: string }
+    credentials: { username: string; password: string },
+    useSharedConnection: boolean = true
 ): string {
+    if (useSharedConnection) {
+        // Return main connection - project isolation is done via collection prefix
+        return MONGO_URI!;
+    }
+
+    // For self-hosted MongoDB with real user isolation:
     const baseUri = MONGO_URI!;
     const uriParts = baseUri.split("@");
 

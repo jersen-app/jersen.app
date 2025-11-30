@@ -7,6 +7,15 @@ import { z } from "zod";
 
 // Tool definitions for streamText
 export const aiTools = {
+    // Tool: Get provider documentation
+    getProviderDocs: {
+        description: "Get detailed implementation documentation for Jersen providers (auth, storage, database). Use this BEFORE implementing any feature that requires authentication, file uploads, or database operations. This returns code templates and examples specific to this project.",
+        parameters: z.object({
+            provider: z.enum(["auth", "storage", "database", "all"]).describe("Which provider docs to retrieve. Use 'auth' for login/signup, 'storage' for file uploads, 'database' for data persistence, or 'all' for everything."),
+            context: z.string().optional().describe("What feature you're implementing - helps provide relevant examples"),
+        }),
+    },
+
     // Tool: Search files in the project
     searchFiles: {
         description: "Search for files in the project by name pattern or content. Use this FIRST when you need to understand the project structure or find specific files before making changes.",

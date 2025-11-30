@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import ApiKeyDisplay from "@/components/ApiKeyDisplay";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
+import { DeleteProjectButton } from "@/components/projects/DeleteProjectButton";
 
 export default async function ProjectSettingsPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = await params;
@@ -94,6 +95,27 @@ export default async function ProjectSettingsPage({ params }: { params: Promise<
                             <p className="text-gray-500">POST /api/providers/database/insert</p>
                             <p className="text-gray-500">GET /api/providers/database/find?collection=...</p>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Danger Zone */}
+            <div className="space-y-4">
+                <div>
+                    <h2 className="text-lg font-medium text-red-600 dark:text-red-500">Danger Zone</h2>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                        Irreversible actions for this project.
+                    </p>
+                </div>
+                <div className="rounded-xl border border-red-200 bg-red-50 p-6 dark:border-red-900/50 dark:bg-red-950/20">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                        <div>
+                            <h3 className="font-medium text-red-700 dark:text-red-400">Delete this project</h3>
+                            <p className="text-sm text-red-600/80 dark:text-red-400/80">
+                                Once deleted, all project data will be permanently removed.
+                            </p>
+                        </div>
+                        <DeleteProjectButton projectId={id} projectName={project.name} />
                     </div>
                 </div>
             </div>

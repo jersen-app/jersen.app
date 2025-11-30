@@ -16,7 +16,16 @@ import {
     executeReadFile,
     executeListDirectory,
     executeFindRelated,
+    executeGetProviderDocs,
 } from "@/lib/ai/memory";
+import {
+    getProviderOverview,
+    getAuthDocs,
+    getStorageDocs,
+    getDatabaseDocs,
+    detectNeededProviders,
+    type ProjectConfig,
+} from "@/lib/ai/provider-docs";
 
 export const maxDuration = 60;
 
@@ -99,6 +108,12 @@ export async function POST(
     // Get chat history from DB
     await connectToDatabase();
     const chatHistory = await ChatMessage.find({ projectId }).sort({ createdAt: 1 }).lean();
+    
+    // Get project data for provider configuration
+    const project = await Project.findById(projectId).lean();
+    if (!project) {
+        return new Response(JSON.stringify({ error: "Project not found" }), { status: 404 });
+    }
 
     // Get existing files - prefer frontend files (current state), fallback to chat history
     let existingFiles: Array<{ path: string; content: string }> = [];
@@ -126,6 +141,46 @@ export async function POST(
     // Build memory context (summary of past conversations)
     const memoryContext = await buildMemoryContext(projectId);
 
+    // Build provider configuration for this project
+    const projectConfig: ProjectConfig = {
+        projectId,
+        apiKey: (project as any).apiKey || '',
+        providers: {
+            auth: { enabled: !!(project as any).providers?.auth?.enabled },
+            storage: { 
+                enabled: !!(project as any).providers?.storage?.enabled,
+                quota: (project as any).providers?.storage?.quota,
+            },
+            database: {
+                enabled: !!(project as any).providers?.database?.enabled,
+                dbName: (project as any).providers?.database?.dbName,
+            },
+        },
+    };
+
+    // Get provider overview (lightweight, always included)
+    const providerOverview = getProviderOverview(projectConfig);
+
+    // Detect if user message likely needs provider docs (auto-inject)
+    const neededProviders = detectNeededProviders(userContent);
+    let autoInjectedDocs = '';
+    
+    if (neededProviders.length > 0) {
+        const docParts: string[] = [];
+        for (const provider of neededProviders) {
+            if (provider === 'auth' && projectConfig.providers.auth.enabled) {
+                docParts.push(getAuthDocs(projectConfig));
+            } else if (provider === 'storage' && projectConfig.providers.storage.enabled) {
+                docParts.push(getStorageDocs(projectConfig));
+            } else if (provider === 'database' && projectConfig.providers.database.enabled) {
+                docParts.push(getDatabaseDocs(projectConfig));
+            }
+        }
+        if (docParts.length > 0) {
+            autoInjectedDocs = `\n\n---\n## Provider Implementation Docs (Auto-detected)\n${docParts.join('\n\n---\n\n')}`;
+        }
+    }
+
     // Build conversation history from DB (limit to recent messages to save context)
     const recentHistory = chatHistory.slice(-20); // Last 20 messages
     const historyMessages: CoreMessage[] = recentHistory.map((msg: any) => ({
@@ -138,16 +193,19 @@ export async function POST(
 
 ${memoryContext ? `\n${memoryContext}\n` : ''}
 
+${providerOverview}
+
 ${contextPrompt}
 
 ## Available Tools
 Before making changes, you should:
-1. Use searchFiles to find relevant files
-2. Use readFile to understand existing code
-3. Use listDirectory to explore project structure
-4. Then make informed changes
+1. Use \`getProviderDocs\` when implementing auth, storage, or database features
+2. Use \`searchFiles\` to find relevant files
+3. Use \`readFile\` to understand existing code
+4. Use \`listDirectory\` to explore project structure
+5. Then make informed changes
 
-When using tools, the results will be provided and you should incorporate them into your response.`;
+When using tools, the results will be provided and you should incorporate them into your response.${autoInjectedDocs}`;
 
     // Build user message content - can be multimodal with images
     type MessageContent = string | Array<{ type: "text"; text: string } | { type: "image"; image: string; mimeType?: string }>;
