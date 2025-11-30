@@ -188,8 +188,8 @@ function generateEnvFile(project: any): string {
 
     // Add auth info if enabled
     if (project.providers?.auth?.enabled) {
-        lines.push('# Auth');
-        lines.push(`JERSEN_AUTH_ENABLED=true`);
+        lines.push('# Auth (Clerk)');
+        lines.push(`NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY || ''}`);
         lines.push('');
     }
 

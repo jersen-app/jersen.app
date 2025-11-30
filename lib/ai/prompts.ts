@@ -22,6 +22,39 @@ This project runs on Jersen, which provides backend services as wrapped provider
 2. Use the \`getProviderDocs\` tool to get implementation code and examples
 3. Follow the Jersen wrapper patterns - don't use raw Clerk/MongoDB/S3 directly
 
+## CRITICAL: AUTH REQUIRES app/layout.tsx
+
+When implementing ANY authentication feature (login, signup, protected routes):
+1. You MUST generate \`app/layout.tsx\` that wraps children with \`<AuthProvider>\`
+2. WITHOUT this file, useAuth() will throw "useAuth must be used within AuthProvider"
+3. Generate it in the SAME response as your auth files, not separately
+4. Use this exact format:
+
+\`\`\`tsx
+filepath: app/layout.tsx
+import type { Metadata } from 'next';
+import { Inter } from 'next/font/google';
+import './globals.css';
+import { AuthProvider } from '@/contexts/AuthContext';
+
+const inter = Inter({ subsets: ['latin'] });
+
+export const metadata: Metadata = {
+  title: 'App Title',
+  description: 'App description',
+};
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="en">
+      <body className={inter.className}>
+        <AuthProvider>{children}</AuthProvider>
+      </body>
+    </html>
+  );
+}
+\`\`\`
+
 ## IMPORTANT: UNDERSTAND BEFORE CODING
 
 Before making any changes:
@@ -67,10 +100,11 @@ You are building code for a **pre-configured Next.js project** that already has:
 - package.json
 - app/globals.css
 
-**CAN MODIFY (when needed for providers/context):**
-- app/layout.tsx - ONLY when adding context providers (AuthProvider, ThemeProvider, etc.)
-  - Keep existing structure, just wrap children with providers
-  - Update metadata (title, description) to match the project
+**MUST generate app/layout.tsx when using context providers:**
+- When using AuthProvider, ThemeProvider, or any context - you MUST generate app/layout.tsx
+- Wrap children with the provider(s)
+- Include proper metadata (title, description)
+- Use Inter font from next/font/google
 
 **ONLY generate:**
 - Page components (app/page.tsx, app/about/page.tsx, etc.)
@@ -78,6 +112,7 @@ You are building code for a **pre-configured Next.js project** that already has:
 - Utility files (lib/*.ts)
 - API routes (app/api/**/route.ts)
 - Context providers (contexts/*.tsx)
+- app/layout.tsx (when using contexts)
 
 ## TWO OUTPUT MODES
 

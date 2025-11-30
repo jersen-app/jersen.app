@@ -30,204 +30,23 @@ export function getAuthDocs(config: ProjectConfig): string {
 
     return `## Jersen Authentication Provider
 
-This project uses Jersen Auth (built on Clerk) for user authentication.
+This project uses Clerk for user authentication, powered by the Jersen platform.
 
 ### Environment Setup
 The \`.env.local\` file is automatically created when you preview. It contains:
 \`\`\`
-NEXT_PUBLIC_JERSEN_API_KEY=${config.apiKey}
-NEXT_PUBLIC_JERSEN_API_URL=<auto-configured>
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=<auto-configured>
 \`\`\`
 
-### Client-Side Auth Library
-Create \`lib/jersen-auth.ts\`:
-\`\`\`typescript
-const API_KEY = process.env.NEXT_PUBLIC_JERSEN_API_KEY!;
-const API_URL = process.env.NEXT_PUBLIC_JERSEN_API_URL || 'https://api.jersen.app';
+### CRITICAL: Setup app/layout.tsx with ClerkProvider
+**You MUST wrap your app with ClerkProvider in layout.tsx. Without this, Clerk hooks will throw errors!**
 
-interface User {
-  id: string;
-  email: string;
-  metadata?: Record<string, any>;
-}
-
-interface AuthResponse {
-  success: boolean;
-  user?: User;
-  sessionToken?: string;
-  error?: string;
-}
-
-export async function signUp(email: string, password: string, metadata?: Record<string, any>): Promise<AuthResponse> {
-  const res = await fetch(\`\${API_URL}/api/providers/auth?action=signup\`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': API_KEY,
-    },
-    body: JSON.stringify({ email, password, metadata }),
-  });
-  return res.json();
-}
-
-export async function signIn(email: string, password: string): Promise<AuthResponse> {
-  const res = await fetch(\`\${API_URL}/api/providers/auth?action=signin\`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': API_KEY,
-    },
-    body: JSON.stringify({ email, password }),
-  });
-  const data = await res.json();
-  if (data.sessionToken) {
-    localStorage.setItem('jersen_session', data.sessionToken);
-    localStorage.setItem('jersen_user', JSON.stringify(data.user));
-  }
-  return data;
-}
-
-export async function signOut(): Promise<void> {
-  localStorage.removeItem('jersen_session');
-  localStorage.removeItem('jersen_user');
-}
-
-export function getCurrentUser(): User | null {
-  const userStr = localStorage.getItem('jersen_user');
-  return userStr ? JSON.parse(userStr) : null;
-}
-
-export function isAuthenticated(): boolean {
-  return !!localStorage.getItem('jersen_session');
-}
-\`\`\`
-
-### React Auth Context (Optional)
-Create \`contexts/AuthContext.tsx\`:
 \`\`\`tsx
-"use client";
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { signIn, signUp, signOut, getCurrentUser, isAuthenticated } from '@/lib/jersen-auth';
-
-interface User {
-  id: string;
-  email: string;
-  metadata?: Record<string, any>;
-}
-
-interface AuthContextType {
-  user: User | null;
-  isLoading: boolean;
-  signIn: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
-  signUp: (email: string, password: string, metadata?: Record<string, any>) => Promise<{ success: boolean; error?: string }>;
-  signOut: () => void;
-}
-
-const AuthContext = createContext<AuthContextType | null>(null);
-
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    setUser(getCurrentUser());
-    setIsLoading(false);
-  }, []);
-
-  const handleSignIn = async (email: string, password: string) => {
-    const result = await signIn(email, password);
-    if (result.success && result.user) {
-      setUser(result.user);
-    }
-    return { success: result.success, error: result.error };
-  };
-
-  const handleSignUp = async (email: string, password: string, metadata?: Record<string, any>) => {
-    const result = await signUp(email, password, metadata);
-    return { success: result.success, error: result.error };
-  };
-
-  const handleSignOut = () => {
-    signOut();
-    setUser(null);
-  };
-
-  return (
-    <AuthContext.Provider value={{ 
-      user, 
-      isLoading, 
-      signIn: handleSignIn, 
-      signUp: handleSignUp, 
-      signOut: handleSignOut 
-    }}>
-      {children}
-    </AuthContext.Provider>
-  );
-}
-
-export function useAuth() {
-  const context = useContext(AuthContext);
-  if (!context) throw new Error('useAuth must be used within AuthProvider');
-  return context;
-}
-\`\`\`
-
-### Usage Example
-\`\`\`tsx
-"use client";
-import { useAuth } from '@/contexts/AuthContext';
-
-export default function LoginPage() {
-  const { signIn, isLoading } = useAuth();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const result = await signIn(email, password);
-    if (!result.success) {
-      setError(result.error || 'Login failed');
-    }
-  };
-
-  // ... render form
-}
-\`\`\`
-
-### Protected Routes
-\`\`\`tsx
-"use client";
-import { useAuth } from '@/contexts/AuthContext';
-import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
-
-export function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user, isLoading } = useAuth();
-  const router = useRouter();
-
-  useEffect(() => {
-    if (!isLoading && !user) {
-      router.push('/login');
-    }
-  }, [user, isLoading, router]);
-
-  if (isLoading) return <div>Loading...</div>;
-  if (!user) return null;
-  
-  return <>{children}</>;
-}
-\`\`\`
-
-### IMPORTANT: Update app/layout.tsx
-**You MUST wrap your app with AuthProvider in layout.tsx for useAuth to work!**
-
-Update \`app/layout.tsx\`:
-\`\`\`tsx
+// filepath: app/layout.tsx
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
-import { AuthProvider } from '@/contexts/AuthContext';
+import { ClerkProvider } from '@clerk/nextjs';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -242,15 +61,176 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <body className={inter.className}>
-        <AuthProvider>
+    <ClerkProvider>
+      <html lang="en">
+        <body className={inter.className}>
           {children}
-        </AuthProvider>
-      </body>
-    </html>
+        </body>
+      </html>
+    </ClerkProvider>
   );
 }
+\`\`\`
+
+### Pre-built Auth Components
+Clerk provides beautiful, customizable pre-built components:
+
+#### Sign In Page
+\`\`\`tsx
+// filepath: app/sign-in/[[...sign-in]]/page.tsx
+import { SignIn } from '@clerk/nextjs';
+
+export default function SignInPage() {
+  return (
+    <div className="min-h-screen flex items-center justify-center">
+      <SignIn />
+    </div>
+  );
+}
+\`\`\`
+
+#### Sign Up Page
+\`\`\`tsx
+// filepath: app/sign-up/[[...sign-up]]/page.tsx
+import { SignUp } from '@clerk/nextjs';
+
+export default function SignUpPage() {
+  return (
+    <div className="min-h-screen flex items-center justify-center">
+      <SignUp />
+    </div>
+  );
+}
+\`\`\`
+
+### User Button Component
+The UserButton shows the user's avatar and provides a dropdown for account management:
+
+\`\`\`tsx
+"use client";
+import { UserButton } from '@clerk/nextjs';
+
+export function Header() {
+  return (
+    <header className="flex justify-between items-center p-4">
+      <h1>My App</h1>
+      <UserButton afterSignOutUrl="/" />
+    </header>
+  );
+}
+\`\`\`
+
+### Using Clerk Hooks
+Access user data and authentication state with hooks:
+
+\`\`\`tsx
+"use client";
+import { useUser, useAuth, SignedIn, SignedOut } from '@clerk/nextjs';
+
+export function ProfilePage() {
+  const { user, isLoaded } = useUser();
+  const { signOut } = useAuth();
+
+  if (!isLoaded) return <div>Loading...</div>;
+
+  return (
+    <div>
+      <SignedIn>
+        <p>Welcome, {user?.firstName}!</p>
+        <p>Email: {user?.emailAddresses[0]?.emailAddress}</p>
+        <button onClick={() => signOut()}>Sign Out</button>
+      </SignedIn>
+      
+      <SignedOut>
+        <p>Please sign in to continue.</p>
+      </SignedOut>
+    </div>
+  );
+}
+\`\`\`
+
+### Protecting Routes with Middleware
+Create \`middleware.ts\` at the root of your project:
+
+\`\`\`typescript
+// filepath: middleware.ts
+import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
+
+const isPublicRoute = createRouteMatcher([
+  '/',
+  '/sign-in(.*)',
+  '/sign-up(.*)',
+]);
+
+export default clerkMiddleware(async (auth, req) => {
+  if (!isPublicRoute(req)) {
+    await auth.protect();
+  }
+});
+
+export const config = {
+  matcher: [
+    '/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)',
+    '/(api|trpc)(.*)',
+  ],
+};
+\`\`\`
+
+### Server-Side Auth (API Routes)
+Access the user in server components and API routes:
+
+\`\`\`typescript
+// filepath: app/api/user/route.ts
+import { auth, currentUser } from '@clerk/nextjs/server';
+import { NextResponse } from 'next/server';
+
+export async function GET() {
+  const { userId } = await auth();
+  
+  if (!userId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const user = await currentUser();
+  
+  return NextResponse.json({
+    id: userId,
+    email: user?.emailAddresses[0]?.emailAddress,
+    firstName: user?.firstName,
+    lastName: user?.lastName,
+  });
+}
+\`\`\`
+
+### Available Clerk Components
+- \`<SignIn />\` - Full sign-in form with social logins
+- \`<SignUp />\` - Full sign-up form
+- \`<UserButton />\` - User avatar with dropdown menu
+- \`<UserProfile />\` - Full user profile management
+- \`<OrganizationSwitcher />\` - Switch between organizations
+- \`<SignedIn>\` - Render children only when signed in
+- \`<SignedOut>\` - Render children only when signed out
+
+### Available Clerk Hooks
+- \`useUser()\` - Get current user data
+- \`useAuth()\` - Get auth state and methods (signOut, getToken)
+- \`useClerk()\` - Access Clerk instance
+- \`useSignIn()\` - Control sign-in flow programmatically
+- \`useSignUp()\` - Control sign-up flow programmatically
+
+### Customizing Appearance
+You can customize Clerk components with the appearance prop:
+
+\`\`\`tsx
+<SignIn 
+  appearance={{
+    elements: {
+      rootBox: "mx-auto",
+      card: "bg-white shadow-xl",
+      formButtonPrimary: "bg-blue-500 hover:bg-blue-600",
+    }
+  }}
+/>
 \`\`\`
 `;
 }
