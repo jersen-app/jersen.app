@@ -1,6 +1,18 @@
-import { clerkMiddleware } from "@clerk/nextjs/server";
+import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
+import { NextResponse } from "next/server";
 
-export default clerkMiddleware();
+// Routes that should be public (no Clerk auth required)
+const isPublicRoute = createRouteMatcher([
+  '/api/providers/(.*)',  // Provider APIs use API key auth, not Clerk
+  '/auth/oauth(.*)',      // OAuth flow pages
+]);
+
+export default clerkMiddleware(async (auth, request) => {
+  // Skip Clerk for provider routes - they use API key authentication
+  if (isPublicRoute(request)) {
+    return NextResponse.next();
+  }
+});
 
 export const config = {
   matcher: [

@@ -11,13 +11,16 @@ const TEMPLATE_ID = "nextjs-developer-song-dev";
 
 // Get the Jersen API URL based on environment
 function getJersenApiUrl(): string {
+    let url = '';
     if (process.env.NEXT_PUBLIC_APP_URL) {
-        return process.env.NEXT_PUBLIC_APP_URL;
+        url = process.env.NEXT_PUBLIC_APP_URL;
+    } else if (process.env.VERCEL_URL) {
+        url = `https://${process.env.VERCEL_URL}`;
+    } else {
+        url = 'http://localhost:3000';
     }
-    if (process.env.VERCEL_URL) {
-        return `https://${process.env.VERCEL_URL}`;
-    }
-    return 'http://localhost:3000';
+    // Remove trailing slash to prevent double slashes in URLs
+    return url.replace(/\/$/, '');
 }
 
 const JERSEN_API_URL = getJersenApiUrl();
@@ -205,12 +208,14 @@ function injectCredentials(
     jersenUrl: string
 ): Record<string, string> {
     const processed: Record<string, string> = {};
+    // Ensure no trailing slash in URL to prevent double slashes
+    const cleanUrl = jersenUrl.replace(/\/$/, '');
     
     for (const [path, content] of Object.entries(files)) {
         let processedContent = content;
         // Replace placeholders
         processedContent = processedContent.replace(/__JERSEN_API_KEY__/g, apiKey);
-        processedContent = processedContent.replace(/__JERSEN_URL__/g, jersenUrl);
+        processedContent = processedContent.replace(/__JERSEN_URL__/g, cleanUrl);
         processed[path] = processedContent;
     }
     
