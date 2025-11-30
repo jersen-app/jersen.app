@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { auth } from "@clerk/nextjs/server";
+import { checkCredits, consumeCredit } from "@/lib/subscription";
 
 const getGenAI = () => {
   const apiKey = process.env.GEMINI_API_KEY;
@@ -11,6 +13,38 @@ const getGenAI = () => {
 
 export async function POST(req: NextRequest) {
   try {
+    // Auth check
+    const { userId, orgId } = await auth();
+    
+    if (!userId) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    if (!orgId) {
+      return NextResponse.json(
+        { error: "Organization required", message: "Please select an organization to use AI features." },
+        { status: 400 }
+      );
+    }
+
+    // Check credits before processing
+    const creditCheck = await checkCredits(orgId);
+    
+    if (!creditCheck.allowed) {
+      return NextResponse.json({
+        error: "Credit limit reached",
+        message: creditCheck.reason,
+        subscription: creditCheck.subscription,
+        remainingCredits: creditCheck.remainingCredits,
+        hourlyRemaining: creditCheck.hourlyRemaining,
+      }, {
+        status: 429,
+      });
+    }
+
     const { audio, mimeType } = await req.json();
 
     if (!audio) {
@@ -73,6 +107,19 @@ Return ONLY the improved text, nothing else. If the original is already clear an
     ]);
 
     const improvedText = improvementResult.response.text().trim();
+
+    // Consume credit after successful transcription
+    await consumeCredit(
+      orgId,
+      userId,
+      "transcribe", // Use "transcribe" as projectId for tracking
+      "transcribe",
+      1,
+      {
+        audioMimeType: mimeType,
+        model: "gemini-2.0-flash-exp",
+      }
+    );
 
     return NextResponse.json({
       text: transcribedText,
