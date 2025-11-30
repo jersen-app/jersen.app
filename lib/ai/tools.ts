@@ -7,6 +7,40 @@ import { z } from "zod";
 
 // Tool definitions for streamText
 export const aiTools = {
+    // Tool: Search files in the project
+    searchFiles: {
+        description: "Search for files in the project by name pattern or content. Use this FIRST when you need to understand the project structure or find specific files before making changes.",
+        parameters: z.object({
+            query: z.string().describe("Search query - can be a filename pattern (e.g., '*.tsx', 'Button') or content to search for"),
+            searchType: z.enum(["filename", "content"]).describe("Whether to search by filename or file content"),
+        }),
+    },
+
+    // Tool: Read file contents
+    readFile: {
+        description: "Read the contents of a specific file. Use this to understand existing code before making modifications. Always read files before editing them.",
+        parameters: z.object({
+            path: z.string().describe("The file path relative to project root (e.g., 'app/page.tsx')"),
+        }),
+    },
+
+    // Tool: List directory contents
+    listDirectory: {
+        description: "List all files and folders in a directory. Use this to explore project structure.",
+        parameters: z.object({
+            path: z.string().describe("The directory path relative to project root (e.g., 'components' or 'app/api')"),
+        }),
+    },
+
+    // Tool: Find related files
+    findRelated: {
+        description: "Find files that are related to a given file (imports, exports, similar patterns). Use this to understand dependencies.",
+        parameters: z.object({
+            path: z.string().describe("The file path to find related files for"),
+            relationType: z.enum(["imports", "exports", "similar"]).describe("Type of relationship to find"),
+        }),
+    },
+
     // Tool: Create or update a file
     createFile: {
         description: "Create a new file or update an existing file in the project. Use this when you need to write code to a file.",
@@ -68,6 +102,17 @@ export const aiTools = {
                 description: z.string().describe("What was changed in this file"),
             })).describe("List of files that were changed"),
             nextSteps: z.array(z.string()).optional().describe("Optional suggested next steps for the user"),
+        }),
+    },
+
+    // Tool: Remember context for future conversations
+    remember: {
+        description: "Store important context, decisions, or patterns to remember for future conversations. Use this when users make important decisions about architecture, design, or preferences.",
+        parameters: z.object({
+            type: z.enum(["decision", "context", "tech"]).describe("Type of thing to remember"),
+            key: z.string().describe("Short key/title for this memory"),
+            value: z.string().describe("The information to remember"),
+            reason: z.string().optional().describe("Why this is important to remember"),
         }),
     },
 };

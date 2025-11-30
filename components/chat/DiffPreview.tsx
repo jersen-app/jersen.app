@@ -1,64 +1,79 @@
 "use client";
 
-import { Check, X, ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 
 interface DiffBlockProps {
   filename: string;
   diffBlocks: Array<{ search: string; replace: string }>;
-  onApply?: () => void;
-  onReject?: () => void;
+  defaultCollapsed?: boolean;
+  lineChanges?: { added: number; removed: number };
 }
 
-export function DiffPreview({ filename, diffBlocks, onApply, onReject }: DiffBlockProps) {
-  const [isExpanded, setIsExpanded] = useState(true);
+export function DiffPreview({ 
+  filename, 
+  diffBlocks, 
+  defaultCollapsed = true,
+  lineChanges 
+}: DiffBlockProps) {
+  const [isExpanded, setIsExpanded] = useState(!defaultCollapsed);
+
+  // Calculate line changes if not provided
+  const changes = lineChanges || (() => {
+    let added = 0;
+    let removed = 0;
+    for (const block of diffBlocks) {
+      const searchLines = block.search.split('\n').length;
+      const replaceLines = block.replace.split('\n').filter(l => l !== '').length;
+      removed += searchLines;
+      added += replaceLines;
+    }
+    return { added, removed };
+  })();
+
+  // Get just the filename from path
+  const displayName = filename.split('/').pop() || filename;
+  const hasPath = filename.includes('/');
 
   return (
     <div className="rounded-lg border bg-card overflow-hidden">
       {/* Header */}
       <div 
-        className="flex items-center justify-between px-3 py-2 bg-muted/50 cursor-pointer"
+        className="flex items-center gap-2 px-2 py-1.5 bg-muted/50 cursor-pointer hover:bg-muted/70 transition-colors"
         onClick={() => setIsExpanded(!isExpanded)}
       >
-        <div className="flex items-center gap-2">
-          {isExpanded ? (
-            <ChevronDown className="h-4 w-4 text-muted-foreground" />
-          ) : (
-            <ChevronRight className="h-4 w-4 text-muted-foreground" />
-          )}
-          <span className="text-sm font-medium">{filename}</span>
-          <span className="text-xs text-muted-foreground">
-            {diffBlocks.length} change{diffBlocks.length !== 1 ? 's' : ''}
-          </span>
-        </div>
-        {(onApply || onReject) && (
-          <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-            {onApply && (
-              <button
-                onClick={onApply}
-                className="p-1 rounded hover:bg-green-500/20 text-green-600"
-                title="Apply changes"
-              >
-                <Check className="h-4 w-4" />
-              </button>
-            )}
-            {onReject && (
-              <button
-                onClick={onReject}
-                className="p-1 rounded hover:bg-red-500/20 text-red-600"
-                title="Reject changes"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            )}
-          </div>
+        {isExpanded ? (
+          <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+        ) : (
+          <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
         )}
+        <div className="flex-1 min-w-0 flex items-center gap-2">
+          <span className="text-xs font-medium truncate">{displayName}</span>
+          {hasPath && (
+            <span className="text-[10px] text-muted-foreground truncate hidden sm:inline">
+              {filename}
+            </span>
+          )}
+        </div>
+        {/* Line change indicators */}
+        <div className="flex items-center gap-1 text-[10px] font-mono shrink-0">
+          {changes.added > 0 && (
+            <span className="flex items-center text-green-600 dark:text-green-400">
+              +{changes.added}
+            </span>
+          )}
+          {changes.removed > 0 && (
+            <span className="flex items-center text-red-600 dark:text-red-400">
+              -{changes.removed}
+            </span>
+          )}
+        </div>
       </div>
 
-      {/* Diff Content */}
+      {/* Diff Content - collapsed by default */}
       {isExpanded && (
-        <div className="divide-y">
+        <div className="divide-y max-h-[300px] overflow-auto">
           {diffBlocks.map((block, idx) => (
             <DiffBlockView key={idx} block={block} index={idx} />
           ))}

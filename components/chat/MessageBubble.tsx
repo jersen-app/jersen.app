@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import { Bot, User, ChevronDown, ChevronUp, Image as ImageIcon, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { Message, FileData } from "./types";
+import type { Message } from "./types";
 import { FileBlock } from "./FileBlock";
 import { CodeBlock } from "./CodeBlock";
 import { MarkdownContent } from "./MarkdownContent";
@@ -18,10 +18,9 @@ const MAX_CONTENT_LENGTH = 500; // Characters before collapsing
 
 interface MessageBubbleProps {
   message: Message;
-  onAddFile?: (file: FileData) => void;
 }
 
-export function MessageBubble({ message, onAddFile }: MessageBubbleProps) {
+export function MessageBubble({ message }: MessageBubbleProps) {
   const isUser = message.role === "user";
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -73,7 +72,8 @@ export function MessageBubble({ message, onAddFile }: MessageBubbleProps) {
     if (message.parsedBlocks && message.parsedBlocks.length > 0) {
       return message.parsedBlocks.map((block, idx) => {
         if (block.type === "file" || block.type === "diff") {
-          return <FileBlock key={idx} block={block} onAddFile={onAddFile} />;
+          // File blocks are collapsed by default
+          return <FileBlock key={idx} block={block} defaultCollapsed={true} />;
         }
         if (block.type === "code") {
           return <CodeBlock key={idx} block={block} />;

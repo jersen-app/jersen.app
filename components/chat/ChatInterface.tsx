@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { MessageSquarePlus, Trash2, Loader2, AlertCircle } from "lucide-react";
+import { MessageSquarePlus, Trash2, Loader2, AlertCircle, Brain, Sparkles } from "lucide-react";
 import type { Message, FileData, ParsedBlock, Attachment } from "./types";
 import { generateId, parseAIResponse } from "./utils";
 import { applyDiffBlocks } from "@/lib/ai/diff";
@@ -9,6 +9,7 @@ import { MessageList } from "./MessageList";
 import { ChatInput } from "./ChatInput";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -118,6 +119,23 @@ export function ChatInterface({
     remainingCredits?: number;
     hourlyRemaining?: number;
   } | null>(null);
+  const [hasMemory, setHasMemory] = useState(false);
+
+  // Check for existing memory
+  useEffect(() => {
+    const checkMemory = async () => {
+      try {
+        const res = await fetch(`/api/projects/${projectId}/memory`);
+        if (res.ok) {
+          const data = await res.json();
+          setHasMemory(!!data.summary);
+        }
+      } catch (error) {
+        console.error("Failed to check memory:", error);
+      }
+    };
+    checkMemory();
+  }, [projectId]);
 
   // Load chat history
   useEffect(() => {
@@ -369,6 +387,32 @@ export function ChatInterface({
           <span className="text-xs font-medium text-muted-foreground">
             {messages.length > 0 ? `${messages.length} messages` : "New conversation"}
           </span>
+          {hasMemory && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Badge variant="secondary" className="gap-1 text-[10px] px-1.5 py-0.5 cursor-help">
+                  <Brain className="h-3 w-3" />
+                  Memory
+                </Badge>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                AI remembers context from previous conversations
+              </TooltipContent>
+            </Tooltip>
+          )}
+          {existingFiles.length > 0 && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Badge variant="outline" className="gap-1 text-[10px] px-1.5 py-0.5 cursor-help">
+                  <Sparkles className="h-3 w-3" />
+                  {existingFiles.length} files
+                </Badge>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                AI has context of your {existingFiles.length} project files
+              </TooltipContent>
+            </Tooltip>
+          )}
           <CreditDisplay variant="minimal" />
         </div>
         <div className="flex items-center gap-1">
@@ -434,7 +478,6 @@ export function ChatInterface({
         isLoading={isLoading}
         streamingContent={streamingContent}
         streamingBlocks={streamingBlocks}
-        onAddFile={handleAddFile}
       />
       <ChatInput
         value={input}

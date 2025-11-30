@@ -8,6 +8,15 @@ import { SYSTEM_PROMPT, buildContextPrompt } from "@/lib/ai/prompts";
 import { parseGeneratedFiles } from "@/lib/ai/files";
 import { type FileChange } from "@/lib/ai/tools";
 import { checkCredits, consumeCredit } from "@/lib/subscription";
+import { 
+    buildMemoryContext, 
+    shouldSummarize, 
+    generateSummary,
+    executeSearchFiles,
+    executeReadFile,
+    executeListDirectory,
+    executeFindRelated,
+} from "@/lib/ai/memory";
 
 export const maxDuration = 60;
 
@@ -114,14 +123,31 @@ export async function POST(
     // Build context with file structure
     const contextPrompt = buildContextPrompt(existingFiles);
 
-    // Build conversation history from DB
-    const historyMessages: CoreMessage[] = chatHistory.map((msg: any) => ({
+    // Build memory context (summary of past conversations)
+    const memoryContext = await buildMemoryContext(projectId);
+
+    // Build conversation history from DB (limit to recent messages to save context)
+    const recentHistory = chatHistory.slice(-20); // Last 20 messages
+    const historyMessages: CoreMessage[] = recentHistory.map((msg: any) => ({
         role: msg.role as "user" | "assistant",
         content: String(msg.content || ""),
     }));
 
-    // Combine system prompt with context
-    const fullSystemPrompt = `${SYSTEM_PROMPT}\n\n${contextPrompt}`;
+    // Combine system prompt with context and memory
+    const fullSystemPrompt = `${SYSTEM_PROMPT}
+
+${memoryContext ? `\n${memoryContext}\n` : ''}
+
+${contextPrompt}
+
+## Available Tools
+Before making changes, you should:
+1. Use searchFiles to find relevant files
+2. Use readFile to understand existing code
+3. Use listDirectory to explore project structure
+4. Then make informed changes
+
+When using tools, the results will be provided and you should incorporate them into your response.`;
 
     // Build user message content - can be multimodal with images
     type MessageContent = string | Array<{ type: "text"; text: string } | { type: "image"; image: string; mimeType?: string }>;
@@ -254,6 +280,14 @@ export async function POST(
                         model: "gemini-2.5-flash",
                     }
                 );
+
+                // Check if we should generate a new summary (async, don't block)
+                shouldSummarize(projectId).then(async (needsSummary) => {
+                    if (needsSummary) {
+                        console.log(`Generating summary for project ${projectId}`);
+                        await generateSummary(projectId, orgId);
+                    }
+                }).catch(console.error);
             } catch (error) {
                 console.error("Error in onFinish:", error);
             }

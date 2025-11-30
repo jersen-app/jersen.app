@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useEffect } from "react";
-import type { Message, FileData, ParsedBlock } from "./types";
+import type { Message, ParsedBlock } from "./types";
 import { MessageBubble } from "./MessageBubble";
 import { StreamingIndicator } from "./StreamingIndicator";
 import { EmptyState } from "./EmptyState";
@@ -15,7 +15,6 @@ interface MessageListProps {
   isLoading: boolean;
   streamingContent: string;
   streamingBlocks: ParsedBlock[] | null;
-  onAddFile?: (file: FileData) => void;
 }
 
 export function MessageList({
@@ -23,7 +22,6 @@ export function MessageList({
   isLoading,
   streamingContent,
   streamingBlocks,
-  onAddFile,
 }: MessageListProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -49,7 +47,6 @@ export function MessageList({
           <MessageBubble
             key={message.id}
             message={message}
-            onAddFile={onAddFile}
           />
         ))}
 
@@ -67,7 +64,7 @@ export function MessageList({
                 {streamingBlocks.map((block, idx) => {
                   if (block.type === "file" || block.type === "diff") {
                     return (
-                      <FileBlock key={idx} block={block} onAddFile={onAddFile} />
+                      <FileBlock key={idx} block={block} />
                     );
                   }
                   if (block.type === "code") {
