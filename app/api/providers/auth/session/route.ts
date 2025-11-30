@@ -13,13 +13,25 @@ interface SessionPayload {
     exp: number;
 }
 
-// Get CORS headers based on the project's sandbox URL
+// Check if origin is a valid E2B sandbox URL
+function isValidE2BSandbox(origin: string | null): boolean {
+    if (!origin) return false;
+    // E2B sandbox URLs follow the pattern: https://3000-{sandboxId}.e2b.app
+    return /^https:\/\/3000-[a-z0-9]+\.e2b\.app$/.test(origin);
+}
+
+// Get CORS headers - allow E2B sandboxes and the stored sandbox URL
 function getCorsHeaders(origin: string | null, allowedOrigin: string | null): Record<string, string> {
-    // Check if origin matches the allowed sandbox URL
-    const isAllowed = origin && allowedOrigin && origin === allowedOrigin;
+    // Allow if:
+    // 1. Origin matches the stored sandbox URL
+    // 2. Origin is a valid E2B sandbox URL (for flexibility during sandbox changes)
+    const isAllowed = origin && (
+        origin === allowedOrigin || 
+        isValidE2BSandbox(origin)
+    );
     
     return {
-        "Access-Control-Allow-Origin": isAllowed ? origin : "",
+        "Access-Control-Allow-Origin": isAllowed ? origin : "null",
         "Access-Control-Allow-Methods": "GET, DELETE, OPTIONS",
         "Access-Control-Allow-Headers": "Content-Type, Authorization, x-api-key",
         "Access-Control-Allow-Credentials": "true",
@@ -28,16 +40,18 @@ function getCorsHeaders(origin: string | null, allowedOrigin: string | null): Re
 
 /**
  * OPTIONS /api/providers/auth/session
- * Handle CORS preflight - need to allow all origins for preflight, then validate on actual request
+ * Handle CORS preflight
  */
 export async function OPTIONS(request: NextRequest) {
     const origin = request.headers.get("origin");
     
-    // For preflight, we allow it but the actual request will be validated
+    // For preflight from E2B sandboxes, allow it
+    const isAllowed = isValidE2BSandbox(origin);
+    
     return new NextResponse(null, { 
         status: 204, 
         headers: {
-            "Access-Control-Allow-Origin": origin || "*",
+            "Access-Control-Allow-Origin": isAllowed && origin ? origin : "null",
             "Access-Control-Allow-Methods": "GET, DELETE, OPTIONS",
             "Access-Control-Allow-Headers": "Content-Type, Authorization, x-api-key",
             "Access-Control-Allow-Credentials": "true",
@@ -96,9 +110,9 @@ export async function GET(request: NextRequest) {
         const allowedOrigin = (project as any).sandboxUrl || null;
         const corsHeaders = getCorsHeaders(origin, allowedOrigin);
         
-        // Check if origin is allowed
-        if (origin && allowedOrigin && origin !== allowedOrigin) {
-            console.log(`CORS rejected: origin ${origin} !== allowed ${allowedOrigin}`);
+        // Check if origin is allowed (E2B sandboxes are always allowed)
+        if (origin && !isValidE2BSandbox(origin) && allowedOrigin && origin !== allowedOrigin) {
+            console.log(`CORS rejected: origin ${origin} is not a valid E2B sandbox and !== allowed ${allowedOrigin}`);
             return NextResponse.json(
                 { error: "Origin not allowed" },
                 { status: 403, headers: corsHeaders }

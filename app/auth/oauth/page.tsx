@@ -1,8 +1,8 @@
-import { auth, currentUser } from "@clerk/nextjs/server";
+import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
-import { SignIn } from "@clerk/nextjs";
 import connectToDatabase from "@/lib/db";
 import Project from "@/models/Project";
+import { OAuthSignIn } from "./OAuthSignIn";
 
 interface PageProps {
     searchParams: Promise<{
@@ -14,7 +14,7 @@ interface PageProps {
 
 export default async function OAuthLoginPage({ searchParams }: PageProps) {
     const params = await searchParams;
-    const { api_key, redirect_uri, provider } = params;
+    const { api_key, redirect_uri } = params;
 
     // Validate required params
     if (!api_key || !redirect_uri) {
@@ -65,14 +65,14 @@ export default async function OAuthLoginPage({ searchParams }: PageProps) {
     
     if (userId) {
         // User is signed in, redirect to callback to create session
-        const callbackUrl = new URL("/auth/oauth/callback", process.env.NEXT_PUBLIC_APP_URL);
+        const callbackUrl = new URL("/auth/oauth/callback", process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000");
         callbackUrl.searchParams.set("api_key", api_key);
         callbackUrl.searchParams.set("redirect_uri", redirect_uri);
         redirect(callbackUrl.toString());
     }
 
     // Build the callback URL for after Clerk sign-in
-    const afterSignInUrl = new URL("/auth/oauth/callback", process.env.NEXT_PUBLIC_APP_URL);
+    const afterSignInUrl = new URL("/auth/oauth/callback", process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000");
     afterSignInUrl.searchParams.set("api_key", api_key);
     afterSignInUrl.searchParams.set("redirect_uri", redirect_uri);
 
@@ -88,16 +88,7 @@ export default async function OAuthLoginPage({ searchParams }: PageProps) {
                     </p>
                 </div>
                 
-                <SignIn
-                    afterSignInUrl={afterSignInUrl.toString()}
-                    appearance={{
-                        elements: {
-                            rootBox: "mx-auto",
-                            card: "shadow-xl",
-                            formButtonPrimary: "bg-violet-600 hover:bg-violet-700",
-                        },
-                    }}
-                />
+                <OAuthSignIn afterSignInUrl={afterSignInUrl.toString()} />
             </div>
         </div>
     );
