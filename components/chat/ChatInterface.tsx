@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { MessageSquarePlus, Trash2, Loader2 } from "lucide-react";
+import { MessageSquarePlus, Trash2, Loader2, AlertCircle } from "lucide-react";
 import type { Message, FileData, ParsedBlock, Attachment } from "./types";
 import { generateId, parseAIResponse } from "./utils";
 import { applyDiffBlocks } from "@/lib/ai/diff";
 import { MessageList } from "./MessageList";
 import { ChatInput } from "./ChatInput";
 import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -24,6 +25,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import CreditDisplay from "@/components/CreditDisplay";
 
 // Helper to convert File to base64
 const fileToBase64 = (file: File): Promise<string> => {
@@ -111,6 +113,11 @@ export function ChatInterface({
   const [streamingBlocks, setStreamingBlocks] = useState<ParsedBlock[] | null>(
     null
   );
+  const [creditError, setCreditError] = useState<{
+    message: string;
+    remainingCredits?: number;
+    hourlyRemaining?: number;
+  } | null>(null);
 
   // Load chat history
   useEffect(() => {
@@ -238,8 +245,23 @@ export function ChatInterface({
       });
 
       if (!response.ok) {
+        // Handle rate limit / credit exhausted errors
+        if (response.status === 429) {
+          const errorData = await response.json();
+          setCreditError({
+            message: errorData.message || "Rate limit exceeded",
+            remainingCredits: errorData.remainingCredits,
+            hourlyRemaining: errorData.hourlyRemaining,
+          });
+          setMessages((prev) => prev.slice(0, -1)); // Remove the user message we just added
+          setIsLoading(false);
+          return;
+        }
         throw new Error("Failed to send message");
       }
+
+      // Clear any previous credit error on success
+      setCreditError(null);
 
       const reader = response.body?.getReader();
       if (!reader) {
@@ -317,11 +339,38 @@ export function ChatInterface({
 
   return (
     <div className="flex flex-col h-full">
+      {/* Credit Error Alert */}
+      {creditError && (
+        <Alert variant="destructive" className="m-3 mb-0">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Credit Limit Reached</AlertTitle>
+          <AlertDescription>
+            {creditError.message}
+            {creditError.hourlyRemaining === 0 && (
+              <span className="block mt-1 text-xs">
+                Your hourly rate limit will reset soon. Please wait a moment.
+              </span>
+            )}
+          </AlertDescription>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="absolute top-2 right-2 h-6 px-2 text-xs"
+            onClick={() => setCreditError(null)}
+          >
+            Dismiss
+          </Button>
+        </Alert>
+      )}
+
       {/* Chat Header with controls */}
       <div className="shrink-0 flex items-center justify-between px-3 py-2 border-b bg-background/50">
-        <span className="text-xs font-medium text-muted-foreground">
-          {messages.length > 0 ? `${messages.length} messages` : "New conversation"}
-        </span>
+        <div className="flex items-center gap-3">
+          <span className="text-xs font-medium text-muted-foreground">
+            {messages.length > 0 ? `${messages.length} messages` : "New conversation"}
+          </span>
+          <CreditDisplay variant="minimal" />
+        </div>
         <div className="flex items-center gap-1">
           <Tooltip>
             <TooltipTrigger asChild>

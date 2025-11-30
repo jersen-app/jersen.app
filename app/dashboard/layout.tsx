@@ -2,6 +2,7 @@ import { OrganizationSwitcher, UserButton } from "@clerk/nextjs";
 import { auth } from "@clerk/nextjs/server";
 import { LayoutDashboard, Settings, Users, FolderKanban, Shield } from "lucide-react";
 import Link from "next/link";
+import CreditDisplay from "@/components/CreditDisplay";
 
 // Add your Clerk user ID here
 const SUPER_ADMIN_USER_IDS = [
@@ -86,7 +87,8 @@ export default async function DashboardLayout({
 
             {/* Main Content */}
             <main className="ml-64 flex-1">
-                <header className="flex h-16 items-center justify-end border-b border-gray-200 bg-white px-6 dark:border-gray-800 dark:bg-black">
+                <header className="flex h-16 items-center justify-between border-b border-gray-200 bg-white px-6 dark:border-gray-800 dark:bg-black">
+                    <CreditDisplay variant="compact" />
                     <UserButton />
                 </header>
                 <div className="p-6">{children}</div>

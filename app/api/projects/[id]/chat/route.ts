@@ -7,6 +7,7 @@ import Project from "@/models/Project";
 import { SYSTEM_PROMPT, buildContextPrompt } from "@/lib/ai/prompts";
 import { parseGeneratedFiles } from "@/lib/ai/files";
 import { type FileChange } from "@/lib/ai/tools";
+import { checkCredits, consumeCredit } from "@/lib/subscription";
 
 export const maxDuration = 60;
 
@@ -21,10 +22,36 @@ export async function POST(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const { userId } = await auth();
+    const { userId, orgId } = await auth();
 
     if (!userId) {
         return new Response("Unauthorized", { status: 401 });
+    }
+
+    if (!orgId) {
+        return new Response(JSON.stringify({ 
+            error: "Organization required",
+            message: "Please select an organization to use AI features."
+        }), { 
+            status: 400,
+            headers: { "Content-Type": "application/json" }
+        });
+    }
+
+    // Check credits before processing
+    const creditCheck = await checkCredits(orgId);
+    
+    if (!creditCheck.allowed) {
+        return new Response(JSON.stringify({
+            error: "Credit limit reached",
+            message: creditCheck.reason,
+            subscription: creditCheck.subscription,
+            remainingCredits: creditCheck.remainingCredits,
+            hourlyRemaining: creditCheck.hourlyRemaining,
+        }), {
+            status: 429, // Too Many Requests
+            headers: { "Content-Type": "application/json" }
+        });
     }
 
     let body;
@@ -213,6 +240,20 @@ export async function POST(
                     files: generatedFiles,
                     metadata: { fileChanges },
                 });
+
+                // Consume credit after successful response
+                await consumeCredit(
+                    orgId,
+                    userId,
+                    projectId,
+                    "chat",
+                    1,
+                    {
+                        messageLength: userContent.length,
+                        hasAttachments: attachments.length > 0,
+                        model: "gemini-2.5-flash",
+                    }
+                );
             } catch (error) {
                 console.error("Error in onFinish:", error);
             }

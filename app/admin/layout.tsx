@@ -7,7 +7,9 @@ import {
     Rocket, 
     Users,
     Settings,
-    Shield
+    Shield,
+    Building2,
+    CreditCard,
 } from "lucide-react";
 
 // Add your Clerk user ID here
@@ -51,6 +53,13 @@ export default async function SuperAdminLayout({
                     >
                         <Rocket className="h-4 w-4" />
                         Production Requests
+                    </Link>
+                    <Link
+                        href="/admin/organizations"
+                        className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
+                    >
+                        <Building2 className="h-4 w-4" />
+                        Organizations
                     </Link>
                     <Link
                         href="/admin/projects"
