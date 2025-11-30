@@ -94,7 +94,7 @@ export function isLoggedIn(): boolean {
   return !!getToken();
 }
 
-// Get current user from token
+// Get current user from token (client-side)
 export async function getUser(): Promise<User | null> {
   const token = getToken();
   if (!token) return null;
@@ -110,6 +110,26 @@ export async function getUser(): Promise<User | null> {
       localStorage.removeItem(SESSION_KEY);
       return null;
     }
+    const data = await res.json();
+    return data.user;
+  } catch {
+    return null;
+  }
+}
+
+// Get user from token (server-side, for API routes)
+// Uses the same injected credentials - works in both client and server
+export async function getUserFromToken(token: string): Promise<User | null> {
+  if (!token) return null;
+
+  try {
+    const res = await fetch(\`\${JERSEN_URL}/api/providers/auth/session\`, {
+      headers: {
+        'Authorization': \`Bearer \${token}\`,
+        'x-api-key': API_KEY,
+      },
+    });
+    if (!res.ok) return null;
     const data = await res.json();
     return data.user;
   } catch {
@@ -275,11 +295,55 @@ export default function DashboardPage() {
 }
 \`\`\`
 
+### Protected API Routes
+\`\`\`typescript
+// filepath: app/api/todos/route.ts
+import { NextResponse } from 'next/server';
+import { getUserFromToken } from '@/lib/auth';
+import { find, insertOne } from '@/lib/jersen-db';
+
+// Helper to get user from Authorization header
+async function getAuthUser(request: Request) {
+  const authHeader = request.headers.get('Authorization');
+  if (!authHeader?.startsWith('Bearer ')) return null;
+  const token = authHeader.split(' ')[1];
+  return getUserFromToken(token);
+}
+
+export async function GET(request: Request) {
+  const user = await getAuthUser(request);
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const result = await find('todos', { userId: user.id });
+  return NextResponse.json(result.documents || []);
+}
+
+export async function POST(request: Request) {
+  const user = await getAuthUser(request);
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const { text } = await request.json();
+  const result = await insertOne('todos', {
+    userId: user.id,
+    text,
+    completed: false,
+    createdAt: new Date().toISOString(),
+  });
+  return NextResponse.json(result);
+}
+\`\`\`
+
 ### Key Points
 - **No OAuth provider icons needed** - users login on Jersen's page which has all the provider buttons
 - **Simple redirect flow** - just call \`login()\` to start the auth process
 - **Token stored in localStorage** - automatically included in API calls
 - **useAuth hook** - easy access to user data and auth state
+- **getUserFromToken()** - use this in API routes to validate tokens (works server-side)
+- **NO process.env** - credentials are injected as constants, not env vars
 `;
 }
 
@@ -462,22 +526,32 @@ export function getDatabaseDocs(config: ProjectConfig): string {
 
     return `## Jersen Database Provider
 
-This project uses Jersen Database (MongoDB) for data storage via REST API.
+This project uses Jersen Database for data storage via REST API.
 
 ${dbInfo}
 
-### ⚠️ CRITICAL: NO Direct Database Connection
+### ⚠️ CRITICAL: NO process.env - USE INJECTED CONSTANTS
 
-**DO NOT use:**
+**NEVER use \`process.env\` in this project!** Credentials are injected as constants.
+
+❌ **WRONG - DO NOT DO THIS:**
+\`\`\`typescript
+const API_KEY = process.env.JERSEN_API_KEY;  // WRONG!
+const API_URL = process.env.JERSEN_URL;      // WRONG!
+\`\`\`
+
+✅ **CORRECT - USE THIS EXACT PATTERN:**
+\`\`\`typescript
+const API_KEY = '__JERSEN_API_KEY__';  // Automatically replaced
+const API_URL = '__JERSEN_URL__';      // Automatically replaced
+\`\`\`
+
+**Also DO NOT use:**
 - \`mongoose\` library
-- \`mongodb\` driver
-- \`MONGODB_URI\` or \`JERSEN_DB_URI\` environment variables
-- Any direct database connection strings
+- \`mongodb\` driver  
+- \`MONGODB_URI\` or any database connection strings
 
-**ONLY use the Jersen Database REST API** via the \`lib/jersen-db.ts\` client below.
-Credentials are automatically injected when you preview - no environment variables needed.
-
-### Database Client (REQUIRED)
+### Database Client (COPY THIS EXACTLY)
 \`\`\`typescript
 filepath: lib/jersen-db.ts
 // These values are automatically injected by Jersen

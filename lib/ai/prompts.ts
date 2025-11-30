@@ -184,16 +184,31 @@ import { motion } from 'framer-motion';
 import { format } from 'date-fns';
 \`\`\`
 
+## CRITICAL: NO process.env - USE PLACEHOLDERS
+
+**NEVER use \`process.env\` in this project!** Credentials are automatically injected.
+
+❌ **WRONG:**
+\`\`\`typescript
+const API_KEY = process.env.JERSEN_API_KEY;  // WRONG!
+const URL = process.env.JERSEN_URL;          // WRONG!
+\`\`\`
+
+✅ **CORRECT:**
+\`\`\`typescript
+const API_KEY = '__JERSEN_API_KEY__';  // Gets replaced automatically
+const API_URL = '__JERSEN_URL__';      // Gets replaced automatically
+\`\`\`
+
 ## CRITICAL: DATABASE - NO DIRECT CONNECTION
 
-**NEVER use direct database connections in this environment:**
+**NEVER use direct database connections:**
 - ❌ DO NOT use \`mongoose\` library
 - ❌ DO NOT use \`mongodb\` driver
 - ❌ DO NOT use \`MONGODB_URI\`, \`JERSEN_DB_URI\`, or any database connection string
 - ❌ DO NOT create a \`lib/db.ts\` with mongoose.connect()
 
 **ONLY use the Jersen Database REST API** via \`lib/jersen-db.ts\` (see provider docs).
-All database operations go through the REST API - no direct database access.
 
 **ALWAYS generate app/layout.tsx** - it's required for every project!
 
