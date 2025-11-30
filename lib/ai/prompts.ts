@@ -184,6 +184,17 @@ import { motion } from 'framer-motion';
 import { format } from 'date-fns';
 \`\`\`
 
+## CRITICAL: DATABASE - NO DIRECT CONNECTION
+
+**NEVER use direct database connections in this environment:**
+- ❌ DO NOT use \`mongoose\` library
+- ❌ DO NOT use \`mongodb\` driver
+- ❌ DO NOT use \`MONGODB_URI\`, \`JERSEN_DB_URI\`, or any database connection string
+- ❌ DO NOT create a \`lib/db.ts\` with mongoose.connect()
+
+**ONLY use the Jersen Database REST API** via \`lib/jersen-db.ts\` (see provider docs).
+All database operations go through the REST API - no direct database access.
+
 **ALWAYS generate app/layout.tsx** - it's required for every project!
 
 **ONLY generate:**

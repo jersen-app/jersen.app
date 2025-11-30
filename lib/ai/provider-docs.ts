@@ -462,14 +462,22 @@ export function getDatabaseDocs(config: ProjectConfig): string {
 
     return `## Jersen Database Provider
 
-This project uses Jersen Database (MongoDB) for data storage.
+This project uses Jersen Database (MongoDB) for data storage via REST API.
 
 ${dbInfo}
 
-### Environment Setup
-Credentials are automatically injected when you preview.
+### ⚠️ CRITICAL: NO Direct Database Connection
 
-### Database Client
+**DO NOT use:**
+- \`mongoose\` library
+- \`mongodb\` driver
+- \`MONGODB_URI\` or \`JERSEN_DB_URI\` environment variables
+- Any direct database connection strings
+
+**ONLY use the Jersen Database REST API** via the \`lib/jersen-db.ts\` client below.
+Credentials are automatically injected when you preview - no environment variables needed.
+
+### Database Client (REQUIRED)
 \`\`\`typescript
 filepath: lib/jersen-db.ts
 // These values are automatically injected by Jersen
