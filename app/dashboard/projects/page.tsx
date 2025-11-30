@@ -1,7 +1,7 @@
 import { getProjects } from "@/lib/actions/projects";
 import { FolderKanban, Sparkles, Rocket } from "lucide-react";
 import Link from "next/link";
-import { CreateProjectDialog, RequestHelpDialog } from "@/components/projects";
+import { CreateProjectDialog, ProductionRequestButton } from "@/components/projects";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
@@ -101,9 +101,10 @@ export default async function ProjectsPage() {
                                                     Builder
                                                 </Link>
                                             </Button>
-                                            <RequestHelpDialog 
+                                            <ProductionRequestButton 
                                                 projectId={project._id.toString()} 
-                                                projectName={project.name} 
+                                                projectName={project.name}
+                                                productionStatus={project.productionStatus || "none"}
                                             />
                                             <Button asChild variant="ghost" size="sm" className="h-8 text-xs text-muted-foreground">
                                                 <Link href={`/dashboard/projects/${project._id}/settings`}>
