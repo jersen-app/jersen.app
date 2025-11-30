@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
     Play,
     RefreshCw,
@@ -45,6 +45,14 @@ export function PreviewPanel({
 }: PreviewPanelProps) {
     const [viewport, setViewport] = useState<ViewportSize>("desktop");
     const [iframeKey, setIframeKey] = useState(0);
+    const [iframeLoading, setIframeLoading] = useState(true);
+
+    // Reset iframe loading state when URL changes or iframe key changes
+    useEffect(() => {
+        if (url) {
+            setIframeLoading(true);
+        }
+    }, [url, iframeKey]);
 
     const handleRefresh = () => {
         setIframeKey((prev) => prev + 1);
@@ -201,7 +209,7 @@ export function PreviewPanel({
                 {(status === "running" || status === "updating") && url && (
                     <div
                         className={cn(
-                            "bg-white rounded-lg shadow-lg overflow-hidden transition-all",
+                            "bg-white rounded-lg shadow-lg overflow-hidden transition-all relative",
                             viewport === "desktop" && "w-full h-full",
                             viewport === "tablet" && "w-[768px] h-full max-h-[1024px]",
                             viewport === "mobile" && "w-[375px] h-full max-h-[812px]"
@@ -214,12 +222,28 @@ export function PreviewPanel({
                                 : {}
                         }
                     >
+                        {/* Loading overlay */}
+                        {iframeLoading && (
+                            <div className="absolute inset-0 bg-background flex flex-col items-center justify-center z-10">
+                                <div className="relative">
+                                    <div className="w-16 h-16 border-4 border-muted rounded-full" />
+                                    <div className="absolute top-0 left-0 w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+                                </div>
+                                <p className="mt-4 text-sm text-muted-foreground">Loading preview...</p>
+                                <div className="mt-2 flex gap-1">
+                                    <span className="w-2 h-2 bg-primary/60 rounded-full animate-bounce [animation-delay:-0.3s]" />
+                                    <span className="w-2 h-2 bg-primary/60 rounded-full animate-bounce [animation-delay:-0.15s]" />
+                                    <span className="w-2 h-2 bg-primary/60 rounded-full animate-bounce" />
+                                </div>
+                            </div>
+                        )}
                         <iframe
                             key={iframeKey}
                             src={url}
                             className="w-full h-full border-0"
                             title="Preview"
                             sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+                            onLoad={() => setIframeLoading(false)}
                         />
                     </div>
                 )}
