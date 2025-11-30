@@ -289,10 +289,10 @@ export default function BuilderClient({
             </div>
 
             {/* Right panel (Code + Preview) */}
-            <div className="flex-1 flex flex-col h-[60vh] lg:h-full min-h-0 overflow-hidden">
+            <div className="mx-4 rounded-3xl p-3 flex-1 flex flex-col h-[60vh] lg:h-full min-h-0 overflow-hidden border-l">
                 {/* Panel tabs */}
-                <div className="shrink-0 flex items-center justify-between border-b px-2 py-1 bg-background">
-                    <div className="flex items-center gap-1">
+                <div className="shrink-0 flex items-center justify-between border-b h-10 bg-background">
+                    <div className="flex items-center gap-1 px-2">
                         <button
                             onClick={() => setRightPanel("code")}
                             className={cn(
@@ -328,7 +328,7 @@ export default function BuilderClient({
                     </div>
                     <button
                         onClick={() => setShowRightPanel(!showRightPanel)}
-                        className="p-1.5 text-muted-foreground hover:text-foreground rounded-md hover:bg-muted"
+                        className="p-1.5 mr-2 text-muted-foreground hover:text-foreground rounded-md hover:bg-muted"
                     >
                         {showRightPanel ? (
                             <PanelRightClose className="h-4 w-4" />
