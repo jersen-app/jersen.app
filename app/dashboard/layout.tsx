@@ -1,12 +1,21 @@
 import { OrganizationSwitcher, UserButton } from "@clerk/nextjs";
-import { LayoutDashboard, Settings, Users, FolderKanban } from "lucide-react";
+import { auth } from "@clerk/nextjs/server";
+import { LayoutDashboard, Settings, Users, FolderKanban, Shield } from "lucide-react";
 import Link from "next/link";
 
-export default function DashboardLayout({
+// Add your Clerk user ID here
+const SUPER_ADMIN_USER_IDS = [
+    process.env.SUPER_ADMIN_USER_ID || "",
+];
+
+export default async function DashboardLayout({
     children,
 }: {
     children: React.ReactNode;
 }) {
+    const { userId } = await auth();
+    const isSuperAdmin = userId && SUPER_ADMIN_USER_IDS.includes(userId);
+
     return (
         <div className="flex min-h-screen bg-gray-50 dark:bg-black">
             {/* Sidebar */}
@@ -60,6 +69,17 @@ export default function DashboardLayout({
                             <Settings className="h-4 w-4" />
                             Roles & Settings
                         </Link>
+                        {isSuperAdmin && (
+                            <div className="pt-4 mt-4 border-t border-gray-200 dark:border-gray-800">
+                                <Link
+                                    href="/admin"
+                                    className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-violet-600 hover:bg-violet-50 dark:text-violet-400 dark:hover:bg-violet-950"
+                                >
+                                    <Shield className="h-4 w-4" />
+                                    Super Admin
+                                </Link>
+                            </div>
+                        )}
                     </nav>
                 </div>
             </aside>

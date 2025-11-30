@@ -20,7 +20,12 @@ async function getProjectDb(project: any) {
 
     // Create connection
     const conn = await mongoose.createConnection(connectionString).asPromise();
-    return conn;
+    
+    if (!conn.db) {
+        throw new Error("Failed to connect to database");
+    }
+    
+    return conn as mongoose.Connection & { db: mongoose.mongo.Db };
 }
 
 // POST /api/providers/database/insert

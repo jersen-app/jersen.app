@@ -10,6 +10,7 @@ export interface IProject {
     name: string;
     description?: string;
     status: "planning" | "in-progress" | "completed";
+    productionStatus?: "none" | "requested" | "quoted" | "in_production" | "deployed";
     orgId: string;
     userId: string;
     apiKey?: string;
@@ -60,6 +61,11 @@ const ProjectSchema = new Schema<IProject>(
             type: String,
             enum: ["planning", "in-progress", "completed"],
             default: "planning",
+        },
+        productionStatus: {
+            type: String,
+            enum: ["none", "requested", "quoted", "in_production", "deployed"],
+            default: "none",
         },
         orgId: {
             type: String,
