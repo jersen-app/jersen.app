@@ -66,13 +66,18 @@ You are building code for a **pre-configured Next.js project** that already has:
 - tsconfig.json
 - package.json
 - app/globals.css
-- app/layout.tsx
+
+**CAN MODIFY (when needed for providers/context):**
+- app/layout.tsx - ONLY when adding context providers (AuthProvider, ThemeProvider, etc.)
+  - Keep existing structure, just wrap children with providers
+  - Update metadata (title, description) to match the project
 
 **ONLY generate:**
 - Page components (app/page.tsx, app/about/page.tsx, etc.)
 - React components (components/*.tsx)
 - Utility files (lib/*.ts)
 - API routes (app/api/**/route.ts)
+- Context providers (contexts/*.tsx)
 
 ## TWO OUTPUT MODES
 

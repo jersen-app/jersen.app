@@ -33,13 +33,13 @@ export function getAuthDocs(config: ProjectConfig): string {
 This project uses Jersen Auth (built on Clerk) for user authentication.
 
 ### Environment Setup
-Add to \`.env.local\`:
+The \`.env.local\` file is automatically created when you preview. It contains:
 \`\`\`
-JERSEN_API_KEY=${config.apiKey}
-JERSEN_API_URL=https://api.jersen.app  # or http://localhost:3000 for dev
+NEXT_PUBLIC_JERSEN_API_KEY=${config.apiKey}
+NEXT_PUBLIC_JERSEN_API_URL=<auto-configured>
 \`\`\`
 
-### Client-Side Auth Hook
+### Client-Side Auth Library
 Create \`lib/jersen-auth.ts\`:
 \`\`\`typescript
 const API_KEY = process.env.NEXT_PUBLIC_JERSEN_API_KEY!;
@@ -218,6 +218,40 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 \`\`\`
+
+### IMPORTANT: Update app/layout.tsx
+**You MUST wrap your app with AuthProvider in layout.tsx for useAuth to work!**
+
+Update \`app/layout.tsx\`:
+\`\`\`tsx
+import type { Metadata } from 'next';
+import { Inter } from 'next/font/google';
+import './globals.css';
+import { AuthProvider } from '@/contexts/AuthContext';
+
+const inter = Inter({ subsets: ['latin'] });
+
+export const metadata: Metadata = {
+  title: 'Your App Name',
+  description: 'Your app description',
+};
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <html lang="en">
+      <body className={inter.className}>
+        <AuthProvider>
+          {children}
+        </AuthProvider>
+      </body>
+    </html>
+  );
+}
+\`\`\`
 `;
 }
 
@@ -237,11 +271,7 @@ This project uses Jersen Storage (built on Cloudflare R2) for file storage.
 **Quota:** ${config.providers.storage.quota || 1024}MB
 
 ### Environment Setup
-Add to \`.env.local\`:
-\`\`\`
-JERSEN_API_KEY=${config.apiKey}
-JERSEN_API_URL=https://api.jersen.app
-\`\`\`
+The \`.env.local\` file is automatically created when you preview. It contains the API key and URL.
 
 ### Storage Client
 Create \`lib/jersen-storage.ts\`:
@@ -406,11 +436,7 @@ This project uses Jersen Database (MongoDB) for data storage.
 ${dbInfo}
 
 ### Environment Setup
-Add to \`.env.local\`:
-\`\`\`
-JERSEN_API_KEY=${config.apiKey}
-JERSEN_API_URL=https://api.jersen.app
-\`\`\`
+The \`.env.local\` file is automatically created when you preview. It contains the API key and URL.
 
 ### Database Client
 Create \`lib/jersen-db.ts\`:

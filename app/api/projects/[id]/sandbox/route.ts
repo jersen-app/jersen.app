@@ -1,11 +1,18 @@
 import { Sandbox } from "@e2b/code-interpreter";
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
+import connectToDatabase from "@/lib/db";
+import Project from "@/models/Project";
 
 export const maxDuration = 300;
 
 const SANDBOX_TIMEOUT = 10 * 60 * 1000; // 10 minutes
 const TEMPLATE_ID = "nextjs-developer-song-dev";
+
+// Get the Jersen API URL based on environment
+const JERSEN_API_URL = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL 
+    ? `https://${process.env.VERCEL_URL}` 
+    : "http://localhost:3000";
 
 // Store active sandboxes in memory (in production, use Redis)
 const activeSandboxes = new Map<
@@ -77,6 +84,14 @@ async function createSandbox(
         }
     }
 
+    // Fetch project to get API key for environment variables
+    await connectToDatabase();
+    const project = await Project.findById(projectId);
+    
+    if (!project) {
+        return NextResponse.json({ error: "Project not found" }, { status: 404 });
+    }
+
     // Create new sandbox
     const sandbox = await Sandbox.create(TEMPLATE_ID, {
         metadata: {
@@ -88,10 +103,19 @@ async function createSandbox(
 
     console.log(`Created E2B sandbox ${sandbox.sandboxId} for project ${projectId}`);
 
+    // Generate .env.local content with Jersen provider credentials
+    const envContent = generateEnvFile(project);
+    
+    // Prepare files to write (including .env.local)
+    const filesToWrite: Record<string, string> = {
+        '.env.local': envContent,
+        ...(files || {}),
+    };
+
     // Write files to sandbox
     // Note: nextjs-developer template uses /home/user as working directory
-    if (files && Object.keys(files).length > 0) {
-        const fileWrites = Object.entries(files).map(([path, content]) => ({
+    if (Object.keys(filesToWrite).length > 0) {
+        const fileWrites = Object.entries(filesToWrite).map(([path, content]) => ({
             path: `/home/user/${path}`,
             data: content,
         }));
@@ -99,7 +123,7 @@ async function createSandbox(
         console.log(`Wrote ${fileWrites.length} files to sandbox:`, fileWrites.map(f => f.path).join(', '));
         
         // Check if package.json was updated and install dependencies
-        if (files['package.json']) {
+        if (files && files['package.json']) {
             console.log('package.json detected, installing dependencies...');
             try {
                 const installResult = await sandbox.commands.run('cd /home/user && bun install', { timeoutMs: 60000 });
@@ -131,6 +155,45 @@ async function createSandbox(
         url,
         status: "created",
     });
+}
+
+/**
+ * Generate .env.local content for the sandbox with Jersen provider credentials
+ */
+function generateEnvFile(project: any): string {
+    const lines: string[] = [
+        '# Jersen Platform Environment Variables',
+        '# Auto-generated for sandbox preview',
+        '',
+        `# Jersen API Configuration`,
+        `NEXT_PUBLIC_JERSEN_API_KEY=${project.apiKey || ''}`,
+        `NEXT_PUBLIC_JERSEN_API_URL=${JERSEN_API_URL}`,
+        '',
+    ];
+
+    // Add database connection string if provisioned
+    if (project.providers?.database?.enabled && project.providers?.database?.dbName) {
+        lines.push('# Database (for server-side use only)');
+        lines.push(`JERSEN_DB_NAME=${project.providers.database.dbName}`);
+        lines.push('');
+    }
+
+    // Add storage info if enabled
+    if (project.providers?.storage?.enabled) {
+        lines.push('# Storage');
+        lines.push(`JERSEN_STORAGE_ENABLED=true`);
+        lines.push(`JERSEN_STORAGE_QUOTA=${project.providers.storage.quota || 1024}`);
+        lines.push('');
+    }
+
+    // Add auth info if enabled
+    if (project.providers?.auth?.enabled) {
+        lines.push('# Auth');
+        lines.push(`JERSEN_AUTH_ENABLED=true`);
+        lines.push('');
+    }
+
+    return lines.join('\n');
 }
 
 async function updateSandbox(

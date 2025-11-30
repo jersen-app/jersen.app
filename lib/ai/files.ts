@@ -140,7 +140,7 @@ export function parseGeneratedFiles(aiResponse: string): ParsedFile[] {
         '.eslintrc.js',
         'eslint.config.mjs',
         'app/globals.css',
-        'app/layout.tsx', // E2B template already has this
+        // NOTE: app/layout.tsx is allowed - needed for AuthProvider and other context providers
     ];
     
     const filteredFiles = Array.from(fileMap.values()).filter(
