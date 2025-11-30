@@ -200,15 +200,70 @@ const API_KEY = '__JERSEN_API_KEY__';  // Gets replaced automatically
 const API_URL = '__JERSEN_URL__';      // Gets replaced automatically
 \`\`\`
 
-## CRITICAL: DATABASE - NO DIRECT CONNECTION
+## CRITICAL: DATABASE - USE EXACT API PATTERN
 
 **NEVER use direct database connections:**
 - ❌ DO NOT use \`mongoose\` library
 - ❌ DO NOT use \`mongodb\` driver
-- ❌ DO NOT use \`MONGODB_URI\`, \`JERSEN_DB_URI\`, or any database connection string
-- ❌ DO NOT create a \`lib/db.ts\` with mongoose.connect()
+- ❌ DO NOT use \`MONGODB_URI\` or any connection string
+- ❌ DO NOT create custom dbFetch or jersenDbFetch functions
+- ❌ DO NOT append collection to URL: \`/api/providers/database/\${collection}\` is WRONG!
 
-**ONLY use the Jersen Database REST API** via \`lib/jersen-db.ts\` (see provider docs).
+**The database API has ONE endpoint: \`/api/providers/database\`**
+- Collection name goes in BODY or QUERY PARAMS, NOT in the URL path!
+
+\`\`\`typescript
+filepath: lib/jersen-db.ts
+// COPY THIS EXACTLY - DO NOT MODIFY!
+const API_KEY = '__JERSEN_API_KEY__';
+const API_URL = '__JERSEN_URL__';
+
+// INSERT: POST /api/providers/database with { collection, document } in body
+export async function insertOne(collection: string, document: any) {
+  const res = await fetch(\`\${API_URL}/api/providers/database\`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-jersen-api-key': API_KEY },
+    body: JSON.stringify({ collection, document }),
+  });
+  return res.json();
+}
+
+// FIND: GET /api/providers/database?collection=X&query={}
+export async function find(collection: string, query: any = {}) {
+  const params = new URLSearchParams({ collection, query: JSON.stringify(query) });
+  const res = await fetch(\`\${API_URL}/api/providers/database?\${params}\`, {
+    headers: { 'x-jersen-api-key': API_KEY },
+  });
+  return res.json();
+}
+
+// UPDATE: PATCH /api/providers/database with { collection, query, update } in body
+export async function updateOne(collection: string, query: any, update: any) {
+  const res = await fetch(\`\${API_URL}/api/providers/database\`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', 'x-jersen-api-key': API_KEY },
+    body: JSON.stringify({ collection, query, update }),
+  });
+  return res.json();
+}
+
+// DELETE: DELETE /api/providers/database?collection=X&query={}
+export async function deleteOne(collection: string, query: any) {
+  const params = new URLSearchParams({ collection, query: JSON.stringify(query) });
+  const res = await fetch(\`\${API_URL}/api/providers/database?\${params}\`, {
+    method: 'DELETE',
+    headers: { 'x-jersen-api-key': API_KEY },
+  });
+  return res.json();
+}
+\`\`\`
+
+**WRONG URL patterns (will return 404):**
+- \`/api/providers/database/todos\` ❌
+- \`/api/providers/database/\${collection}\` ❌
+
+**CORRECT URL pattern (always use this):**
+- \`/api/providers/database\` ✅ (with collection in body/params)
 
 **ALWAYS generate app/layout.tsx** - it's required for every project!
 
