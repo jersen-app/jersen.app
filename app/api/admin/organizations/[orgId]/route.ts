@@ -2,7 +2,9 @@ import { auth, clerkClient } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 import connectToDatabase from "@/lib/db";
 import OrganizationSubscription, { PLAN_LIMITS, SubscriptionPlan } from "@/models/OrganizationSubscription";
+import OrganizationSettings from "@/models/OrganizationSettings";
 import AIUsageLog from "@/models/AIUsageLog";
+import { getPlatformSettings } from "@/models/PlatformSettings";
 
 const SUPER_ADMIN_USER_IDS = [process.env.SUPER_ADMIN_USER_ID || ""];
 
@@ -47,6 +49,10 @@ export async function GET(
             subscription.monthlyCredits + subscription.bonusCredits - subscription.usedCredits
         );
 
+        // Get org settings and platform defaults
+        const orgSettings = await OrganizationSettings.findOne({ orgId }).lean();
+        const platformSettings = await getPlatformSettings();
+
         return NextResponse.json({
             organization: {
                 id: org.id,
@@ -69,6 +75,16 @@ export async function GET(
                 updatedBy: subscription.updatedBy,
                 notes: subscription.notes,
             },
+            sandboxSettings: {
+                maxSandboxesPerOrg: orgSettings?.maxSandboxesPerOrg ?? null,
+                sandboxTimeoutMinutes: orgSettings?.sandboxTimeoutMinutes ?? null,
+                autoPreviewEnabled: orgSettings?.autoPreviewEnabled ?? null,
+            },
+            platformDefaults: {
+                maxSandboxesPerOrg: platformSettings.maxSandboxesPerOrg,
+                sandboxTimeoutMinutes: platformSettings.sandboxTimeoutMinutes,
+                autoPreviewEnabled: platformSettings.autoPreviewEnabled,
+            },
             usageStats,
             planLimits: PLAN_LIMITS,
         });
@@ -81,7 +97,7 @@ export async function GET(
     }
 }
 
-// PATCH - Update subscription (plan, bonus credits, notes)
+// PATCH - Update subscription (plan, bonus credits, notes) and sandbox settings
 export async function PATCH(
     request: NextRequest,
     { params }: { params: Promise<{ orgId: string }> }
@@ -96,7 +112,16 @@ export async function PATCH(
 
     try {
         const body = await request.json();
-        const { plan, addBonusCredits, notes, resetCredits } = body;
+        const { 
+            plan, 
+            addBonusCredits, 
+            notes, 
+            resetCredits,
+            // Sandbox settings
+            maxSandboxesPerOrg,
+            sandboxTimeoutMinutes,
+            autoPreviewEnabled,
+        } = body;
 
         await connectToDatabase();
 
@@ -134,7 +159,7 @@ export async function PATCH(
             updates.billingCycleEnd = nextMonth;
         }
 
-        // Apply updates
+        // Apply subscription updates
         const updatedSubscription = await OrganizationSubscription.findOneAndUpdate(
             { orgId },
             { $set: updates },
@@ -148,11 +173,38 @@ export async function PATCH(
             );
         }
 
+        // Update sandbox settings if any are provided
+        const sandboxUpdates: Record<string, unknown> = {};
+        
+        if (maxSandboxesPerOrg !== undefined) {
+            // null means use platform default
+            sandboxUpdates.maxSandboxesPerOrg = maxSandboxesPerOrg === null ? undefined : maxSandboxesPerOrg;
+        }
+        if (sandboxTimeoutMinutes !== undefined) {
+            sandboxUpdates.sandboxTimeoutMinutes = sandboxTimeoutMinutes === null ? undefined : sandboxTimeoutMinutes;
+        }
+        if (autoPreviewEnabled !== undefined) {
+            sandboxUpdates.autoPreviewEnabled = autoPreviewEnabled === null ? undefined : autoPreviewEnabled;
+        }
+
+        let orgSettings = null;
+        if (Object.keys(sandboxUpdates).length > 0) {
+            orgSettings = await OrganizationSettings.findOneAndUpdate(
+                { orgId },
+                { $set: sandboxUpdates },
+                { new: true, upsert: true }
+            );
+        } else {
+            orgSettings = await OrganizationSettings.findOne({ orgId }).lean();
+        }
+
         const hourlyUsage = await AIUsageLog.getHourlyUsage(orgId);
         const remainingCredits = Math.max(
             0,
             updatedSubscription.monthlyCredits + updatedSubscription.bonusCredits - updatedSubscription.usedCredits
         );
+
+        const platformSettings = await getPlatformSettings();
 
         return NextResponse.json({
             success: true,
@@ -168,6 +220,16 @@ export async function PATCH(
                 billingCycleEnd: updatedSubscription.billingCycleEnd,
                 updatedBy: updatedSubscription.updatedBy,
                 notes: updatedSubscription.notes,
+            },
+            sandboxSettings: {
+                maxSandboxesPerOrg: orgSettings?.maxSandboxesPerOrg ?? null,
+                sandboxTimeoutMinutes: orgSettings?.sandboxTimeoutMinutes ?? null,
+                autoPreviewEnabled: orgSettings?.autoPreviewEnabled ?? null,
+            },
+            platformDefaults: {
+                maxSandboxesPerOrg: platformSettings.maxSandboxesPerOrg,
+                sandboxTimeoutMinutes: platformSettings.sandboxTimeoutMinutes,
+                autoPreviewEnabled: platformSettings.autoPreviewEnabled,
             },
         });
     } catch (error) {

@@ -3,10 +3,18 @@ import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import connectToDatabase from "@/lib/db";
 import Project from "@/models/Project";
+import { getPlatformSettings } from "@/models/PlatformSettings";
+import OrganizationSettings from "@/models/OrganizationSettings";
+import ActiveSandbox, { 
+    getOrgActiveSandboxes, 
+    getProjectSandbox, 
+    registerSandbox, 
+    unregisterSandbox,
+    getOldestOrgSandbox 
+} from "@/models/ActiveSandbox";
 
 export const maxDuration = 300;
 
-const SANDBOX_TIMEOUT = 10 * 60 * 1000; // 10 minutes
 const TEMPLATE_ID = "nextjs-developer-song-dev";
 
 // Get the Jersen API URL based on environment
@@ -25,11 +33,28 @@ function getJersenApiUrl(): string {
 
 const JERSEN_API_URL = getJersenApiUrl();
 
-// Store active sandboxes in memory (in production, use Redis)
-const activeSandboxes = new Map<
-    string,
-    { sandboxId: string; expiresAt: number }
->();
+// Get effective sandbox settings (org override or platform default)
+async function getSandboxSettings(orgId: string) {
+    const platformSettings = await getPlatformSettings();
+    const orgSettings = await OrganizationSettings.findOne({ orgId }).lean();
+    
+    return {
+        maxSandboxesPerOrg: orgSettings?.maxSandboxesPerOrg ?? platformSettings.maxSandboxesPerOrg ?? 1,
+        sandboxTimeoutMinutes: orgSettings?.sandboxTimeoutMinutes ?? platformSettings.sandboxTimeoutMinutes ?? 10,
+        autoPreviewEnabled: orgSettings?.autoPreviewEnabled ?? platformSettings.autoPreviewEnabled ?? true,
+    };
+}
+
+// Kill a sandbox by its ID
+async function killSandboxById(sandboxId: string): Promise<void> {
+    try {
+        const sandbox = await Sandbox.connect(sandboxId);
+        await sandbox.kill();
+        console.log(`Killed sandbox ${sandboxId}`);
+    } catch (error) {
+        console.error(`Failed to kill sandbox ${sandboxId}:`, error);
+    }
+}
 
 export async function POST(
     request: Request,
@@ -44,6 +69,8 @@ export async function POST(
         const { id: projectId } = await params;
         const { action, files } = await request.json();
 
+        await connectToDatabase();
+
         switch (action) {
             case "create":
                 return await createSandbox(projectId, userId, files);
@@ -56,6 +83,9 @@ export async function POST(
 
             case "get-url":
                 return await getSandboxUrl(projectId);
+            
+            case "get-settings":
+                return await getSettings(projectId);
 
             default:
                 return NextResponse.json(
@@ -70,55 +100,99 @@ export async function POST(
     }
 }
 
+async function getSettings(projectId: string) {
+    const project = await Project.findById(projectId).lean();
+    if (!project) {
+        return NextResponse.json({ error: "Project not found" }, { status: 404 });
+    }
+    
+    const orgId = (project as any).orgId;
+    const settings = await getSandboxSettings(orgId);
+    
+    return NextResponse.json({ settings });
+}
+
 async function createSandbox(
     projectId: string,
     userId: string,
     files?: Record<string, string>
 ) {
-    // Clean up expired sandboxes
-    cleanupExpiredSandboxes();
-
-    // Check if sandbox already exists and is still valid
-    const existing = activeSandboxes.get(projectId);
-    if (existing && existing.expiresAt > Date.now()) {
-        try {
-            const sandbox = await Sandbox.connect(existing.sandboxId);
-            const url = `https://${sandbox.getHost(3000)}`;
-            return NextResponse.json({
-                sandboxId: existing.sandboxId,
-                url,
-                status: "existing",
-            });
-        } catch {
-            // Sandbox expired or not found, remove from map
-            activeSandboxes.delete(projectId);
-        }
-    }
-
-    // Fetch project to get API key and dependencies - use fresh query
-    await connectToDatabase();
+    // Fetch project to get API key, dependencies, and org
     const project = await Project.findById(projectId).lean();
     
     if (!project) {
         return NextResponse.json({ error: "Project not found" }, { status: 404 });
     }
     
-    console.log(`Project ${projectId} has dependencies:`, project.dependencies || []);
+    const orgId = (project as any).orgId;
+    const settings = await getSandboxSettings(orgId);
+    const sandboxTimeoutMs = settings.sandboxTimeoutMinutes * 60 * 1000;
+
+    // Check if sandbox already exists for this project
+    const existingProjectSandbox = await getProjectSandbox(projectId);
+    if (existingProjectSandbox) {
+        try {
+            const sandbox = await Sandbox.connect(existingProjectSandbox.sandboxId);
+            
+            // If files were passed, sync them to the existing sandbox
+            if (files && Object.keys(files).length > 0) {
+                const apiKey = (project as any).apiKey || '';
+                const processedFiles = injectCredentials(files, apiKey, JERSEN_API_URL);
+                
+                console.log(`Syncing ${Object.keys(processedFiles).length} files to existing sandbox...`);
+                for (const [path, content] of Object.entries(processedFiles)) {
+                    const fullPath = `/home/user/${path}`;
+                    try {
+                        await sandbox.files.write(fullPath, content);
+                        console.log(`Synced: ${fullPath}`);
+                    } catch (error) {
+                        console.error(`Failed to sync ${fullPath}:`, error);
+                    }
+                }
+            }
+            
+            const url = `https://${sandbox.getHost(3000)}`;
+            return NextResponse.json({
+                sandboxId: existingProjectSandbox.sandboxId,
+                url,
+                status: "existing",
+            });
+        } catch {
+            // Sandbox expired or not found, remove from DB
+            await unregisterSandbox(projectId);
+        }
+    }
+
+    // Check organization sandbox limit
+    const orgSandboxes = await getOrgActiveSandboxes(orgId);
+    
+    if (orgSandboxes.length >= settings.maxSandboxesPerOrg) {
+        // Need to kill the oldest sandbox to make room
+        const oldestSandbox = await getOldestOrgSandbox(orgId, projectId);
+        if (oldestSandbox) {
+            console.log(`Org ${orgId} at sandbox limit (${settings.maxSandboxesPerOrg}), killing oldest sandbox for project ${oldestSandbox.projectId}`);
+            await killSandboxById(oldestSandbox.sandboxId);
+            await unregisterSandbox(oldestSandbox.projectId);
+        }
+    }
+    
+    console.log(`Project ${projectId} has dependencies:`, (project as any).dependencies || []);
 
     // Create new sandbox
     const sandbox = await Sandbox.create(TEMPLATE_ID, {
         metadata: {
             projectId,
             userId,
+            orgId,
         },
-        timeoutMs: SANDBOX_TIMEOUT,
+        timeoutMs: sandboxTimeoutMs,
     });
 
     console.log(`Created E2B sandbox ${sandbox.sandboxId} for project ${projectId}`);
     console.log(`JERSEN_API_URL for sandbox: ${JERSEN_API_URL}`);
 
     // Replace placeholders in files with actual values
-    const apiKey = project.apiKey || '';
+    const apiKey = (project as any).apiKey || '';
     const processedFiles = injectCredentials(files || {}, apiKey, JERSEN_API_URL);
     
     // Write files to sandbox one by one
@@ -177,13 +251,17 @@ async function createSandbox(
     console.log(`Sandbox ${sandbox.sandboxId} dev server should already be running`);
     await new Promise((resolve) => setTimeout(resolve, 2000));
 
-    // Store sandbox reference
-    activeSandboxes.set(projectId, {
-        sandboxId: sandbox.sandboxId,
-        expiresAt: Date.now() + SANDBOX_TIMEOUT,
-    });
-
     const url = `https://${sandbox.getHost(3000)}`;
+
+    // Register sandbox in database
+    await registerSandbox(
+        orgId,
+        projectId,
+        sandbox.sandboxId,
+        url,
+        userId,
+        settings.sandboxTimeoutMinutes
+    );
     
     // Save sandbox URL to project for CORS whitelist
     await Project.updateOne(
@@ -226,9 +304,9 @@ async function updateSandbox(
     projectId: string,
     files?: Record<string, string>
 ) {
-    const existing = activeSandboxes.get(projectId);
+    const existing = await getProjectSandbox(projectId);
 
-    if (!existing || existing.expiresAt < Date.now()) {
+    if (!existing) {
         return NextResponse.json(
             { error: "Sandbox not found or expired. Please create a new one." },
             { status: 404 }
@@ -239,7 +317,6 @@ async function updateSandbox(
         const sandbox = await Sandbox.connect(existing.sandboxId);
 
         // Fetch project to get API key and check for new dependencies
-        await connectToDatabase();
         const project = await Project.findById(projectId);
         
         // Replace placeholders with actual values
@@ -293,7 +370,7 @@ async function updateSandbox(
         });
     } catch (error) {
         console.error("Failed to update sandbox:", error);
-        activeSandboxes.delete(projectId);
+        await unregisterSandbox(projectId);
         return NextResponse.json(
             { error: "Sandbox connection failed. Please create a new one." },
             { status: 404 }
@@ -302,29 +379,28 @@ async function updateSandbox(
 }
 
 async function destroySandbox(projectId: string) {
-    const existing = activeSandboxes.get(projectId);
+    const existing = await getProjectSandbox(projectId);
 
     if (!existing) {
         return NextResponse.json({ status: "not-found" });
     }
 
     try {
-        const sandbox = await Sandbox.connect(existing.sandboxId);
-        await sandbox.kill();
+        await killSandboxById(existing.sandboxId);
     } catch (error) {
         console.error("Failed to destroy sandbox:", error);
     }
 
-    activeSandboxes.delete(projectId);
+    await unregisterSandbox(projectId);
     console.log(`Destroyed sandbox for project ${projectId}`);
 
     return NextResponse.json({ status: "destroyed" });
 }
 
 async function getSandboxUrl(projectId: string) {
-    const existing = activeSandboxes.get(projectId);
+    const existing = await getProjectSandbox(projectId);
 
-    if (!existing || existing.expiresAt < Date.now()) {
+    if (!existing) {
         return NextResponse.json(
             { error: "Sandbox not found or expired" },
             { status: 404 }
@@ -338,26 +414,13 @@ async function getSandboxUrl(projectId: string) {
         return NextResponse.json({
             sandboxId: existing.sandboxId,
             url,
-            expiresAt: existing.expiresAt,
+            expiresAt: existing.expiresAt.getTime(),
         });
     } catch {
-        activeSandboxes.delete(projectId);
+        await unregisterSandbox(projectId);
         return NextResponse.json(
             { error: "Sandbox not found or expired" },
             { status: 404 }
         );
     }
-}
-
-function cleanupExpiredSandboxes() {
-    const now = Date.now();
-    activeSandboxes.forEach(({ sandboxId, expiresAt }, projectId) => {
-        if (expiresAt < now) {
-            Sandbox.connect(sandboxId)
-                .then((sandbox) => sandbox.kill())
-                .catch(console.error);
-            activeSandboxes.delete(projectId);
-            console.log(`Cleaned up expired sandbox for project ${projectId}`);
-        }
-    });
 }

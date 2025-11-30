@@ -10,6 +10,12 @@ interface SandboxState {
     expiresAt: number | null;
 }
 
+interface SandboxSettings {
+    maxSandboxesPerOrg: number;
+    sandboxTimeoutMinutes: number;
+    autoPreviewEnabled: boolean;
+}
+
 interface UseSandboxOptions {
     projectId: string;
     autoCreate?: boolean;
@@ -24,7 +30,36 @@ export function useSandbox({ projectId, autoCreate = false }: UseSandboxOptions)
         expiresAt: null,
     });
 
+    const [settings, setSettings] = useState<SandboxSettings>({
+        maxSandboxesPerOrg: 1,
+        sandboxTimeoutMinutes: 10,
+        autoPreviewEnabled: true,
+    });
+
     const filesRef = useRef<Record<string, string>>({});
+
+    // Fetch sandbox settings
+    const fetchSettings = useCallback(async () => {
+        try {
+            const response = await fetch(`/api/projects/${projectId}/sandbox`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ action: "get-settings" }),
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                setSettings(data.settings);
+            }
+        } catch {
+            // Use defaults
+        }
+    }, [projectId]);
+
+    // Fetch settings on mount
+    useEffect(() => {
+        fetchSettings();
+    }, [fetchSettings]);
 
     // Create sandbox
     const create = useCallback(
@@ -54,7 +89,7 @@ export function useSandbox({ projectId, autoCreate = false }: UseSandboxOptions)
                     url: data.url,
                     status: "running",
                     error: null,
-                    expiresAt: Date.now() + 10 * 60 * 1000,
+                    expiresAt: Date.now() + settings.sandboxTimeoutMinutes * 60 * 1000,
                 });
 
                 return data;
@@ -68,7 +103,7 @@ export function useSandbox({ projectId, autoCreate = false }: UseSandboxOptions)
                 throw error;
             }
         },
-        [projectId]
+        [projectId, settings.sandboxTimeoutMinutes]
     );
 
     // Update files in sandbox
@@ -118,6 +153,18 @@ export function useSandbox({ projectId, autoCreate = false }: UseSandboxOptions)
             }
         },
         [projectId, state.status, create]
+    );
+
+    // Create or update sandbox (auto-preview helper)
+    const createOrUpdate = useCallback(
+        async (files: Record<string, string>) => {
+            if (state.status === "running") {
+                return update(files);
+            } else {
+                return create(files);
+            }
+        },
+        [state.status, create, update]
     );
 
     // Destroy sandbox
@@ -184,10 +231,13 @@ export function useSandbox({ projectId, autoCreate = false }: UseSandboxOptions)
 
     return {
         ...state,
+        settings,
         create,
         update,
+        createOrUpdate,
         destroy,
         getUrl,
         isLoading: state.status === "creating" || state.status === "updating",
+        autoPreviewEnabled: settings.autoPreviewEnabled,
     };
 }

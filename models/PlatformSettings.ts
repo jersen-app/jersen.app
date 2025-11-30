@@ -11,6 +11,10 @@ export type AIModelId = typeof AI_MODELS[number]["id"];
 export interface IPlatformSettings {
     _id: string;
     aiModel: AIModelId;
+    // Sandbox settings
+    maxSandboxesPerOrg: number; // Max concurrent sandboxes per organization (default: 1)
+    sandboxTimeoutMinutes: number; // Sandbox auto-kill timeout in minutes (default: 10)
+    autoPreviewEnabled: boolean; // Whether to auto-start preview after AI generates files
     createdAt: Date;
     updatedAt: Date;
 }
@@ -25,6 +29,22 @@ const PlatformSettingsSchema = new Schema<IPlatformSettings>(
             type: String,
             enum: AI_MODELS.map(m => m.id),
             default: "gemini-2.5-flash",
+        },
+        maxSandboxesPerOrg: {
+            type: Number,
+            default: 1,
+            min: 1,
+            max: 10,
+        },
+        sandboxTimeoutMinutes: {
+            type: Number,
+            default: 10,
+            min: 1,
+            max: 60,
+        },
+        autoPreviewEnabled: {
+            type: Boolean,
+            default: true,
         },
     },
     {
@@ -49,6 +69,9 @@ export async function getPlatformSettings(): Promise<IPlatformSettings> {
     const defaultSettings = await PlatformSettings.create({
         _id: "platform_settings",
         aiModel: "gemini-2.5-flash",
+        maxSandboxesPerOrg: 1,
+        sandboxTimeoutMinutes: 10,
+        autoPreviewEnabled: true,
     });
     
     return defaultSettings.toObject();

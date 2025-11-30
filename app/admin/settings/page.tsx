@@ -5,7 +5,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, CheckCircle2, Settings2 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
+import { Loader2, CheckCircle2, Settings2, Box, Play } from "lucide-react";
 import { toast } from "sonner";
 
 interface AIModel {
@@ -16,6 +18,9 @@ interface AIModel {
 
 interface PlatformSettings {
     aiModel: string;
+    maxSandboxesPerOrg: number;
+    sandboxTimeoutMinutes: number;
+    autoPreviewEnabled: boolean;
 }
 
 export default function AdminSettingsPage() {
@@ -23,7 +28,12 @@ export default function AdminSettingsPage() {
     const [availableModels, setAvailableModels] = useState<AIModel[]>([]);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    
+    // Form state
     const [selectedModel, setSelectedModel] = useState<string>("");
+    const [maxSandboxes, setMaxSandboxes] = useState<number>(1);
+    const [sandboxTimeout, setSandboxTimeout] = useState<number>(10);
+    const [autoPreview, setAutoPreview] = useState<boolean>(true);
 
     useEffect(() => {
         fetchSettings();
@@ -37,6 +47,9 @@ export default function AdminSettingsPage() {
             setSettings(data.settings);
             setAvailableModels(data.availableModels);
             setSelectedModel(data.settings.aiModel);
+            setMaxSandboxes(data.settings.maxSandboxesPerOrg ?? 1);
+            setSandboxTimeout(data.settings.sandboxTimeoutMinutes ?? 10);
+            setAutoPreview(data.settings.autoPreviewEnabled ?? true);
         } catch (error) {
             console.error(error);
             toast.error("Failed to load settings");
@@ -51,7 +64,12 @@ export default function AdminSettingsPage() {
             const res = await fetch("/api/admin/settings", {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ aiModel: selectedModel }),
+                body: JSON.stringify({ 
+                    aiModel: selectedModel,
+                    maxSandboxesPerOrg: maxSandboxes,
+                    sandboxTimeoutMinutes: sandboxTimeout,
+                    autoPreviewEnabled: autoPreview,
+                }),
             });
 
             if (!res.ok) throw new Error("Failed to save");
@@ -75,7 +93,10 @@ export default function AdminSettingsPage() {
         );
     }
 
-    const hasChanges = settings?.aiModel !== selectedModel;
+    const hasChanges = settings?.aiModel !== selectedModel || 
+        settings?.maxSandboxesPerOrg !== maxSandboxes ||
+        settings?.sandboxTimeoutMinutes !== sandboxTimeout ||
+        settings?.autoPreviewEnabled !== autoPreview;
 
     return (
         <div className="space-y-6">
@@ -120,32 +141,111 @@ export default function AdminSettingsPage() {
                             Current: <code className="bg-muted px-1 py-0.5 rounded">{settings?.aiModel}</code>
                         </p>
                     </div>
+                </CardContent>
+            </Card>
 
-                    <div className="flex items-center gap-3 pt-4">
-                        <Button 
-                            onClick={handleSave} 
-                            disabled={saving || !hasChanges}
-                        >
-                            {saving ? (
-                                <>
-                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                    Saving...
-                                </>
-                            ) : (
-                                <>
-                                    <CheckCircle2 className="h-4 w-4 mr-2" />
-                                    Save Changes
-                                </>
-                            )}
-                        </Button>
-                        {hasChanges && (
-                            <span className="text-sm text-amber-600 dark:text-amber-400">
-                                Unsaved changes
+            {/* Sandbox Settings Card */}
+            <Card>
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                        <Box className="h-5 w-5" />
+                        Sandbox Settings
+                    </CardTitle>
+                    <CardDescription>
+                        Configure E2B sandbox defaults for all organizations. These can be overridden per-organization.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                    {/* Max Sandboxes Per Org */}
+                    <div className="space-y-2">
+                        <Label htmlFor="max-sandboxes">Max Sandboxes per Organization</Label>
+                        <div className="flex items-center gap-3">
+                            <Input
+                                id="max-sandboxes"
+                                type="number"
+                                min={1}
+                                max={10}
+                                value={maxSandboxes}
+                                onChange={(e) => setMaxSandboxes(parseInt(e.target.value) || 1)}
+                                className="w-24"
+                            />
+                            <span className="text-sm text-muted-foreground">
+                                sandboxes
                             </span>
-                        )}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                            When this limit is reached, the oldest sandbox will be automatically killed to make room for new ones.
+                        </p>
+                    </div>
+
+                    {/* Sandbox Timeout */}
+                    <div className="space-y-2">
+                        <Label htmlFor="sandbox-timeout">Sandbox Timeout</Label>
+                        <div className="flex items-center gap-3">
+                            <Input
+                                id="sandbox-timeout"
+                                type="number"
+                                min={1}
+                                max={60}
+                                value={sandboxTimeout}
+                                onChange={(e) => setSandboxTimeout(parseInt(e.target.value) || 10)}
+                                className="w-24"
+                            />
+                            <span className="text-sm text-muted-foreground">
+                                minutes
+                            </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                            Sandboxes will automatically be killed after this duration of inactivity.
+                        </p>
+                    </div>
+
+                    {/* Auto Preview */}
+                    <div className="flex items-center justify-between rounded-lg border p-4">
+                        <div className="space-y-0.5">
+                            <div className="flex items-center gap-2">
+                                <Play className="h-4 w-4 text-muted-foreground" />
+                                <Label htmlFor="auto-preview" className="font-medium">
+                                    Auto Preview
+                                </Label>
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                                Automatically start or update sandbox preview when AI generates files.
+                            </p>
+                        </div>
+                        <Switch
+                            id="auto-preview"
+                            checked={autoPreview}
+                            onCheckedChange={setAutoPreview}
+                        />
                     </div>
                 </CardContent>
             </Card>
+
+            {/* Save Button */}
+            <div className="flex items-center gap-3">
+                <Button 
+                    onClick={handleSave} 
+                    disabled={saving || !hasChanges}
+                >
+                    {saving ? (
+                        <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Saving...
+                        </>
+                    ) : (
+                        <>
+                            <CheckCircle2 className="h-4 w-4 mr-2" />
+                            Save Changes
+                        </>
+                    )}
+                </Button>
+                {hasChanges && (
+                    <span className="text-sm text-amber-600 dark:text-amber-400">
+                        Unsaved changes
+                    </span>
+                )}
+            </div>
 
             {/* Info Card */}
             <Card className="border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/20">

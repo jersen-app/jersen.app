@@ -34,6 +34,9 @@ export default function BuilderClient({
     const lastSavedFilesRef = useRef<string>(JSON.stringify(initialFiles));
 
     const sandbox = useSandbox({ projectId });
+    
+    // Ref to prevent duplicate sync operations
+    const isSyncingRef = useRef(false);
 
     // Convert files array to object for sandbox
     const filesObject = useMemo(() => {
@@ -102,7 +105,7 @@ export default function BuilderClient({
         };
     }, [files, saveFiles]);
 
-    // Handle new files generated from AI
+    // Handle new files generated from AI (with auto-preview)
     const handleFilesGenerated = useCallback(
         async (newFiles: { path: string; content: string }[]) => {
             console.log(`[BuilderClient] Received ${newFiles.length} new files:`, newFiles.map(f => f.path));
@@ -119,19 +122,50 @@ export default function BuilderClient({
             setFiles(updatedFiles);
             console.log(`[BuilderClient] Total files after merge: ${updatedFiles.length}`, updatedFiles.map(f => f.path));
             
-            // Auto-sync to sandbox if running
-            if (sandbox.status === "running") {
-                const filesObj = updatedFiles.reduce((acc, f) => {
-                    acc[f.path] = f.content;
-                    return acc;
-                }, {} as Record<string, string>);
-                
+            // Prevent duplicate sync operations
+            if (isSyncingRef.current) {
+                console.log(`[BuilderClient] Already syncing, skipping`);
+                setNeedsSync(true);
+                return;
+            }
+            
+            // Convert to files object for sandbox
+            const filesObj = updatedFiles.reduce((acc, f) => {
+                acc[f.path] = f.content;
+                return acc;
+            }, {} as Record<string, string>);
+            
+            // Auto-preview: If enabled, automatically start or update sandbox
+            if (sandbox.autoPreviewEnabled) {
+                isSyncingRef.current = true;
                 try {
-                    await sandbox.update(filesObj);
-                    setNeedsSync(false);
-                    console.log(`[BuilderClient] Auto-synced files to sandbox`);
+                    if (sandbox.status === "running" || sandbox.status === "updating") {
+                        // Sandbox already running, just update files
+                        await sandbox.update(filesObj);
+                        setNeedsSync(false);
+                        console.log(`[BuilderClient] Auto-synced files to running sandbox`);
+                    } else if (sandbox.status === "idle" || sandbox.status === "error") {
+                        // No sandbox running, create one with files and switch to preview panel
+                        setRightPanel("preview");
+                        // Note: sandbox.create already passes files to the sandbox
+                        await sandbox.create(filesObj);
+                        setNeedsSync(false);
+                        console.log(`[BuilderClient] Auto-started sandbox with files`);
+                    } else if (sandbox.status === "creating") {
+                        // Sandbox is being created, mark as needing sync
+                        // The files will be synced once sandbox is ready
+                        setNeedsSync(true);
+                        console.log(`[BuilderClient] Sandbox creating, marked for sync`);
+                    }
                 } catch (error) {
-                    console.error('[BuilderClient] Failed to sync:', error);
+                    console.error('[BuilderClient] Auto-preview failed:', error);
+                    setNeedsSync(true);
+                } finally {
+                    isSyncingRef.current = false;
+                }
+            } else {
+                // Auto-preview disabled, just mark as needing sync if sandbox is running
+                if (sandbox.status === "running") {
                     setNeedsSync(true);
                 }
             }

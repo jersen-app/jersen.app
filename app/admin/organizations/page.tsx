@@ -16,6 +16,8 @@ import {
     Sparkles,
     Crown,
     Rocket,
+    Box,
+    Play,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -47,6 +49,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -64,6 +68,18 @@ interface Subscription {
     notes?: string;
 }
 
+interface SandboxSettings {
+    maxSandboxesPerOrg: number | null;
+    sandboxTimeoutMinutes: number | null;
+    autoPreviewEnabled: boolean | null;
+}
+
+interface PlatformDefaults {
+    maxSandboxesPerOrg: number;
+    sandboxTimeoutMinutes: number;
+    autoPreviewEnabled: boolean;
+}
+
 interface Organization {
     id: string;
     name: string;
@@ -72,6 +88,8 @@ interface Organization {
     membersCount: number;
     createdAt: number;
     subscription: Subscription;
+    sandboxSettings?: SandboxSettings;
+    platformDefaults?: PlatformDefaults;
 }
 
 interface PlanLimits {
@@ -105,6 +123,13 @@ export default function OrganizationsPage() {
     const [notes, setNotes] = useState("");
     const [saving, setSaving] = useState(false);
 
+    // Sandbox settings state
+    const [useCustomSandbox, setUseCustomSandbox] = useState(false);
+    const [maxSandboxes, setMaxSandboxes] = useState<number | null>(null);
+    const [sandboxTimeout, setSandboxTimeout] = useState<number | null>(null);
+    const [autoPreview, setAutoPreview] = useState<boolean | null>(null);
+    const [platformDefaults, setPlatformDefaults] = useState<PlatformDefaults | null>(null);
+
     const fetchOrganizations = async () => {
         setLoading(true);
         try {
@@ -125,11 +150,34 @@ export default function OrganizationsPage() {
         fetchOrganizations();
     }, []);
 
-    const openEditDialog = (org: Organization) => {
+    const openEditDialog = async (org: Organization) => {
         setSelectedOrg(org);
         setEditPlan(org.subscription.plan);
         setBonusCreditsToAdd(0);
         setNotes(org.subscription.notes || "");
+        
+        // Fetch org details to get sandbox settings
+        try {
+            const res = await fetch(`/api/admin/organizations/${org.id}`);
+            if (res.ok) {
+                const data = await res.json();
+                const settings = data.sandboxSettings || {};
+                const defaults = data.platformDefaults || { maxSandboxesPerOrg: 1, sandboxTimeoutMinutes: 10, autoPreviewEnabled: true };
+                
+                setPlatformDefaults(defaults);
+                setMaxSandboxes(settings.maxSandboxesPerOrg);
+                setSandboxTimeout(settings.sandboxTimeoutMinutes);
+                setAutoPreview(settings.autoPreviewEnabled);
+                setUseCustomSandbox(
+                    settings.maxSandboxesPerOrg !== null || 
+                    settings.sandboxTimeoutMinutes !== null || 
+                    settings.autoPreviewEnabled !== null
+                );
+            }
+        } catch (error) {
+            console.error("Failed to fetch org details:", error);
+        }
+        
         setEditDialogOpen(true);
     };
 
@@ -145,6 +193,10 @@ export default function OrganizationsPage() {
                     plan: editPlan,
                     addBonusCredits: bonusCreditsToAdd,
                     notes,
+                    // Sandbox settings (null = use platform default)
+                    maxSandboxesPerOrg: useCustomSandbox ? maxSandboxes : null,
+                    sandboxTimeoutMinutes: useCustomSandbox ? sandboxTimeout : null,
+                    autoPreviewEnabled: useCustomSandbox ? autoPreview : null,
                 }),
             });
 
@@ -161,10 +213,10 @@ export default function OrganizationsPage() {
                 )
             );
 
-            toast.success("Subscription updated successfully");
+            toast.success("Organization updated successfully");
             setEditDialogOpen(false);
         } catch (error) {
-            toast.error("Failed to update subscription");
+            toast.error("Failed to update organization");
             console.error(error);
         } finally {
             setSaving(false);
@@ -422,7 +474,7 @@ export default function OrganizationsPage() {
 
             {/* Edit Dialog */}
             <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-                <DialogContent className="sm:max-w-lg">
+                <DialogContent className="sm:max-w-xl">
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
                             {selectedOrg?.imageUrl ? (
@@ -437,117 +489,232 @@ export default function OrganizationsPage() {
                             {selectedOrg?.name}
                         </DialogTitle>
                         <DialogDescription>
-                            Manage subscription and credits for this organization
+                            Manage subscription, credits, and sandbox settings
                         </DialogDescription>
                     </DialogHeader>
 
                     {selectedOrg && (
-                        <div className="space-y-6 py-4">
-                            {/* Current Usage */}
-                            <div className="p-4 bg-gray-50 rounded-lg space-y-2">
-                                <h4 className="text-sm font-medium">Current Usage</h4>
-                                <div className="grid grid-cols-2 gap-4 text-sm">
-                                    <div>
-                                        <span className="text-muted-foreground">Monthly:</span>
-                                        <span className="ml-2 font-medium">
-                                            {selectedOrg.subscription.usedCredits} / {selectedOrg.subscription.monthlyCredits + selectedOrg.subscription.bonusCredits}
-                                        </span>
-                                    </div>
-                                    <div>
-                                        <span className="text-muted-foreground">Hourly:</span>
-                                        <span className="ml-2 font-medium">
-                                            {selectedOrg.subscription.hourlyUsage} / {selectedOrg.subscription.hourlyLimit}
-                                        </span>
+                        <Tabs defaultValue="subscription" className="w-full">
+                            <TabsList className="grid w-full grid-cols-2">
+                                <TabsTrigger value="subscription">Subscription</TabsTrigger>
+                                <TabsTrigger value="sandbox">Sandbox</TabsTrigger>
+                            </TabsList>
+                            
+                            <TabsContent value="subscription" className="space-y-6 py-4">
+                                {/* Current Usage */}
+                                <div className="p-4 bg-gray-50 rounded-lg space-y-2">
+                                    <h4 className="text-sm font-medium">Current Usage</h4>
+                                    <div className="grid grid-cols-2 gap-4 text-sm">
+                                        <div>
+                                            <span className="text-muted-foreground">Monthly:</span>
+                                            <span className="ml-2 font-medium">
+                                                {selectedOrg.subscription.usedCredits} / {selectedOrg.subscription.monthlyCredits + selectedOrg.subscription.bonusCredits}
+                                            </span>
+                                        </div>
+                                        <div>
+                                            <span className="text-muted-foreground">Hourly:</span>
+                                            <span className="ml-2 font-medium">
+                                                {selectedOrg.subscription.hourlyUsage} / {selectedOrg.subscription.hourlyLimit}
+                                            </span>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
 
-                            {/* Plan Selection */}
-                            <div className="space-y-2">
-                                <Label>Subscription Plan</Label>
-                                <Select value={editPlan} onValueChange={(v) => setEditPlan(v as typeof editPlan)}>
-                                    <SelectTrigger>
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="free">
-                                            <div className="flex items-center gap-2">
-                                                <Sparkles className="h-4 w-4" />
-                                                <span>Free</span>
-                                                <span className="text-muted-foreground">
-                                                    - 100 credits/mo, 10/hr
-                                                </span>
-                                            </div>
-                                        </SelectItem>
-                                        <SelectItem value="pro">
-                                            <div className="flex items-center gap-2">
-                                                <Crown className="h-4 w-4 text-violet-500" />
-                                                <span>Pro</span>
-                                                <span className="text-muted-foreground">
-                                                    - 1,000 credits/mo, 100/hr ($20/mo)
-                                                </span>
-                                            </div>
-                                        </SelectItem>
-                                        <SelectItem value="enterprise">
-                                            <div className="flex items-center gap-2">
-                                                <Rocket className="h-4 w-4 text-amber-500" />
-                                                <span>Enterprise</span>
-                                                <span className="text-muted-foreground">
-                                                    - 10,000 credits/mo, 1,000/hr ($100/mo)
-                                                </span>
-                                            </div>
-                                        </SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
+                                {/* Plan Selection */}
+                                <div className="space-y-2">
+                                    <Label>Subscription Plan</Label>
+                                    <Select value={editPlan} onValueChange={(v) => setEditPlan(v as typeof editPlan)}>
+                                        <SelectTrigger>
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="free">
+                                                <div className="flex items-center gap-2">
+                                                    <Sparkles className="h-4 w-4" />
+                                                    <span>Free</span>
+                                                    <span className="text-muted-foreground">
+                                                        - 100 credits/mo, 10/hr
+                                                    </span>
+                                                </div>
+                                            </SelectItem>
+                                            <SelectItem value="pro">
+                                                <div className="flex items-center gap-2">
+                                                    <Crown className="h-4 w-4 text-violet-500" />
+                                                    <span>Pro</span>
+                                                    <span className="text-muted-foreground">
+                                                        - 1,000 credits/mo, 100/hr ($20/mo)
+                                                    </span>
+                                                </div>
+                                            </SelectItem>
+                                            <SelectItem value="enterprise">
+                                                <div className="flex items-center gap-2">
+                                                    <Rocket className="h-4 w-4 text-amber-500" />
+                                                    <span>Enterprise</span>
+                                                    <span className="text-muted-foreground">
+                                                        - 10,000 credits/mo, 1,000/hr ($100/mo)
+                                                    </span>
+                                                </div>
+                                            </SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
 
-                            {/* Bonus Credits */}
-                            <div className="space-y-2">
-                                <Label>Add Bonus Credits</Label>
-                                <div className="flex items-center gap-2">
-                                    <Button
-                                        variant="outline"
-                                        size="icon"
-                                        onClick={() => setBonusCreditsToAdd(Math.max(-1000, bonusCreditsToAdd - 100))}
-                                    >
-                                        <Minus className="h-4 w-4" />
-                                    </Button>
-                                    <Input
-                                        type="number"
-                                        value={bonusCreditsToAdd}
-                                        onChange={(e) => setBonusCreditsToAdd(parseInt(e.target.value) || 0)}
-                                        className="text-center"
+                                {/* Bonus Credits */}
+                                <div className="space-y-2">
+                                    <Label>Add Bonus Credits</Label>
+                                    <div className="flex items-center gap-2">
+                                        <Button
+                                            variant="outline"
+                                            size="icon"
+                                            onClick={() => setBonusCreditsToAdd(Math.max(-1000, bonusCreditsToAdd - 100))}
+                                        >
+                                            <Minus className="h-4 w-4" />
+                                        </Button>
+                                        <Input
+                                            type="number"
+                                            value={bonusCreditsToAdd}
+                                            onChange={(e) => setBonusCreditsToAdd(parseInt(e.target.value) || 0)}
+                                            className="text-center"
+                                        />
+                                        <Button
+                                            variant="outline"
+                                            size="icon"
+                                            onClick={() => setBonusCreditsToAdd(bonusCreditsToAdd + 100)}
+                                        >
+                                            <Plus className="h-4 w-4" />
+                                        </Button>
+                                    </div>
+                                    <p className="text-xs text-muted-foreground">
+                                        Current bonus: {selectedOrg.subscription.bonusCredits} credits
+                                        {bonusCreditsToAdd !== 0 && (
+                                            <span className={bonusCreditsToAdd > 0 ? "text-green-600" : "text-red-600"}>
+                                                {" → "}
+                                                {selectedOrg.subscription.bonusCredits + bonusCreditsToAdd} credits
+                                            </span>
+                                        )}
+                                    </p>
+                                </div>
+
+                                {/* Notes */}
+                                <div className="space-y-2">
+                                    <Label>Admin Notes</Label>
+                                    <Textarea
+                                        value={notes}
+                                        onChange={(e) => setNotes(e.target.value)}
+                                        placeholder="Internal notes about this subscription..."
+                                        rows={3}
                                     />
-                                    <Button
-                                        variant="outline"
-                                        size="icon"
-                                        onClick={() => setBonusCreditsToAdd(bonusCreditsToAdd + 100)}
-                                    >
-                                        <Plus className="h-4 w-4" />
-                                    </Button>
                                 </div>
-                                <p className="text-xs text-muted-foreground">
-                                    Current bonus: {selectedOrg.subscription.bonusCredits} credits
-                                    {bonusCreditsToAdd !== 0 && (
-                                        <span className={bonusCreditsToAdd > 0 ? "text-green-600" : "text-red-600"}>
-                                            {" → "}
-                                            {selectedOrg.subscription.bonusCredits + bonusCreditsToAdd} credits
-                                        </span>
-                                    )}
-                                </p>
-                            </div>
+                            </TabsContent>
+                            
+                            <TabsContent value="sandbox" className="space-y-6 py-4">
+                                {/* Custom Sandbox Settings Toggle */}
+                                <div className="flex items-center justify-between rounded-lg border p-4">
+                                    <div className="space-y-0.5">
+                                        <div className="flex items-center gap-2">
+                                            <Box className="h-4 w-4 text-muted-foreground" />
+                                            <Label className="font-medium">
+                                                Custom Sandbox Settings
+                                            </Label>
+                                        </div>
+                                        <p className="text-xs text-muted-foreground">
+                                            Override platform defaults for this organization
+                                        </p>
+                                    </div>
+                                    <Switch
+                                        checked={useCustomSandbox}
+                                        onCheckedChange={(checked) => {
+                                            setUseCustomSandbox(checked);
+                                            if (!checked) {
+                                                // Reset to defaults
+                                                setMaxSandboxes(null);
+                                                setSandboxTimeout(null);
+                                                setAutoPreview(null);
+                                            } else {
+                                                // Set to platform defaults
+                                                setMaxSandboxes(platformDefaults?.maxSandboxesPerOrg ?? 1);
+                                                setSandboxTimeout(platformDefaults?.sandboxTimeoutMinutes ?? 10);
+                                                setAutoPreview(platformDefaults?.autoPreviewEnabled ?? true);
+                                            }
+                                        }}
+                                    />
+                                </div>
 
-                            {/* Notes */}
-                            <div className="space-y-2">
-                                <Label>Admin Notes</Label>
-                                <Textarea
-                                    value={notes}
-                                    onChange={(e) => setNotes(e.target.value)}
-                                    placeholder="Internal notes about this subscription..."
-                                    rows={3}
-                                />
-                            </div>
-                        </div>
+                                {/* Platform Defaults Info */}
+                                {!useCustomSandbox && platformDefaults && (
+                                    <div className="p-4 bg-gray-50 rounded-lg space-y-2">
+                                        <h4 className="text-sm font-medium">Using Platform Defaults</h4>
+                                        <div className="space-y-1 text-sm text-muted-foreground">
+                                            <p>Max sandboxes: {platformDefaults.maxSandboxesPerOrg}</p>
+                                            <p>Timeout: {platformDefaults.sandboxTimeoutMinutes} minutes</p>
+                                            <p>Auto preview: {platformDefaults.autoPreviewEnabled ? "Enabled" : "Disabled"}</p>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Custom Settings */}
+                                {useCustomSandbox && (
+                                    <>
+                                        {/* Max Sandboxes */}
+                                        <div className="space-y-2">
+                                            <Label htmlFor="max-sandboxes">Max Sandboxes</Label>
+                                            <div className="flex items-center gap-3">
+                                                <Input
+                                                    id="max-sandboxes"
+                                                    type="number"
+                                                    min={1}
+                                                    max={10}
+                                                    value={maxSandboxes ?? 1}
+                                                    onChange={(e) => setMaxSandboxes(parseInt(e.target.value) || 1)}
+                                                    className="w-24"
+                                                />
+                                                <span className="text-sm text-muted-foreground">
+                                                    concurrent sandboxes
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        {/* Sandbox Timeout */}
+                                        <div className="space-y-2">
+                                            <Label htmlFor="sandbox-timeout">Sandbox Timeout</Label>
+                                            <div className="flex items-center gap-3">
+                                                <Input
+                                                    id="sandbox-timeout"
+                                                    type="number"
+                                                    min={1}
+                                                    max={60}
+                                                    value={sandboxTimeout ?? 10}
+                                                    onChange={(e) => setSandboxTimeout(parseInt(e.target.value) || 10)}
+                                                    className="w-24"
+                                                />
+                                                <span className="text-sm text-muted-foreground">
+                                                    minutes
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        {/* Auto Preview */}
+                                        <div className="flex items-center justify-between rounded-lg border p-4">
+                                            <div className="space-y-0.5">
+                                                <div className="flex items-center gap-2">
+                                                    <Play className="h-4 w-4 text-muted-foreground" />
+                                                    <Label className="font-medium">
+                                                        Auto Preview
+                                                    </Label>
+                                                </div>
+                                                <p className="text-xs text-muted-foreground">
+                                                    Auto-start preview when AI generates files
+                                                </p>
+                                            </div>
+                                            <Switch
+                                                checked={autoPreview ?? true}
+                                                onCheckedChange={setAutoPreview}
+                                            />
+                                        </div>
+                                    </>
+                                )}
+                            </TabsContent>
+                        </Tabs>
                     )}
 
                     <DialogFooter className="flex-col sm:flex-row gap-2">

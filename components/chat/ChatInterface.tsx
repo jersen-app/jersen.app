@@ -301,14 +301,9 @@ export function ChatInterface({
         const { blocks, files } = parseAIResponse(fullContent);
         setStreamingBlocks(blocks);
 
-        // Real-time file detection during streaming (don't process diffs during streaming)
-        if (files.length > 0 && onFilesGenerated) {
-          // Only send full files during streaming, diffs will be processed at the end
-          const fullFiles = files.filter(f => !f.isEdit);
-          if (fullFiles.length > 0) {
-            onFilesGenerated(processFiles(fullFiles));
-          }
-        }
+        // Note: We no longer call onFilesGenerated during streaming
+        // to prevent multiple sandbox sync calls. Files will be synced
+        // once at the end when streaming completes.
       }
 
       // Parse the final content

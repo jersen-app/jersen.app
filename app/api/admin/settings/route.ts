@@ -32,7 +32,12 @@ export async function PATCH(request: NextRequest) {
 
     try {
         const body = await request.json();
-        const { aiModel } = body;
+        const { 
+            aiModel, 
+            maxSandboxesPerOrg, 
+            sandboxTimeoutMinutes, 
+            autoPreviewEnabled 
+        } = body;
 
         // Validate model
         if (aiModel && !AI_MODELS.some(m => m.id === aiModel)) {
@@ -42,11 +47,32 @@ export async function PATCH(request: NextRequest) {
             );
         }
 
+        // Validate sandbox settings
+        if (maxSandboxesPerOrg !== undefined && (maxSandboxesPerOrg < 1 || maxSandboxesPerOrg > 10)) {
+            return NextResponse.json(
+                { error: "Max sandboxes must be between 1 and 10" },
+                { status: 400 }
+            );
+        }
+
+        if (sandboxTimeoutMinutes !== undefined && (sandboxTimeoutMinutes < 1 || sandboxTimeoutMinutes > 60)) {
+            return NextResponse.json(
+                { error: "Sandbox timeout must be between 1 and 60 minutes" },
+                { status: 400 }
+            );
+        }
+
         await connectToDatabase();
+
+        const updateData: Record<string, unknown> = {};
+        if (aiModel !== undefined) updateData.aiModel = aiModel;
+        if (maxSandboxesPerOrg !== undefined) updateData.maxSandboxesPerOrg = maxSandboxesPerOrg;
+        if (sandboxTimeoutMinutes !== undefined) updateData.sandboxTimeoutMinutes = sandboxTimeoutMinutes;
+        if (autoPreviewEnabled !== undefined) updateData.autoPreviewEnabled = autoPreviewEnabled;
 
         const settings = await PlatformSettings.findByIdAndUpdate(
             "platform_settings",
-            { $set: { aiModel } },
+            { $set: updateData },
             { new: true, upsert: true }
         );
 
