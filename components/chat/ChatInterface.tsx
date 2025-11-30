@@ -332,6 +332,7 @@ export function ChatInterface({
 
       // Final file notification with processed files
       if (processedFiles.length > 0 && onFilesGenerated) {
+        console.log(`[ChatInterface] Calling onFilesGenerated with ${processedFiles.length} files:`, processedFiles.map(f => f.path));
         onFilesGenerated(processedFiles);
       }
     } catch (error) {

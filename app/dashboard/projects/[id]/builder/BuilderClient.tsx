@@ -105,13 +105,16 @@ export default function BuilderClient({
     // Handle new files generated from AI
     const handleFilesGenerated = useCallback(
         (newFiles: { path: string; content: string }[]) => {
+            console.log(`[BuilderClient] Received ${newFiles.length} new files:`, newFiles.map(f => f.path));
             setFiles((prevFiles) => {
                 // Merge new files with existing ones
                 const fileMap = new Map(prevFiles.map((f) => [f.path, f]));
                 newFiles.forEach((file) => {
                     fileMap.set(file.path, file);
                 });
-                return Array.from(fileMap.values());
+                const merged = Array.from(fileMap.values());
+                console.log(`[BuilderClient] Total files after merge: ${merged.length}`, merged.map(f => f.path));
+                return merged;
             });
         },
         []
