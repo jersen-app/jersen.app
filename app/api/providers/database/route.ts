@@ -17,7 +17,7 @@ function getCorsHeaders(origin: string | null): Record<string, string> {
     return {
         "Access-Control-Allow-Origin": isAllowed && origin ? origin : "null",
         "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type, x-api-key",
+        "Access-Control-Allow-Headers": "Content-Type, x-jersen-api-key",
         "Access-Control-Allow-Credentials": "true",
     };
 }

@@ -103,7 +103,7 @@ export async function getUser(): Promise<User | null> {
     const res = await fetch(\`\${JERSEN_URL}/api/providers/auth/session\`, {
       headers: {
         'Authorization': \`Bearer \${token}\`,
-        'x-api-key': API_KEY,
+        'x-jersen-api-key': API_KEY,
       },
     });
     if (!res.ok) {
@@ -126,7 +126,7 @@ export async function getUserFromToken(token: string): Promise<User | null> {
     const res = await fetch(\`\${JERSEN_URL}/api/providers/auth/session\`, {
       headers: {
         'Authorization': \`Bearer \${token}\`,
-        'x-api-key': API_KEY,
+        'x-jersen-api-key': API_KEY,
       },
     });
     if (!res.ok) return null;
@@ -423,7 +423,7 @@ export async function uploadFile(file: File, key: string): Promise<UploadResult>
   const res = await fetch(\`\${API_URL}/api/providers/storage\`, {
     method: 'POST',
     headers: {
-      'x-api-key': API_KEY,
+      'x-jersen-api-key': API_KEY,
     },
     body: formData,
   });
@@ -433,7 +433,7 @@ export async function uploadFile(file: File, key: string): Promise<UploadResult>
 export async function getFileUrl(key: string): Promise<DownloadResult> {
   const res = await fetch(\`\${API_URL}/api/providers/storage?key=\${encodeURIComponent(key)}\`, {
     headers: {
-      'x-api-key': API_KEY,
+      'x-jersen-api-key': API_KEY,
     },
   });
   return res.json();
@@ -443,7 +443,7 @@ export async function deleteFile(key: string): Promise<{ success: boolean; error
   const res = await fetch(\`\${API_URL}/api/providers/storage?key=\${encodeURIComponent(key)}\`, {
     method: 'DELETE',
     headers: {
-      'x-api-key': API_KEY,
+      'x-jersen-api-key': API_KEY,
     },
   });
   return res.json();
@@ -580,21 +580,46 @@ const API_URL = '__JERSEN_URL__';      // Automatically replaced
 - \`mongodb\` driver  
 - \`MONGODB_URI\` or any database connection strings
 
-### Database Client (COPY THIS EXACTLY)
+### ⚠️⚠️⚠️ CRITICAL: Database API Structure ⚠️⚠️⚠️
 
-**⚠️ IMPORTANT: Use the EXACT API endpoints shown below!**
-- Insert: \`POST /api/providers/database\` with \`{ collection, document }\`
-- Find: \`GET /api/providers/database?collection=X&query={}\`
-- Update: \`PATCH /api/providers/database\` with \`{ collection, query, update }\`
-- Delete: \`DELETE /api/providers/database?collection=X&query={}\`
+**There is ONE endpoint: \`/api/providers/database\`**
+- The collection name goes in the BODY (POST/PATCH) or QUERY PARAMS (GET/DELETE)
+- **NEVER append collection to URL path!**
 
-❌ **WRONG endpoints (DO NOT USE):**
-- \`/api/providers/database/insertOne/\${collection}\` - WRONG!
-- \`/api/providers/database/find/\${collection}\` - WRONG!
-- \`/api/providers/database/collections/\${collection}\` - WRONG!
+| Method | URL | Body/Params |
+|--------|-----|-------------|
+| POST | \`/api/providers/database\` | Body: \`{ collection: "todos", document: {...} }\` |
+| GET | \`/api/providers/database?collection=todos&query={}\` | Query params |
+| PATCH | \`/api/providers/database\` | Body: \`{ collection: "todos", query: {...}, update: {...} }\` |
+| DELETE | \`/api/providers/database?collection=todos&query={}\` | Query params |
+
+❌ **WRONG - NEVER DO THIS:**
+\`\`\`typescript
+// These URLs are WRONG and will return 404!
+fetch(\`\${API_URL}/api/providers/database/\${collection}\`)      // WRONG!
+fetch(\`\${API_URL}/api/providers/database/todos\`)              // WRONG!
+fetch(\`\${API_URL}/api/providers/database/insertOne/todos\`)    // WRONG!
+fetch(\`\${API_URL}/api/providers/database/find/todos\`)         // WRONG!
+\`\`\`
+
+✅ **CORRECT - Always use single endpoint:**
+\`\`\`typescript
+// POST - collection in body
+fetch(\`\${API_URL}/api/providers/database\`, {
+  method: 'POST',
+  body: JSON.stringify({ collection: 'todos', document: {...} })
+})
+
+// GET - collection in query params
+fetch(\`\${API_URL}/api/providers/database?collection=todos&query={}\`)
+\`\`\`
+
+### Database Client (COPY THIS FILE EXACTLY)
 
 \`\`\`typescript
-filepath: lib/jersen-db.ts
+// filepath: lib/jersen-db.ts
+// COPY THIS FILE EXACTLY - DO NOT MODIFY THE API STRUCTURE
+
 // These values are automatically injected by Jersen
 const API_KEY = '__JERSEN_API_KEY__';
 const API_URL = '__JERSEN_URL__';
@@ -625,7 +650,9 @@ interface DeleteResult {
   error?: string;
 }
 
-// Insert a document - POST to /api/providers/database
+// Insert a document
+// Endpoint: POST /api/providers/database
+// Body: { collection, document }
 export async function insertOne<T extends Record<string, any>>(
   collection: string, 
   document: T
@@ -634,14 +661,15 @@ export async function insertOne<T extends Record<string, any>>(
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'x-api-key': API_KEY,
+      'x-jersen-api-key': API_KEY,
     },
     body: JSON.stringify({ collection, document }),
   });
   return res.json();
 }
 
-// Find documents - GET /api/providers/database?collection=X&query={}
+// Find documents
+// Endpoint: GET /api/providers/database?collection=X&query={}&limit=N
 export async function find<T = any>(
   collection: string, 
   query: Record<string, any> = {}, 
@@ -655,13 +683,15 @@ export async function find<T = any>(
   
   const res = await fetch(\`\${API_URL}/api/providers/database?\${params}\`, {
     headers: {
-      'x-api-key': API_KEY,
+      'x-jersen-api-key': API_KEY,
     },
   });
   return res.json();
 }
 
-// Update documents - PATCH /api/providers/database
+// Update documents  
+// Endpoint: PATCH /api/providers/database
+// Body: { collection, query, update }
 export async function updateMany(
   collection: string,
   query: Record<string, any>,
@@ -671,14 +701,15 @@ export async function updateMany(
     method: 'PATCH',
     headers: {
       'Content-Type': 'application/json',
-      'x-api-key': API_KEY,
+      'x-jersen-api-key': API_KEY,
     },
     body: JSON.stringify({ collection, query, update }),
   });
   return res.json();
 }
 
-// Delete documents - DELETE /api/providers/database?collection=X&query={}
+// Delete documents
+// Endpoint: DELETE /api/providers/database?collection=X&query={}
 export async function deleteMany(
   collection: string,
   query: Record<string, any>
@@ -691,78 +722,50 @@ export async function deleteMany(
   const res = await fetch(\`\${API_URL}/api/providers/database?\${params}\`, {
     method: 'DELETE',
     headers: {
-      'x-api-key': API_KEY,
+      'x-jersen-api-key': API_KEY,
     },
   });
   return res.json();
 }
-\`\`\`
 
-### React Hook for Data Fetching
-\`\`\`tsx
-filepath: hooks/useCollection.tsx
-"use client";
-import { useState, useEffect, useCallback } from 'react';
-import { find, insertOne, updateMany, deleteMany } from '@/lib/jersen-db';
-
-export function useCollection<T = any>(collection: string, initialQuery: Record<string, any> = {}) {
-  const [data, setData] = useState<T[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const refetch = useCallback(async (query = initialQuery) => {
-    setLoading(true);
-    try {
-      const result = await find<T>(collection, query);
-      if (result.success) {
-        setData(result.documents || []);
-      } else {
-        setError(result.error || 'Failed to fetch');
-      }
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  }, [collection]);
-
-  useEffect(() => {
-    refetch();
-  }, [refetch]);
-
-  const insert = async (document: Omit<T, '_id'>) => {
-    const result = await insertOne(collection, document);
-    if (result.success) {
-      await refetch();
-    }
-    return result;
+// Convenience: Find one document
+export async function findOne<T = any>(
+  collection: string,
+  query: Record<string, any>
+): Promise<{ success: boolean; document?: T; error?: string }> {
+  const result = await find<T>(collection, query, 1);
+  return {
+    success: result.success,
+    document: result.documents?.[0],
+    error: result.error,
   };
+}
 
-  const update = async (query: Record<string, any>, updates: Partial<T>) => {
-    const result = await updateMany(collection, query, updates);
-    if (result.success) {
-      await refetch();
-    }
-    return result;
-  };
+// Convenience: Update one document
+export async function updateOne(
+  collection: string,
+  query: Record<string, any>,
+  update: Record<string, any>
+): Promise<UpdateResult> {
+  return updateMany(collection, query, update);
+}
 
-  const remove = async (query: Record<string, any>) => {
-    const result = await deleteMany(collection, query);
-    if (result.success) {
-      await refetch();
-    }
-    return result;
-  };
-
-  return { data, loading, error, refetch, insert, update, remove };
+// Convenience: Delete one document
+export async function deleteOne(
+  collection: string,
+  query: Record<string, any>
+): Promise<DeleteResult> {
+  return deleteMany(collection, query);
 }
 \`\`\`
 
-### Usage Example - Todo App
+### Usage Example - Todo List
+
 \`\`\`tsx
-filepath: app/todos/page.tsx
+// filepath: app/todos/page.tsx
 "use client";
-import { useCollection } from '@/hooks/useCollection';
+import { useState, useEffect } from 'react';
+import { find, insertOne, updateOne, deleteOne } from '@/lib/jersen-db';
 
 interface Todo {
   _id?: string;
@@ -772,53 +775,80 @@ interface Todo {
 }
 
 export default function TodosPage() {
-  const { data: todos, loading, insert, update, remove } = useCollection<Todo>('todos');
+  const [todos, setTodos] = useState<Todo[]>([]);
   const [newTodo, setNewTodo] = useState('');
+  const [loading, setLoading] = useState(true);
 
-  const addTodo = async () => {
+  // Load todos on mount
+  useEffect(() => {
+    loadTodos();
+  }, []);
+
+  async function loadTodos() {
+    const result = await find<Todo>('todos');
+    if (result.success) {
+      setTodos(result.documents || []);
+    }
+    setLoading(false);
+  }
+
+  async function addTodo() {
     if (!newTodo.trim()) return;
-    await insert({
+    await insertOne('todos', {
       title: newTodo,
       completed: false,
       createdAt: new Date().toISOString(),
     });
     setNewTodo('');
-  };
+    loadTodos();
+  }
 
-  const toggleTodo = async (todo: Todo) => {
-    await update(
-      { _id: todo._id },
-      { completed: !todo.completed }
-    );
-  };
+  async function toggleTodo(todo: Todo) {
+    await updateOne('todos', { _id: todo._id }, { completed: !todo.completed });
+    loadTodos();
+  }
 
-  const deleteTodo = async (id: string) => {
-    await remove({ _id: id });
-  };
+  async function removeTodo(id: string) {
+    await deleteOne('todos', { _id: id });
+    loadTodos();
+  }
 
   if (loading) return <div>Loading...</div>;
 
   return (
-    <div>
-      <input
-        value={newTodo}
-        onChange={(e) => setNewTodo(e.target.value)}
-        placeholder="Add todo..."
-      />
-      <button onClick={addTodo}>Add</button>
+    <div className="p-4 max-w-md mx-auto">
+      <h1 className="text-2xl font-bold mb-4">Todos</h1>
       
-      <ul>
+      <div className="flex gap-2 mb-4">
+        <input
+          value={newTodo}
+          onChange={(e) => setNewTodo(e.target.value)}
+          placeholder="Add todo..."
+          className="flex-1 border rounded px-3 py-2"
+          onKeyDown={(e) => e.key === 'Enter' && addTodo()}
+        />
+        <button onClick={addTodo} className="bg-blue-500 text-white px-4 py-2 rounded">
+          Add
+        </button>
+      </div>
+      
+      <ul className="space-y-2">
         {todos.map(todo => (
-          <li key={todo._id}>
+          <li key={todo._id} className="flex items-center gap-2 p-2 border rounded">
             <input
               type="checkbox"
               checked={todo.completed}
               onChange={() => toggleTodo(todo)}
             />
-            <span style={{ textDecoration: todo.completed ? 'line-through' : 'none' }}>
+            <span className={todo.completed ? 'line-through text-gray-400' : ''}>
               {todo.title}
             </span>
-            <button onClick={() => deleteTodo(todo._id!)}>Delete</button>
+            <button 
+              onClick={() => removeTodo(todo._id!)}
+              className="ml-auto text-red-500 hover:text-red-700"
+            >
+              Delete
+            </button>
           </li>
         ))}
       </ul>
@@ -828,22 +858,47 @@ export default function TodosPage() {
 \`\`\`
 
 ### Server-Side Usage (API Routes)
-\`\`\`typescript
-filepath: app/api/todos/route.ts
-import { find, insertOne } from '@/lib/jersen-db';
 
-export async function GET() {
-  const result = await find('todos', {}, 50);
-  return Response.json(result);
+When using auth with database, import both libraries:
+
+\`\`\`typescript
+// filepath: app/api/user-todos/route.ts
+import { NextResponse } from 'next/server';
+import { getUserFromToken } from '@/lib/auth';
+import { find, insertOne, updateOne, deleteOne } from '@/lib/jersen-db';
+
+async function getAuthUser(request: Request) {
+  const authHeader = request.headers.get('Authorization');
+  if (!authHeader?.startsWith('Bearer ')) return null;
+  const token = authHeader.split(' ')[1];
+  return getUserFromToken(token);
+}
+
+export async function GET(request: Request) {
+  const user = await getAuthUser(request);
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  // Find todos for this user only
+  const result = await find('todos', { userId: user.id });
+  return NextResponse.json(result.documents || []);
 }
 
 export async function POST(request: Request) {
-  const body = await request.json();
+  const user = await getAuthUser(request);
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const { title } = await request.json();
   const result = await insertOne('todos', {
-    ...body,
+    userId: user.id,  // Associate with user
+    title,
+    completed: false,
     createdAt: new Date().toISOString(),
   });
-  return Response.json(result);
+  return NextResponse.json(result);
 }
 \`\`\`
 `;

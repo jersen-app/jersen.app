@@ -33,7 +33,7 @@ function getCorsHeaders(origin: string | null, allowedOrigin: string | null): Re
     return {
         "Access-Control-Allow-Origin": isAllowed ? origin : "null",
         "Access-Control-Allow-Methods": "GET, DELETE, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type, Authorization, x-api-key",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization, x-jersen-api-key",
         "Access-Control-Allow-Credentials": "true",
     };
 }
@@ -53,7 +53,7 @@ export async function OPTIONS(request: NextRequest) {
         headers: {
             "Access-Control-Allow-Origin": isAllowed && origin ? origin : "null",
             "Access-Control-Allow-Methods": "GET, DELETE, OPTIONS",
-            "Access-Control-Allow-Headers": "Content-Type, Authorization, x-api-key",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization, x-jersen-api-key",
             "Access-Control-Allow-Credentials": "true",
         }
     });
@@ -68,7 +68,7 @@ export async function GET(request: NextRequest) {
     
     try {
         const authHeader = request.headers.get("authorization");
-        const apiKey = request.headers.get("x-api-key");
+        const apiKey = request.headers.get("x-jersen-api-key");
 
         if (!apiKey) {
             return NextResponse.json(
