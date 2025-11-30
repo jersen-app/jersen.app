@@ -559,6 +559,20 @@ This project uses Jersen Database for data storage via REST API.
 
 ${dbInfo}
 
+### 🚨🚨🚨 STOP! READ THIS FIRST! 🚨🚨🚨
+
+**YOU MUST COPY THE \`lib/jersen-db.ts\` FILE EXACTLY AS SHOWN BELOW.**
+
+DO NOT:
+- Create your own database helper functions
+- Create a \`dbFetch\` wrapper function  
+- Append collection names to the URL path
+- Use \`/api/providers/database/\${collection}\` - THIS IS WRONG!
+- Use operation fields like \`{ operation: 'find' }\` - THIS IS WRONG!
+
+The API has ONE endpoint: \`/api/providers/database\`
+- Collection goes in BODY or QUERY PARAMS, NOT in the URL path!
+
 ### ⚠️ CRITICAL: NO process.env - USE INJECTED CONSTANTS
 
 **NEVER use \`process.env\` in this project!** Credentials are injected as constants.
@@ -614,11 +628,14 @@ fetch(\`\${API_URL}/api/providers/database\`, {
 fetch(\`\${API_URL}/api/providers/database?collection=todos&query={}\`)
 \`\`\`
 
-### Database Client (COPY THIS FILE EXACTLY)
+### Database Client - COPY THIS FILE EXACTLY (DO NOT MODIFY!)
+
+**⚠️ IMPORTANT: Copy this ENTIRE file to \`lib/jersen-db.ts\`. Do not create your own version!**
 
 \`\`\`typescript
 // filepath: lib/jersen-db.ts
-// COPY THIS FILE EXACTLY - DO NOT MODIFY THE API STRUCTURE
+// ⚠️ COPY THIS FILE EXACTLY - DO NOT CREATE YOUR OWN DATABASE HELPER!
+// ⚠️ The URL is ALWAYS /api/providers/database - NEVER append collection to path!
 
 // These values are automatically injected by Jersen
 const API_KEY = '__JERSEN_API_KEY__';
