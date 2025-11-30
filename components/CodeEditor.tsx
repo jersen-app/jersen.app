@@ -21,44 +21,107 @@ import { cn } from "@/lib/utils";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type MonacoType = any;
 
-// Define custom Jersen theme for Monaco
+// Define custom Jersen light theme for Monaco
 const defineJersenTheme = (monaco: MonacoType) => {
-    monaco.editor.defineTheme("jersen-dark", {
-        base: "vs-dark",
-        inherit: true,
+    monaco.editor.defineTheme("jersen-light", {
+        base: "vs",
+        inherit: false,
         rules: [
+            // General
+            { token: "", foreground: "1f2937" },
             { token: "comment", foreground: "6b7280", fontStyle: "italic" },
-            { token: "keyword", foreground: "c084fc" }, // purple-400
-            { token: "string", foreground: "86efac" }, // green-300
-            { token: "number", foreground: "fcd34d" }, // amber-300
-            { token: "type", foreground: "67e8f9" }, // cyan-300
-            { token: "class", foreground: "fcd34d" }, // amber-300
-            { token: "function", foreground: "93c5fd" }, // blue-300
-            { token: "variable", foreground: "f9fafb" }, // gray-50
-            { token: "operator", foreground: "f472b6" }, // pink-400
-            { token: "delimiter", foreground: "9ca3af" }, // gray-400
-            { token: "tag", foreground: "f472b6" }, // pink-400
-            { token: "attribute.name", foreground: "c084fc" }, // purple-400
-            { token: "attribute.value", foreground: "86efac" }, // green-300
+            { token: "comment.ts", foreground: "6b7280", fontStyle: "italic" },
+            { token: "comment.tsx", foreground: "6b7280", fontStyle: "italic" },
+            
+            // Keywords (purple)
+            { token: "keyword", foreground: "a855f7" },
+            { token: "keyword.ts", foreground: "a855f7" },
+            { token: "keyword.tsx", foreground: "a855f7" },
+            { token: "keyword.control", foreground: "a855f7" },
+            { token: "storage", foreground: "a855f7" },
+            { token: "storage.type", foreground: "a855f7" },
+            
+            // Strings (green)
+            { token: "string", foreground: "22c55e" },
+            { token: "string.ts", foreground: "22c55e" },
+            { token: "string.tsx", foreground: "22c55e" },
+            { token: "string.key.json", foreground: "22c55e" },
+            { token: "string.value.json", foreground: "22c55e" },
+            
+            // Numbers (amber)
+            { token: "number", foreground: "f59e0b" },
+            { token: "number.ts", foreground: "f59e0b" },
+            { token: "constant.numeric", foreground: "f59e0b" },
+            
+            // Types (cyan)
+            { token: "type", foreground: "06b6d4" },
+            { token: "type.identifier", foreground: "06b6d4" },
+            { token: "type.identifier.ts", foreground: "06b6d4" },
+            { token: "entity.name.type", foreground: "06b6d4" },
+            { token: "support.type", foreground: "06b6d4" },
+            
+            // Classes (amber)
+            { token: "class", foreground: "f59e0b" },
+            { token: "entity.name.class", foreground: "f59e0b" },
+            
+            // Functions (blue)
+            { token: "function", foreground: "3b82f6" },
+            { token: "entity.name.function", foreground: "3b82f6" },
+            { token: "support.function", foreground: "3b82f6" },
+            { token: "meta.function-call", foreground: "3b82f6" },
+            
+            // Variables
+            { token: "variable", foreground: "1f2937" },
+            { token: "variable.parameter", foreground: "1f2937" },
+            { token: "identifier", foreground: "1f2937" },
+            { token: "identifier.ts", foreground: "1f2937" },
+            
+            // Operators (pink)
+            { token: "operator", foreground: "ec4899" },
+            { token: "delimiter", foreground: "6b7280" },
+            { token: "delimiter.bracket", foreground: "6b7280" },
+            
+            // JSX/TSX Tags (pink)
+            { token: "tag", foreground: "ec4899" },
+            { token: "tag.ts", foreground: "ec4899" },
+            { token: "tag.tsx", foreground: "ec4899" },
+            { token: "metatag", foreground: "ec4899" },
+            { token: "metatag.html", foreground: "ec4899" },
+            { token: "metatag.tsx", foreground: "ec4899" },
+            
+            // JSX/HTML attributes (purple)
+            { token: "attribute.name", foreground: "a855f7" },
+            { token: "attribute.name.tsx", foreground: "a855f7" },
+            { token: "attribute.name.html", foreground: "a855f7" },
+            
+            // Attribute values (green)
+            { token: "attribute.value", foreground: "22c55e" },
+            { token: "attribute.value.tsx", foreground: "22c55e" },
+            { token: "attribute.value.html", foreground: "22c55e" },
+            
+            // Import/Export
+            { token: "keyword.control.import", foreground: "a855f7" },
+            { token: "keyword.control.export", foreground: "a855f7" },
+            { token: "keyword.control.from", foreground: "a855f7" },
         ],
         colors: {
-            "editor.background": "#0a0a0a", // near black
-            "editor.foreground": "#f9fafb",
-            "editor.lineHighlightBackground": "#1f1f1f",
-            "editor.selectionBackground": "#7c3aed40", // purple with opacity
-            "editor.inactiveSelectionBackground": "#7c3aed20",
-            "editorLineNumber.foreground": "#4b5563",
-            "editorLineNumber.activeForeground": "#9ca3af",
-            "editorCursor.foreground": "#c084fc",
-            "editorWhitespace.foreground": "#374151",
-            "editorIndentGuide.background": "#1f2937",
-            "editorIndentGuide.activeBackground": "#374151",
-            "editor.selectionHighlightBackground": "#7c3aed20",
-            "editorBracketMatch.background": "#7c3aed30",
-            "editorBracketMatch.border": "#7c3aed",
-            "scrollbar.shadow": "#00000000",
-            "scrollbarSlider.background": "#37415180",
-            "scrollbarSlider.hoverBackground": "#4b556380",
+            "editor.background": "#ffffff",
+            "editor.foreground": "#1f2937",
+            "editor.lineHighlightBackground": "#f5f3ff",
+            "editor.selectionBackground": "#a855f740",
+            "editor.inactiveSelectionBackground": "#a855f720",
+            "editorLineNumber.foreground": "#9ca3af",
+            "editorLineNumber.activeForeground": "#6b7280",
+            "editorCursor.foreground": "#a855f7",
+            "editorWhitespace.foreground": "#e5e7eb",
+            "editorIndentGuide.background": "#e5e7eb",
+            "editorIndentGuide.activeBackground": "#c4b5fd",
+            "editor.selectionHighlightBackground": "#a855f720",
+            "editorBracketMatch.background": "#a855f730",
+            "editorBracketMatch.border": "#a855f7",
+            "scrollbar.shadow": "#00000010",
+            "scrollbarSlider.background": "#d1d5db80",
+            "scrollbarSlider.hoverBackground": "#9ca3af80",
             "scrollbarSlider.activeBackground": "#6b728080",
         },
     });
@@ -164,8 +227,8 @@ function TreeNodeItem({
                 <button
                     onClick={() => setIsOpen(!isOpen)}
                     className={cn(
-                        "flex w-full items-center gap-1 px-2 py-1 text-sm hover:bg-muted/50 rounded-md transition-colors",
-                        "text-muted-foreground hover:text-foreground"
+                        "flex w-full items-center gap-1 px-2 py-1 text-sm hover:bg-gray-100 rounded-md transition-colors",
+                        "text-gray-600 hover:text-gray-800"
                     )}
                     style={{ paddingLeft: `${depth * 12 + 8}px` }}
                 >
@@ -175,9 +238,9 @@ function TreeNodeItem({
                         <ChevronRight className="h-3.5 w-3.5 shrink-0" />
                     )}
                     {isOpen ? (
-                        <FolderOpen className="h-4 w-4 shrink-0 text-violet-400" />
+                        <FolderOpen className="h-4 w-4 shrink-0 text-violet-500" />
                     ) : (
-                        <Folder className="h-4 w-4 shrink-0 text-violet-400" />
+                        <Folder className="h-4 w-4 shrink-0 text-violet-500" />
                     )}
                     <span className="truncate">{node.name}</span>
                 </button>
@@ -205,14 +268,14 @@ function TreeNodeItem({
             className={cn(
                 "flex w-full items-center gap-2 px-2 py-1 text-sm rounded-md transition-all",
                 isSelected
-                    ? "bg-violet-500/20 text-violet-300"
-                    : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
+                    ? "bg-violet-100 text-violet-700"
+                    : "text-gray-600 hover:bg-gray-100 hover:text-gray-800",
                 isNew && "ring-1 ring-green-500 animate-pulse"
             )}
             style={{ paddingLeft: `${depth * 12 + 24}px` }}
         >
             {isNew ? (
-                <Sparkles className="h-4 w-4 shrink-0 text-green-400" />
+                <Sparkles className="h-4 w-4 shrink-0 text-green-500" />
             ) : (
                 <FileIcon filename={node.name} />
             )}
@@ -303,29 +366,29 @@ export default function CodeEditor({
     };
 
     return (
-        <div className="flex h-full bg-[#0a0a0a]">
+        <div className="flex h-full bg-white">
             {files.length > 0 ? (
                 <>
                     {/* File Tree Sidebar */}
                     {showFileTree && (
-                        <div className="w-56 shrink-0 border-r border-border/50 flex flex-col bg-[#0f0f0f]">
+                        <div className="w-56 shrink-0 border-r border-gray-200 flex flex-col bg-gray-50">
                             {/* Sidebar Header - matches tab height */}
-                            <div className="flex items-center justify-between h-10 px-3 border-b border-border/50">
-                                <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                            <div className="flex items-center justify-between h-10 px-3 border-b border-gray-200">
+                                <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
                                     Explorer
                                 </span>
                                 <button
                                     onClick={() => setShowFileTree(false)}
-                                    className="p-1 rounded hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors"
+                                    className="p-1 rounded hover:bg-gray-200 text-gray-500 hover:text-gray-700 transition-colors"
                                 >
                                     <PanelLeftClose className="h-3.5 w-3.5" />
                                 </button>
                             </div>
 
                             {/* Project name / root - matches breadcrumb height */}
-                            <div className="flex items-center h-7 px-3 border-b border-border/20 bg-[#0a0a0a]">
-                                <Folder className="h-3.5 w-3.5 text-violet-400 mr-2" />
-                                <span className="text-xs font-medium text-foreground">project</span>
+                            <div className="flex items-center h-7 px-3 border-b border-gray-100 bg-white">
+                                <Folder className="h-3.5 w-3.5 text-violet-500 mr-2" />
+                                <span className="text-xs font-medium text-gray-800">project</span>
                             </div>
 
                             {/* File Tree */}
@@ -342,7 +405,7 @@ export default function CodeEditor({
                             </div>
 
                             {/* File count */}
-                            <div className="shrink-0 px-3 py-2 border-t border-border/50 text-[11px] text-muted-foreground">
+                            <div className="shrink-0 px-3 py-2 border-t border-gray-200 text-[11px] text-gray-500">
                                 {files.length} file{files.length !== 1 ? "s" : ""}
                             </div>
                         </div>
@@ -351,11 +414,11 @@ export default function CodeEditor({
                     {/* Editor Area */}
                     <div className="flex-1 flex flex-col min-w-0">
                         {/* File tabs */}
-                        <div className="shrink-0 flex items-center h-10 overflow-x-auto border-b border-border/50 bg-[#0f0f0f]">
+                        <div className="shrink-0 flex items-center h-10 overflow-x-auto border-b border-gray-200 bg-gray-50">
                             {!showFileTree && (
                                 <button
                                     onClick={() => setShowFileTree(true)}
-                                    className="h-full px-3 flex items-center border-r border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted/30 transition-colors"
+                                    className="h-full px-3 flex items-center border-r border-gray-200 text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors"
                                 >
                                     <PanelLeft className="h-4 w-4" />
                                 </button>
@@ -372,10 +435,10 @@ export default function CodeEditor({
                                             key={file.path}
                                             onClick={() => setSelectedFile(file.path)}
                                             className={cn(
-                                                "flex items-center gap-2 h-full px-4 text-sm font-medium transition-all border-r border-border/30",
+                                                "flex items-center gap-2 h-full px-4 text-sm font-medium transition-all border-r border-gray-100",
                                                 selectedFile === file.path
-                                                    ? "bg-[#0a0a0a] text-foreground border-b-2 border-b-violet-500"
-                                                    : "text-muted-foreground hover:bg-muted/30 hover:text-foreground border-b-2 border-b-transparent",
+                                                    ? "bg-white text-gray-800 border-b-2 border-b-violet-500"
+                                                    : "text-gray-500 hover:bg-gray-100 hover:text-gray-700 border-b-2 border-b-transparent",
                                                 recentlyAdded.has(file.path) &&
                                                     "animate-pulse ring-1 ring-inset ring-green-500"
                                             )}
@@ -398,16 +461,16 @@ export default function CodeEditor({
                         </div>
 
                         {/* Breadcrumb / Path */}
-                        <div className="shrink-0 flex items-center h-7 px-4 text-xs text-muted-foreground bg-[#0a0a0a] border-b border-border/20">
+                        <div className="shrink-0 flex items-center h-7 px-4 text-xs text-gray-500 bg-white border-b border-gray-100">
                             {selectedFile.split("/").map((part, i, arr) => (
                                 <span key={i} className="flex items-center">
                                     <span className={cn(
-                                        i === arr.length - 1 ? "text-foreground font-medium" : "hover:text-foreground cursor-pointer"
+                                        i === arr.length - 1 ? "text-gray-800 font-medium" : "hover:text-gray-700 cursor-pointer"
                                     )}>
                                         {part}
                                     </span>
                                     {i < arr.length - 1 && (
-                                        <ChevronRight className="h-3 w-3 mx-1 text-muted-foreground/40" />
+                                        <ChevronRight className="h-3 w-3 mx-1 text-gray-300" />
                                     )}
                                 </span>
                             ))}
@@ -420,7 +483,7 @@ export default function CodeEditor({
                                 defaultLanguage="typescript"
                                 language={getLanguage(currentFile?.path || "")}
                                 value={currentFile?.content || ""}
-                                theme={monacoLoaded ? "jersen-dark" : "vs-dark"}
+                                theme={monacoLoaded ? "jersen-light" : "vs"}
                                 options={{
                                     minimap: { enabled: true, scale: 1, showSlider: "mouseover" },
                                     fontSize: 13,
@@ -450,15 +513,15 @@ export default function CodeEditor({
                     </div>
                 </>
             ) : (
-                <div className="flex h-full w-full items-center justify-center p-6">
+                <div className="flex h-full w-full items-center justify-center p-6 bg-white">
                     <div className="text-center">
-                        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-violet-500/10 border border-violet-500/20">
-                            <Code2 className="h-8 w-8 text-violet-400" />
+                        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-violet-100 border border-violet-200">
+                            <Code2 className="h-8 w-8 text-violet-600" />
                         </div>
-                        <p className="text-base font-medium text-foreground">
+                        <p className="text-base font-medium text-gray-800">
                             No files generated yet
                         </p>
-                        <p className="mt-2 text-sm text-muted-foreground max-w-xs">
+                        <p className="mt-2 text-sm text-gray-500 max-w-xs">
                             Start chatting with AI to generate code. Your files will appear here.
                         </p>
                     </div>
