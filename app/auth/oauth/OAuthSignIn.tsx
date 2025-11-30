@@ -1,8 +1,6 @@
 "use client";
 
 import { SignIn, useAuth } from "@clerk/nextjs";
-import { useRouter } from "next/navigation";
-import { useEffect } from "react";
 
 interface OAuthSignInProps {
     afterSignInUrl: string;
@@ -10,14 +8,6 @@ interface OAuthSignInProps {
 
 export function OAuthSignIn({ afterSignInUrl }: OAuthSignInProps) {
     const { isSignedIn, isLoaded } = useAuth();
-    const router = useRouter();
-
-    // If already signed in, redirect to callback
-    useEffect(() => {
-        if (isLoaded && isSignedIn) {
-            router.push(afterSignInUrl);
-        }
-    }, [isLoaded, isSignedIn, afterSignInUrl, router]);
 
     // Show loading while checking auth state
     if (!isLoaded) {
@@ -28,7 +18,8 @@ export function OAuthSignIn({ afterSignInUrl }: OAuthSignInProps) {
         );
     }
 
-    // If signed in, show redirecting message
+    // If signed in, the server-side redirect should have already happened
+    // Just show a redirecting message in case there's a delay
     if (isSignedIn) {
         return (
             <div className="flex flex-col items-center justify-center p-8 gap-4">

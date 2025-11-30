@@ -166,14 +166,19 @@ export function LoginButton() {
 \`\`\`tsx
 // filepath: app/auth/callback/page.tsx
 "use client";
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { handleAuthCallback } from '@/lib/auth';
 
 export default function AuthCallbackPage() {
   const router = useRouter();
+  const handled = useRef(false);
 
   useEffect(() => {
+    // Prevent running twice (React strict mode or router changes)
+    if (handled.current) return;
+    handled.current = true;
+
     const success = handleAuthCallback();
     // Redirect to dashboard on success, home on failure
     router.replace(success ? '/dashboard' : '/?error=auth_failed');
@@ -344,6 +349,30 @@ export async function POST(request: Request) {
 - **useAuth hook** - easy access to user data and auth state
 - **getUserFromToken()** - use this in API routes to validate tokens (works server-side)
 - **NO process.env** - credentials are injected as constants, not env vars
+
+### ⚠️ Important: Avoid Redirect Loops
+
+**NEVER call \`login()\` automatically in a useEffect!** This causes redirect loops.
+
+❌ **WRONG - causes infinite loop:**
+\`\`\`tsx
+useEffect(() => {
+  if (!isLoggedIn()) {
+    login(); // DON'T DO THIS - causes redirect loop!
+  }
+}, []);
+\`\`\`
+
+✅ **CORRECT - only redirect, don't call login():**
+\`\`\`tsx
+useEffect(() => {
+  if (!loading && !isAuthenticated) {
+    router.replace('/'); // Redirect to home page with login button
+  }
+}, [loading, isAuthenticated]);
+\`\`\`
+
+The \`login()\` function should ONLY be called from a button click handler.
 `;
 }
 
