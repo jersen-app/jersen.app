@@ -1,36 +1,63 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
-ee
+# Jersen.app
+
+Jersen is a premium software development agency based in Cambodia, specializing in turning visions into reality with precision and speed. This repository contains the source code for the Jersen.app platform, which features an innovative **AI Builder** allowing clients to visualize and prototype their ideas instantly.
+
+![Jersen Logo](./public/logo.png)
+
+## Features
+
+-   **AI Builder**: An interactive tool powered by the Vercel AI SDK and Google Generative AI that lets users generate working prototypes of their application ideas.
+-   **Agency Services**: Information about Jersen's full-scale development services, from MVP to enterprise-grade products.
+-   **Modern UI/UX**: A sleek, minimalist design using Tailwind CSS v4 and Radix UI primitives, supporting both dark and light modes.
+-   **Secure Authentication**: Integrated with Clerk for robust user management.
+-   **Database**: Powered by MongoDB (via Mongoose).
+
+## Tech Stack
+
+-   **Framework**: [Next.js 16](https://nextjs.org/) (App Router)
+-   **Language**: TypeScript
+-   **Styling**: [Tailwind CSS v4](https://tailwindcss.com/)
+-   **AI**: [Vercel AI SDK](https://sdk.vercel.ai/docs), Google Generative AI
+-   **Database**: MongoDB (Mongoose)
+-   **Auth**: [Clerk](https://clerk.com/)
+-   **Storage**: AWS S3
+-   **UI Components**: Radix UI, Lucide React, Sonner, Vaul
+
 ## Getting Started
-d
-First, run the development server:fr
+
+First, install dependencies:
+
+```bash
+npm install
+# or
+pnpm install
+```
+
+Then, run the development server:
 
 ```bash
 npm run dev
-# ordd
-yarn dev
 # or
 pnpm dev
-# or
-bun dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Project Structure
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+-   `app/`: Next.js App Router pages and layouts.
+    -   `(marketing)/`: Public-facing marketing pages.
+    -   `dashboard/`: User dashboard for managing projects.
+    -   `api/`: Backend API routes.
+-   `components/`: Reusable UI components.
+-   `lib/`: Utility functions, database connections, and shared logic.
+-   `models/`: Mongoose database models.
+-   `public/`: Static assets.
 
 ## Learn More
 
-To learn more about Next.js, take a look at the following resources:
+To learn more about the technologies used in this project:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+-   [Next.js Documentation](https://nextjs.org/docs)
+-   [Vercel AI SDK](https://sdk.vercel.ai/docs)
+-   [Tailwind CSS](https://tailwindcss.com/docs)
