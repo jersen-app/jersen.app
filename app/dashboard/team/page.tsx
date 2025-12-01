@@ -14,6 +14,7 @@ export default function TeamPage() {
 
             <div className="flex justify-center">
                 <OrganizationProfile
+                    routing="hash"
                     appearance={{
                         elements: {
                             rootBox: "w-full shadow-none",
