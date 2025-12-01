@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Zap, Clock, TrendingUp, RefreshCw, Crown, Sparkles, Rocket } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -53,35 +53,81 @@ export function CreditDisplay({ variant = "full" }: { variant?: "full" | "compac
     const [data, setData] = useState<SubscriptionInfo | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [retryCount, setRetryCount] = useState(0);
 
-    const fetchData = async () => {
+    const fetchData = useCallback(async (isRetry = false) => {
         try {
-            const response = await fetch("/api/subscription");
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+
+            const response = await fetch("/api/subscription", {
+                signal: controller.signal,
+            });
+            
+            clearTimeout(timeoutId);
+
             if (!response.ok) {
                 if (response.status === 400) {
                     // No organization selected
                     setError("no-org");
+                    setLoading(false);
                     return;
                 }
-                throw new Error("Failed to fetch");
+                if (response.status === 401 || response.status === 403) {
+                    // Auth issue - don't retry
+                    setError("auth");
+                    setLoading(false);
+                    return;
+                }
+                // For other errors, don't throw - just set error state
+                console.warn(`CreditDisplay: API returned ${response.status}`);
+                setError("fetch-error");
+                setLoading(false);
+                return;
             }
+            
             const result = await response.json();
             setData(result);
             setError(null);
-        } catch (err) {
-            setError("Failed to load");
-            console.error(err);
+            setRetryCount(0);
+        } catch (err: any) {
+            // Handle abort/timeout
+            if (err.name === 'AbortError') {
+                console.warn("CreditDisplay: Request timed out");
+            } else {
+                console.warn("CreditDisplay: Fetch error", err.message);
+            }
+            
+            // Only set error if we don't have cached data
+            if (!data) {
+                setError("fetch-error");
+            }
+            
+            // Auto-retry up to 3 times with exponential backoff (only on initial load)
+            if (!isRetry && retryCount < 3 && !data) {
+                const delay = Math.pow(2, retryCount) * 1000; // 1s, 2s, 4s
+                setTimeout(() => {
+                    setRetryCount(prev => prev + 1);
+                    fetchData(true);
+                }, delay);
+            }
         } finally {
             setLoading(false);
         }
-    };
+    }, [data, retryCount]);
 
     useEffect(() => {
         fetchData();
         // Refresh every 30 seconds
-        const interval = setInterval(fetchData, 30000);
+        const interval = setInterval(() => fetchData(), 30000);
         return () => clearInterval(interval);
     }, []);
+
+    const handleManualRefresh = () => {
+        setLoading(true);
+        setRetryCount(0);
+        fetchData();
+    };
 
     if (loading) {
         return (
@@ -191,7 +237,7 @@ export function CreditDisplay({ variant = "full" }: { variant?: "full" | "compac
                         </Badge>
                     )}
                 </div>
-                <Button variant="ghost" size="icon" onClick={fetchData} className="h-8 w-8">
+                <Button variant="ghost" size="icon" onClick={handleManualRefresh} className="h-8 w-8">
                     <RefreshCw className="h-3.5 w-3.5" />
                 </Button>
             </div>
