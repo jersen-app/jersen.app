@@ -36,7 +36,11 @@ export async function PATCH(request: NextRequest) {
             aiModel, 
             maxSandboxesPerOrg, 
             sandboxTimeoutMinutes, 
-            autoPreviewEnabled 
+            autoPreviewEnabled,
+            allowPublicSignup,
+            allowPublicOrgCreation,
+            requireOrgApproval,
+            maxOrgsPerUser,
         } = body;
 
         // Validate model
@@ -62,6 +66,13 @@ export async function PATCH(request: NextRequest) {
             );
         }
 
+        if (maxOrgsPerUser !== undefined && (maxOrgsPerUser < 1 || maxOrgsPerUser > 10)) {
+            return NextResponse.json(
+                { error: "Max orgs per user must be between 1 and 10" },
+                { status: 400 }
+            );
+        }
+
         await connectToDatabase();
 
         const updateData: Record<string, unknown> = {};
@@ -69,6 +80,10 @@ export async function PATCH(request: NextRequest) {
         if (maxSandboxesPerOrg !== undefined) updateData.maxSandboxesPerOrg = maxSandboxesPerOrg;
         if (sandboxTimeoutMinutes !== undefined) updateData.sandboxTimeoutMinutes = sandboxTimeoutMinutes;
         if (autoPreviewEnabled !== undefined) updateData.autoPreviewEnabled = autoPreviewEnabled;
+        if (allowPublicSignup !== undefined) updateData.allowPublicSignup = allowPublicSignup;
+        if (allowPublicOrgCreation !== undefined) updateData.allowPublicOrgCreation = allowPublicOrgCreation;
+        if (requireOrgApproval !== undefined) updateData.requireOrgApproval = requireOrgApproval;
+        if (maxOrgsPerUser !== undefined) updateData.maxOrgsPerUser = maxOrgsPerUser;
 
         const settings = await PlatformSettings.findByIdAndUpdate(
             "platform_settings",

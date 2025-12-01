@@ -15,6 +15,11 @@ export interface IPlatformSettings {
     maxSandboxesPerOrg: number; // Max concurrent sandboxes per organization (default: 1)
     sandboxTimeoutMinutes: number; // Sandbox auto-kill timeout in minutes (default: 10)
     autoPreviewEnabled: boolean; // Whether to auto-start preview after AI generates files
+    // User & Organization access control
+    allowPublicSignup: boolean; // If false, users land on waitlist after signup
+    allowPublicOrgCreation: boolean; // If true, anyone can create orgs without approval
+    requireOrgApproval: boolean; // If true, new orgs created by users need admin approval
+    maxOrgsPerUser: number; // Max orgs a user can create (default: 1), can join unlimited
     createdAt: Date;
     updatedAt: Date;
 }
@@ -46,6 +51,25 @@ const PlatformSettingsSchema = new Schema<IPlatformSettings>(
             type: Boolean,
             default: true,
         },
+        // User & Organization access control
+        allowPublicSignup: {
+            type: Boolean,
+            default: false, // By default, users land on waitlist
+        },
+        allowPublicOrgCreation: {
+            type: Boolean,
+            default: false, // By default, users need approval to create orgs
+        },
+        requireOrgApproval: {
+            type: Boolean,
+            default: true, // By default, new orgs need admin approval
+        },
+        maxOrgsPerUser: {
+            type: Number,
+            default: 1,
+            min: 1,
+            max: 10,
+        },
     },
     {
         timestamps: true,
@@ -72,6 +96,10 @@ export async function getPlatformSettings(): Promise<IPlatformSettings> {
         maxSandboxesPerOrg: 1,
         sandboxTimeoutMinutes: 10,
         autoPreviewEnabled: true,
+        allowPublicSignup: false,
+        allowPublicOrgCreation: false,
+        requireOrgApproval: true,
+        maxOrgsPerUser: 1,
     });
     
     return defaultSettings.toObject();

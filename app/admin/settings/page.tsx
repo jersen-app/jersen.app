@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, CheckCircle2, Settings2, Box, Play } from "lucide-react";
+import { Loader2, CheckCircle2, Settings2, Box, Play, Users, Building2, Shield } from "lucide-react";
 import { toast } from "sonner";
 
 interface AIModel {
@@ -21,6 +21,10 @@ interface PlatformSettings {
     maxSandboxesPerOrg: number;
     sandboxTimeoutMinutes: number;
     autoPreviewEnabled: boolean;
+    allowPublicSignup: boolean;
+    allowPublicOrgCreation: boolean;
+    requireOrgApproval: boolean;
+    maxOrgsPerUser: number;
 }
 
 export default function AdminSettingsPage() {
@@ -34,6 +38,10 @@ export default function AdminSettingsPage() {
     const [maxSandboxes, setMaxSandboxes] = useState<number>(1);
     const [sandboxTimeout, setSandboxTimeout] = useState<number>(10);
     const [autoPreview, setAutoPreview] = useState<boolean>(true);
+    const [allowPublicSignup, setAllowPublicSignup] = useState<boolean>(false);
+    const [allowPublicOrgCreation, setAllowPublicOrgCreation] = useState<boolean>(false);
+    const [requireOrgApproval, setRequireOrgApproval] = useState<boolean>(true);
+    const [maxOrgsPerUser, setMaxOrgsPerUser] = useState<number>(1);
 
     useEffect(() => {
         fetchSettings();
@@ -50,6 +58,10 @@ export default function AdminSettingsPage() {
             setMaxSandboxes(data.settings.maxSandboxesPerOrg ?? 1);
             setSandboxTimeout(data.settings.sandboxTimeoutMinutes ?? 10);
             setAutoPreview(data.settings.autoPreviewEnabled ?? true);
+            setAllowPublicSignup(data.settings.allowPublicSignup ?? false);
+            setAllowPublicOrgCreation(data.settings.allowPublicOrgCreation ?? false);
+            setRequireOrgApproval(data.settings.requireOrgApproval ?? true);
+            setMaxOrgsPerUser(data.settings.maxOrgsPerUser ?? 1);
         } catch (error) {
             console.error(error);
             toast.error("Failed to load settings");
@@ -69,6 +81,10 @@ export default function AdminSettingsPage() {
                     maxSandboxesPerOrg: maxSandboxes,
                     sandboxTimeoutMinutes: sandboxTimeout,
                     autoPreviewEnabled: autoPreview,
+                    allowPublicSignup,
+                    allowPublicOrgCreation,
+                    requireOrgApproval,
+                    maxOrgsPerUser,
                 }),
             });
 
@@ -96,7 +112,11 @@ export default function AdminSettingsPage() {
     const hasChanges = settings?.aiModel !== selectedModel || 
         settings?.maxSandboxesPerOrg !== maxSandboxes ||
         settings?.sandboxTimeoutMinutes !== sandboxTimeout ||
-        settings?.autoPreviewEnabled !== autoPreview;
+        settings?.autoPreviewEnabled !== autoPreview ||
+        settings?.allowPublicSignup !== allowPublicSignup ||
+        settings?.allowPublicOrgCreation !== allowPublicOrgCreation ||
+        settings?.requireOrgApproval !== requireOrgApproval ||
+        settings?.maxOrgsPerUser !== maxOrgsPerUser;
 
     return (
         <div className="space-y-6">
@@ -222,6 +242,105 @@ export default function AdminSettingsPage() {
                 </CardContent>
             </Card>
 
+            {/* User Access Control Card */}
+            <Card>
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                        <Users className="h-5 w-5" />
+                        User Access Control
+                    </CardTitle>
+                    <CardDescription>
+                        Configure how users sign up and access the platform.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                    {/* Allow Public Signup */}
+                    <div className="flex items-center justify-between rounded-lg border p-4">
+                        <div className="space-y-0.5">
+                            <div className="flex items-center gap-2">
+                                <Shield className="h-4 w-4 text-muted-foreground" />
+                                <Label htmlFor="public-signup" className="font-medium">
+                                    Allow Public Signup
+                                </Label>
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                                When enabled, anyone can sign up and access the platform immediately.
+                                When disabled, new users are placed on a waitlist for approval.
+                            </p>
+                        </div>
+                        <Switch
+                            id="public-signup"
+                            checked={allowPublicSignup}
+                            onCheckedChange={setAllowPublicSignup}
+                        />
+                    </div>
+
+                    {/* Allow Public Org Creation */}
+                    <div className="flex items-center justify-between rounded-lg border p-4">
+                        <div className="space-y-0.5">
+                            <div className="flex items-center gap-2">
+                                <Building2 className="h-4 w-4 text-muted-foreground" />
+                                <Label htmlFor="public-org" className="font-medium">
+                                    Allow Public Organization Creation
+                                </Label>
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                                When enabled, approved users can create organizations immediately.
+                                When disabled, users need admin approval to create organizations.
+                            </p>
+                        </div>
+                        <Switch
+                            id="public-org"
+                            checked={allowPublicOrgCreation}
+                            onCheckedChange={setAllowPublicOrgCreation}
+                        />
+                    </div>
+
+                    {/* Require Org Approval */}
+                    <div className="flex items-center justify-between rounded-lg border p-4">
+                        <div className="space-y-0.5">
+                            <div className="flex items-center gap-2">
+                                <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
+                                <Label htmlFor="org-approval" className="font-medium">
+                                    Require Organization Approval
+                                </Label>
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                                When enabled, new organizations need admin approval before they become active.
+                                This applies even when public org creation is enabled.
+                            </p>
+                        </div>
+                        <Switch
+                            id="org-approval"
+                            checked={requireOrgApproval}
+                            onCheckedChange={setRequireOrgApproval}
+                        />
+                    </div>
+
+                    {/* Max Orgs Per User */}
+                    <div className="space-y-2">
+                        <Label htmlFor="max-orgs">Max Organizations per User</Label>
+                        <div className="flex items-center gap-3">
+                            <Input
+                                id="max-orgs"
+                                type="number"
+                                min={1}
+                                max={10}
+                                value={maxOrgsPerUser}
+                                onChange={(e) => setMaxOrgsPerUser(parseInt(e.target.value) || 1)}
+                                className="w-24"
+                            />
+                            <span className="text-sm text-muted-foreground">
+                                organization(s)
+                            </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                            Maximum number of organizations a user can create. They can join unlimited organizations as members.
+                        </p>
+                    </div>
+                </CardContent>
+            </Card>
+
             {/* Save Button */}
             <div className="flex items-center gap-3">
                 <Button 
@@ -259,6 +378,31 @@ export default function AdminSettingsPage() {
                         <p>
                             <strong>Gemini 2.5 Pro Preview:</strong> More capable for complex reasoning and 
                             code generation. Higher cost but better quality for difficult tasks.
+                        </p>
+                    </div>
+                </CardContent>
+            </Card>
+
+            {/* Waitlist Info Card */}
+            <Card className="border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/20">
+                <CardContent className="pt-6">
+                    <h3 className="font-medium mb-2">User Access Flow</h3>
+                    <div className="space-y-2 text-sm text-muted-foreground">
+                        <p>
+                            <strong>Public Signup OFF + Org Approval ON:</strong> Users sign up → Land on waitlist → 
+                            Admin approves → User can create/join orgs (orgs may need approval too)
+                        </p>
+                        <p>
+                            <strong>Public Signup ON + Org Approval ON:</strong> Users sign up → Instant access → 
+                            User creates org → Admin approves org
+                        </p>
+                        <p>
+                            <strong>Public Signup ON + Org Approval OFF:</strong> Full open access - anyone can 
+                            sign up and create organizations immediately.
+                        </p>
+                        <p className="text-xs pt-2 border-t border-amber-200 dark:border-amber-700">
+                            Note: Users invited to an organization by existing members bypass the waitlist. 
+                            Each user can create up to {settings?.maxOrgsPerUser || 1} organization(s) but can join unlimited orgs as a member.
                         </p>
                     </div>
                 </CardContent>
