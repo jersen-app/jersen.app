@@ -9,8 +9,8 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const clientId = process.env.VERCEL_CLIENT_ID;
-    const redirectUri = process.env.VERCEL_REDIRECT_URI || `${process.env.NEXT_PUBLIC_APP_URL}/api/integrations/vercel/callback`;
+    const clientId = process.env.VCEL_CLIENT_ID;
+    const redirectUri = process.env.VCEL_REDIRECT_URI || `${process.env.NEXT_PUBLIC_APP_URL}/api/integrations/vercel/callback`;
 
     if (!clientId) {
         return NextResponse.json(

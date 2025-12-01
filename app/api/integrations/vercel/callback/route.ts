@@ -42,10 +42,10 @@ export async function GET(request: NextRequest) {
                 },
                 body: new URLSearchParams({
                     code,
-                    client_id: process.env.VERCEL_CLIENT_ID!,
-                    client_secret: process.env.VERCEL_CLIENT_SECRET!,
+                    client_id: process.env.VCEL_CLIENT_ID!,
+                    client_secret: process.env.VCEL_CLIENT_SECRET!,
                     redirect_uri:
-                        process.env.VERCEL_REDIRECT_URI ||
+                        process.env.VCEL_REDIRECT_URI ||
                         `${process.env.NEXT_PUBLIC_APP_URL}/api/integrations/vercel/callback`,
                 }),
             }
