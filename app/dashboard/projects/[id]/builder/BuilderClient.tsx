@@ -28,6 +28,7 @@ export default function BuilderClient({
     const [rightPanel, setRightPanel] = useState<RightPanel>("code");
     const [showRightPanel, setShowRightPanel] = useState(true);
     const [saveStatus, setSaveStatus] = useState<SaveStatus>("saved");
+    const [initialPrompt, setInitialPrompt] = useState<string | undefined>(undefined);
     
     // Track pending save
     const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -37,6 +38,16 @@ export default function BuilderClient({
     
     // Ref to prevent duplicate sync operations
     const isSyncingRef = useRef(false);
+
+    // Check for initial prompt from dashboard (stored in sessionStorage)
+    useEffect(() => {
+        const storedPrompt = sessionStorage.getItem(`project_initial_prompt_${projectId}`);
+        if (storedPrompt) {
+            setInitialPrompt(storedPrompt);
+            // Clear it after reading so it doesn't re-trigger on refresh
+            sessionStorage.removeItem(`project_initial_prompt_${projectId}`);
+        }
+    }, [projectId]);
 
     // Convert files array to object for sandbox
     const filesObject = useMemo(() => {
@@ -284,6 +295,7 @@ export default function BuilderClient({
                         projectId={projectId}
                         onFilesGenerated={handleFilesGenerated}
                         existingFiles={files}
+                        initialPrompt={initialPrompt}
                     />
                 </div>
             </div>

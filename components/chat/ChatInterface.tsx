@@ -52,6 +52,7 @@ interface ChatInterfaceProps {
   onFilesGenerated?: (files: FileData[]) => void;
   existingFiles?: { path: string; content: string }[];
   onNewChat?: () => void;
+  initialPrompt?: string;
 }
 
 export function ChatInterface({
@@ -59,6 +60,7 @@ export function ChatInterface({
   onFilesGenerated,
   existingFiles = [],
   onNewChat,
+  initialPrompt,
 }: ChatInterfaceProps) {
   // Keep a ref to existing files so we can apply diffs
   const filesRef = useRef<Map<string, string>>(new Map());
@@ -124,6 +126,8 @@ export function ChatInterface({
     hourlyRemaining?: number;
   } | null>(null);
   const [hasMemory, setHasMemory] = useState(false);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
+  const initialPromptSentRef = useRef(false);
 
   // Check for existing memory
   useEffect(() => {
@@ -166,10 +170,28 @@ export function ChatInterface({
         }
       } catch (error) {
         console.error("Failed to load chat history:", error);
+      } finally {
+        setHistoryLoaded(true);
       }
     };
     loadHistory();
   }, [projectId]);
+
+  // Handle initial prompt (from dashboard quick start)
+  useEffect(() => {
+    if (
+      initialPrompt &&
+      historyLoaded &&
+      !initialPromptSentRef.current &&
+      messages.length === 0
+    ) {
+      initialPromptSentRef.current = true;
+      // Use setTimeout to ensure the component is fully rendered
+      setTimeout(() => {
+        sendMessage(undefined, initialPrompt);
+      }, 100);
+    }
+  }, [initialPrompt, historyLoaded, messages.length]);
 
   // Handle adding file to editor
   const handleAddFile = useCallback(
@@ -215,8 +237,8 @@ export function ChatInterface({
   };
 
   // Send message
-  const sendMessage = async (attachments?: Attachment[]) => {
-    const content = input.trim();
+  const sendMessage = async (attachments?: Attachment[], messageOverride?: string) => {
+    const content = (messageOverride ?? input).trim();
     if ((!content && (!attachments || attachments.length === 0)) || isLoading) return;
 
     const userMessage: Message = {

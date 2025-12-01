@@ -86,12 +86,12 @@ export default async function DashboardLayout({
             </aside>
 
             {/* Main Content */}
-            <main className="ml-64 flex-1">
+            <main className="ml-64 flex-1 overflow-x-hidden">
                 <header className="flex h-16 items-center justify-between border-b border-gray-200 bg-white px-6 dark:border-gray-800 dark:bg-black">
                     <CreditDisplay variant="compact" />
                     <UserButton />
                 </header>
-                <div className="p-6">{children}</div>
+                <div className="p-6 max-w-5xl mx-auto">{children}</div>
             </main>
         </div>
     );
