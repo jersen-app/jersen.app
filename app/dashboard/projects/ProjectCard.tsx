@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Rocket, Settings, Clock } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -32,13 +33,23 @@ interface ProjectCardProps {
 }
 
 export function ProjectCard({ project }: ProjectCardProps) {
+    const router = useRouter();
     const status = statusColors[project.status] || statusColors.planning;
     const productionStatus = productionStatusConfig[project.productionStatus || "none"];
 
+    const handleCardClick = (e: React.MouseEvent) => {
+        // Don't navigate if clicking on buttons/links in the footer
+        const target = e.target as HTMLElement;
+        if (target.closest('[data-no-card-click]')) {
+            return;
+        }
+        router.push(`/dashboard/projects/${project._id}/builder`);
+    };
+
     return (
-        <Link
-            href={`/dashboard/projects/${project._id}/builder`}
-            className="group relative flex flex-col rounded-xl border bg-card overflow-hidden transition-all hover:shadow-lg hover:border-primary/50"
+        <div
+            onClick={handleCardClick}
+            className="group relative flex flex-col rounded-xl border bg-card overflow-hidden transition-all hover:shadow-lg hover:border-primary/50 cursor-pointer"
         >
             {/* Color accent bar */}
             <div className={`h-1 ${status.dot}`} />
@@ -74,22 +85,28 @@ export function ProjectCard({ project }: ProjectCardProps) {
                         day: "numeric",
                     })}
                 </div>
-                <div className="flex items-center gap-1" onClick={(e) => e.preventDefault()}>
+                <div className="flex items-center gap-1" data-no-card-click>
                     <ProductionRequestButton 
                         projectId={project._id.toString()} 
                         projectName={project.name}
                         productionStatus={project.productionStatus || "none"}
                     />
-                    <Button asChild variant="ghost" size="icon" className="h-7 w-7">
-                        <Link href={`/dashboard/projects/${project._id}/settings`}>
-                            <Settings className="h-3.5 w-3.5" />
-                        </Link>
+                    <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-7 w-7"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            router.push(`/dashboard/projects/${project._id}/settings`);
+                        }}
+                    >
+                        <Settings className="h-3.5 w-3.5" />
                     </Button>
                 </div>
             </div>
             
             {/* Hover overlay */}
             <div className="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
-        </Link>
+        </div>
     );
 }

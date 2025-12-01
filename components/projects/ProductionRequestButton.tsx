@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Rocket, MessageCircle, DollarSign, Clock, Send, Eye, CheckCircle, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { toast } from "sonner";
 import {
     Dialog,
     DialogContent,
@@ -103,6 +104,13 @@ export default function ProductionRequestButton({
 
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault();
+        e.stopPropagation();
+        
+        if (!formData.description.trim()) {
+            toast.error("Please describe what you need help with");
+            return;
+        }
+        
         setIsSubmitting(true);
 
         try {
@@ -116,13 +124,17 @@ export default function ProductionRequestButton({
                 }),
             });
 
+            const data = await response.json();
+
             if (!response.ok) {
-                throw new Error("Failed to submit request");
+                throw new Error(data.error || "Failed to submit request");
             }
 
             setSubmitted(true);
-        } catch (error) {
-            alert("Failed to submit request. Please try again.");
+            toast.success("Request submitted successfully!");
+        } catch (error: any) {
+            console.error("Submit error:", error);
+            toast.error(error.message || "Failed to submit request. Please try again.");
         } finally {
             setIsSubmitting(false);
         }
@@ -139,15 +151,16 @@ export default function ProductionRequestButton({
     if (hasExistingRequest) {
         return (
             <Button 
-                asChild 
                 variant={config.variant} 
                 size="sm" 
                 className={cn("gap-1.5 h-8 text-xs", config.className)}
+                onClick={(e) => {
+                    e.stopPropagation();
+                    router.push(`/dashboard/projects/${projectId}/tracking`);
+                }}
             >
-                <Link href={`/dashboard/projects/${projectId}/tracking`}>
-                    <IconComponent className={cn("h-3.5 w-3.5", productionStatus === "in_production" && "animate-spin")} />
-                    {config.label}
-                </Link>
+                <IconComponent className={cn("h-3.5 w-3.5", productionStatus === "in_production" && "animate-spin")} />
+                {config.label}
             </Button>
         );
     }
@@ -160,6 +173,7 @@ export default function ProductionRequestButton({
                     variant={config.variant} 
                     size="sm" 
                     className={cn("gap-1.5 h-8 text-xs", config.className)}
+                    onClick={(e) => e.stopPropagation()}
                 >
                     <IconComponent className="h-3.5 w-3.5" />
                     {config.label}
@@ -286,11 +300,16 @@ export default function ProductionRequestButton({
                             </div>
                         </div>
                         <DialogFooter className="flex-col sm:flex-row gap-2">
-                            <Button asChild variant="outline" className="w-full sm:w-auto">
-                                <Link href={`/dashboard/projects/${projectId}/tracking`}>
-                                    <Eye className="h-4 w-4 mr-2" />
-                                    View Tracking
-                                </Link>
+                            <Button 
+                                variant="outline" 
+                                className="w-full sm:w-auto"
+                                onClick={() => {
+                                    closeModal();
+                                    router.push(`/dashboard/projects/${projectId}/tracking`);
+                                }}
+                            >
+                                <Eye className="h-4 w-4 mr-2" />
+                                View Tracking
                             </Button>
                             <Button onClick={closeModal} className="w-full sm:w-auto">
                                 Done

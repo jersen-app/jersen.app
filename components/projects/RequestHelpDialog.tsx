@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Rocket, MessageCircle, DollarSign, Clock, Send } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import {
     Dialog,
     DialogContent,
@@ -54,11 +55,18 @@ export default function RequestHelpDialog({ projectId, projectName, trigger }: R
     });
     const router = useRouter();
 
-    async function handleSubmit(e: React.FormEvent) {
-        e.preventDefault();
+    async function handleSubmit() {
+        console.log("handleSubmit called", { formData, projectId, projectName });
+        
+        if (!formData.description.trim()) {
+            toast.error("Please describe what you need help with");
+            return;
+        }
+        
         setIsSubmitting(true);
 
         try {
+            console.log("Making API request...");
             const response = await fetch("/api/production-requests/create", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -69,13 +77,18 @@ export default function RequestHelpDialog({ projectId, projectName, trigger }: R
                 }),
             });
 
+            const data = await response.json();
+            console.log("API response:", data);
+
             if (!response.ok) {
-                throw new Error("Failed to submit request");
+                throw new Error(data.error || "Failed to submit request");
             }
 
             setSubmitted(true);
-        } catch (error) {
-            alert("Failed to submit request. Please try again.");
+            toast.success("Request submitted successfully!");
+        } catch (error: any) {
+            console.error("Submit error:", error);
+            toast.error(error.message || "Failed to submit request. Please try again.");
         } finally {
             setIsSubmitting(false);
         }
@@ -98,7 +111,7 @@ export default function RequestHelpDialog({ projectId, projectName, trigger }: R
                     </Button>
                 )}
             </DialogTrigger>
-            <DialogContent className="sm:max-w-lg">
+            <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
                 {!submitted ? (
                     <>
                         <DialogHeader>
@@ -110,7 +123,7 @@ export default function RequestHelpDialog({ projectId, projectName, trigger }: R
                                 Let the Jersen team help you finish <span className="font-medium text-foreground">{projectName}</span> and deploy it to production.
                             </DialogDescription>
                         </DialogHeader>
-                        <form onSubmit={handleSubmit} className="space-y-5">
+                        <div className="space-y-5">
                             {/* What do you need help with */}
                             <div className="space-y-2">
                                 <Label htmlFor="description">What do you need help with?</Label>
@@ -156,7 +169,7 @@ export default function RequestHelpDialog({ projectId, projectName, trigger }: R
                                     <Clock className="h-4 w-4 text-muted-foreground" />
                                     Priority
                                 </Label>
-                                <div className="flex gap-2">
+                                <div className="flex gap-2 flex-wrap">
                                     {PRIORITY_OPTIONS.map((option) => (
                                         <button
                                             key={option.value}
@@ -175,17 +188,22 @@ export default function RequestHelpDialog({ projectId, projectName, trigger }: R
                                     ))}
                                 </div>
                             </div>
+                        </div>
 
-                            <DialogFooter>
-                                <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-                                    Cancel
-                                </Button>
-                                <Button type="submit" disabled={isSubmitting} className="gap-2">
-                                    <Send className="h-4 w-4" />
-                                    {isSubmitting ? "Submitting..." : "Submit Request"}
-                                </Button>
-                            </DialogFooter>
-                        </form>
+                        <DialogFooter className="pt-4">
+                            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+                                Cancel
+                            </Button>
+                            <Button 
+                                type="button"
+                                onClick={handleSubmit}
+                                disabled={isSubmitting || !formData.description.trim()} 
+                                className="gap-2"
+                            >
+                                <Send className="h-4 w-4" />
+                                {isSubmitting ? "Submitting..." : "Submit Request"}
+                            </Button>
+                        </DialogFooter>
                     </>
                 ) : (
                     <>

@@ -9,7 +9,7 @@ export async function POST(request: NextRequest) {
         const { userId, orgId } = await auth();
         const user = await currentUser();
 
-        if (!userId || !orgId || !user) {
+        if (!userId || !user) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
@@ -22,8 +22,11 @@ export async function POST(request: NextRequest) {
 
         await connectDB();
 
-        // Verify project exists and belongs to user's org
-        const project = await Project.findOne({ _id: projectId, orgId });
+        // Verify project exists and belongs to user's org or user
+        const query = orgId 
+            ? { _id: projectId, orgId } 
+            : { _id: projectId, userId };
+        const project = await Project.findOne(query);
         if (!project) {
             return NextResponse.json({ error: "Project not found" }, { status: 404 });
         }
@@ -32,7 +35,7 @@ export async function POST(request: NextRequest) {
         const productionRequest = await ProductionRequest.create({
             projectId,
             projectName,
-            orgId,
+            orgId: orgId || null,
             userId,
             userEmail: user.emailAddresses[0]?.emailAddress || "",
             userName: `${user.firstName || ""} ${user.lastName || ""}`.trim() || "Unknown",
