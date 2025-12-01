@@ -10,6 +10,12 @@ import { parseGeneratedFiles, extractDependencies } from "@/lib/ai/files";
 import { type FileChange } from "@/lib/ai/tools";
 import { checkCredits, consumeCredit } from "@/lib/subscription";
 import { 
+    aiChatRatelimit, 
+    aiChatDailyRatelimit, 
+    checkRateLimit, 
+    getRateLimitIdentifier 
+} from "@/lib/ratelimit";
+import { 
     buildMemoryContext, 
     shouldSummarize, 
     generateSummary,
@@ -46,6 +52,15 @@ export async function POST(
     if (!userId) {
         return new Response("Unauthorized", { status: 401 });
     }
+
+    // Rate limiting - check per-minute limit
+    const rateLimitId = getRateLimitIdentifier(userId, request);
+    const minuteRateLimited = await checkRateLimit(aiChatRatelimit, rateLimitId);
+    if (minuteRateLimited) return minuteRateLimited;
+
+    // Rate limiting - check daily limit
+    const dailyRateLimited = await checkRateLimit(aiChatDailyRatelimit, rateLimitId);
+    if (dailyRateLimited) return dailyRateLimited;
 
     if (!orgId) {
         return new Response(JSON.stringify({ 

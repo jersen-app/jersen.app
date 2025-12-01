@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { auth } from "@clerk/nextjs/server";
 import { checkCredits, consumeCredit } from "@/lib/subscription";
+import { transcribeRatelimit, checkRateLimit, getRateLimitIdentifier } from "@/lib/ratelimit";
 
 const getGenAI = () => {
   const apiKey = process.env.GEMINI_API_KEY;
@@ -22,6 +23,11 @@ export async function POST(req: NextRequest) {
         { status: 401 }
       );
     }
+
+    // Rate limiting
+    const rateLimitId = getRateLimitIdentifier(userId, req);
+    const rateLimited = await checkRateLimit(transcribeRatelimit, rateLimitId);
+    if (rateLimited) return rateLimited;
 
     if (!orgId) {
       return NextResponse.json(

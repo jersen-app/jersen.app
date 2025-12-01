@@ -12,6 +12,7 @@ import ActiveSandbox, {
     unregisterSandbox,
     getOldestOrgSandbox 
 } from "@/models/ActiveSandbox";
+import { sandboxRatelimit, checkRateLimit, getRateLimitIdentifier } from "@/lib/ratelimit";
 
 export const maxDuration = 300;
 
@@ -65,6 +66,11 @@ export async function POST(
         if (!userId) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
+
+        // Rate limiting
+        const rateLimitId = getRateLimitIdentifier(userId, request);
+        const rateLimited = await checkRateLimit(sandboxRatelimit, rateLimitId);
+        if (rateLimited) return rateLimited;
 
         const { id: projectId } = await params;
         const { action, files } = await request.json();

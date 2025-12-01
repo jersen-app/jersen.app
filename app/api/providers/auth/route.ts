@@ -4,9 +4,15 @@ import { clerkClient } from "@clerk/nextjs/server";
 import { nanoid } from "nanoid";
 import connectToDatabase from "@/lib/db";
 import ProjectUser from "@/models/ProjectUser";
+import { authRatelimit, checkRateLimit, getClientIP } from "@/lib/ratelimit";
 
 // POST /api/providers/auth/signup
 export async function POST(request: NextRequest) {
+    // Rate limit by IP for auth endpoints (no user ID yet)
+    const ip = getClientIP(request);
+    const rateLimited = await checkRateLimit(authRatelimit, `ip:${ip}`);
+    if (rateLimited) return rateLimited;
+
     const { searchParams } = new URL(request.url);
     const action = searchParams.get("action") || "signup";
 
