@@ -61,3 +61,5 @@ To learn more about the technologies used in this project:
 -   [Next.js Documentation](https://nextjs.org/docs)
 -   [Vercel AI SDK](https://sdk.vercel.ai/docs)
 -   [Tailwind CSS](https://tailwindcss.com/docs)
+
+-   V1
