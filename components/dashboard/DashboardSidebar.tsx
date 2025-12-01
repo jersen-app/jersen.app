@@ -79,6 +79,14 @@ function SidebarContent({ isSuperAdmin, onNavigate }: { isSuperAdmin: boolean; o
 
 export function DashboardSidebar({ isSuperAdmin }: DashboardSidebarProps) {
   const [open, setOpen] = useState(false);
+  const pathname = usePathname();
+
+  // Hide sidebar completely on builder pages (they have their own full-screen layout)
+  const isBuilderPage = pathname.includes("/builder");
+  
+  if (isBuilderPage) {
+    return null;
+  }
 
   return (
     <>

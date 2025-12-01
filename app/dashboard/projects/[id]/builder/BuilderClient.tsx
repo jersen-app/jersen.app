@@ -2,13 +2,15 @@
 
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import Link from "next/link";
-import { ArrowLeft, Settings, Code, Eye, PanelRightClose, PanelRight, Save, Cloud, CloudOff } from "lucide-react";
+import { ArrowLeft, Settings, Code, Eye, PanelRightClose, PanelRight, Save, Cloud, CloudOff, X } from "lucide-react";
 import { ChatInterface } from "@/components/chat";
 import CodeEditor from "@/components/CodeEditor";
 import { PreviewPanel } from "@/components/PreviewPanel";
 import { DeployDialog } from "@/components/DeployDialog";
 import { useSandbox } from "@/hooks/use-sandbox";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
 
 interface BuilderClientProps {
     projectId: string;
@@ -27,8 +29,11 @@ export default function BuilderClient({
     const [files, setFiles] = useState(initialFiles);
     const [rightPanel, setRightPanel] = useState<RightPanel>("code");
     const [showRightPanel, setShowRightPanel] = useState(true);
+    const [mobilePanel, setMobilePanel] = useState<RightPanel | null>(null);
     const [saveStatus, setSaveStatus] = useState<SaveStatus>("saved");
     const [initialPrompt, setInitialPrompt] = useState<string | undefined>(undefined);
+    
+    const isMobile = useIsMobile();
     
     // Track pending save
     const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -258,8 +263,8 @@ export default function BuilderClient({
 
     return (
         <div className="fixed inset-0 flex flex-col lg:flex-row bg-background">
-            {/* Chat panel */}
-            <div className="flex flex-col w-full h-[40vh] lg:h-full lg:w-[380px] lg:min-w-[320px] lg:max-w-[450px] border-b lg:border-b-0 lg:border-r">
+            {/* Chat panel - full screen on mobile */}
+            <div className="flex flex-col w-full h-full lg:h-full lg:w-[380px] lg:min-w-[320px] lg:max-w-[450px] lg:border-r">
                 {/* Header */}
                 <div className="shrink-0 flex items-center justify-between border-b px-3 py-2.5 bg-background">
                     <div className="flex items-center gap-2">
@@ -269,7 +274,7 @@ export default function BuilderClient({
                         >
                             <ArrowLeft className="h-4 w-4" />
                         </Link>
-                        <span className="font-semibold text-sm truncate max-w-[180px]">
+                        <span className="font-semibold text-sm truncate max-w-[140px] sm:max-w-[180px]">
                             {projectName}
                         </span>
                         <SaveIndicator />
@@ -298,77 +303,185 @@ export default function BuilderClient({
                         initialPrompt={initialPrompt}
                     />
                 </div>
-            </div>
 
-            {/* Right panel (Code + Preview) */}
-            <div className="mx-4 rounded-3xl p-3 flex-1 flex flex-col h-[60vh] lg:h-full min-h-0 overflow-hidden border-l">
-                {/* Panel tabs */}
-                <div className="shrink-0 flex items-center justify-between border-b h-10 bg-background">
-                    <div className="flex items-center gap-1 px-2">
+                {/* Mobile floating buttons for Code/Preview */}
+                {isMobile && files.length > 0 && (
+                    <div className="absolute bottom-20 right-4 flex flex-col gap-2 z-40">
                         <button
-                            onClick={() => setRightPanel("code")}
+                            onClick={() => setMobilePanel("code")}
                             className={cn(
-                                "flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md transition-colors",
-                                rightPanel === "code"
-                                    ? "bg-primary text-primary-foreground"
-                                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                                "flex items-center gap-2 px-4 py-2.5 rounded-full shadow-lg transition-all",
+                                "bg-primary text-primary-foreground hover:bg-primary/90",
+                                "text-sm font-medium"
                             )}
                         >
-                            <Code className="h-3.5 w-3.5" />
-                            Code
+                            <Code className="h-4 w-4" />
+                            <span>{files.length} files</span>
                         </button>
                         <button
                             onClick={() => {
-                                setRightPanel("preview");
+                                setMobilePanel("preview");
                                 if (sandbox.status === "idle" && files.length > 0) {
                                     handleStartPreview();
                                 }
                             }}
                             className={cn(
-                                "flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md transition-colors",
-                                rightPanel === "preview"
-                                    ? "bg-primary text-primary-foreground"
-                                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                                "flex items-center gap-2 px-4 py-2.5 rounded-full shadow-lg transition-all",
+                                "bg-background border text-foreground hover:bg-muted",
+                                "text-sm font-medium"
                             )}
                         >
-                            <Eye className="h-3.5 w-3.5" />
-                            Preview
+                            <Eye className="h-4 w-4" />
+                            <span>Preview</span>
                             {sandbox.status === "running" && (
-                                <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
+                                <span className="h-2 w-2 rounded-full bg-green-500" />
                             )}
                         </button>
                     </div>
-                    <button
-                        onClick={() => setShowRightPanel(!showRightPanel)}
-                        className="p-1.5 mr-2 text-muted-foreground hover:text-foreground rounded-md hover:bg-muted"
-                    >
-                        {showRightPanel ? (
-                            <PanelRightClose className="h-4 w-4" />
-                        ) : (
-                            <PanelRight className="h-4 w-4" />
-                        )}
-                    </button>
-                </div>
-
-                {/* Panel content */}
-                <div className="flex-1 min-h-0 overflow-hidden">
-                    {rightPanel === "code" && (
-                        <CodeEditor files={files} projectId={projectId} />
-                    )}
-                    {rightPanel === "preview" && (
-                        <PreviewPanel
-                            url={sandbox.url}
-                            status={sandbox.status}
-                            error={sandbox.error}
-                            onStart={handleStartPreview}
-                            onRefresh={handleRefreshPreview}
-                            onStop={sandbox.destroy}
-                            isLoading={sandbox.isLoading}
-                            needsSync={needsSync}
-                        />
-                    )}
-                </div>
+                )}
             </div>
+
+            {/* Mobile Sheet for Code/Preview */}
+            {isMobile && (
+                <Sheet open={mobilePanel !== null} onOpenChange={(open) => !open && setMobilePanel(null)}>
+                    <SheetContent side="bottom" className="h-[85vh] p-0 rounded-t-xl [&>button:last-child]:hidden">
+                        {/* Sheet header */}
+                        <div className="flex items-center justify-between border-b px-4 py-3 bg-background">
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => setMobilePanel("code")}
+                                    className={cn(
+                                        "flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md transition-colors",
+                                        mobilePanel === "code"
+                                            ? "bg-primary text-primary-foreground"
+                                            : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                                    )}
+                                >
+                                    <Code className="h-3.5 w-3.5" />
+                                    Code
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setMobilePanel("preview");
+                                        if (sandbox.status === "idle" && files.length > 0) {
+                                            handleStartPreview();
+                                        }
+                                    }}
+                                    className={cn(
+                                        "flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md transition-colors",
+                                        mobilePanel === "preview"
+                                            ? "bg-primary text-primary-foreground"
+                                            : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                                    )}
+                                >
+                                    <Eye className="h-3.5 w-3.5" />
+                                    Preview
+                                    {sandbox.status === "running" && (
+                                        <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
+                                    )}
+                                </button>
+                            </div>
+                            <button
+                                onClick={() => setMobilePanel(null)}
+                                className="p-1.5 text-muted-foreground hover:text-foreground rounded-md hover:bg-muted"
+                            >
+                                <X className="h-4 w-4" />
+                            </button>
+                        </div>
+
+                        {/* Sheet content */}
+                        <div className="flex-1 h-[calc(85vh-52px)] overflow-hidden">
+                            {mobilePanel === "code" && (
+                                <CodeEditor files={files} projectId={projectId} />
+                            )}
+                            {mobilePanel === "preview" && (
+                                <PreviewPanel
+                                    url={sandbox.url}
+                                    status={sandbox.status}
+                                    error={sandbox.error}
+                                    onStart={handleStartPreview}
+                                    onRefresh={handleRefreshPreview}
+                                    onStop={sandbox.destroy}
+                                    isLoading={sandbox.isLoading}
+                                    needsSync={needsSync}
+                                />
+                            )}
+                        </div>
+                    </SheetContent>
+                </Sheet>
+            )}
+
+            {/* Right panel (Code + Preview) - Desktop only */}
+            {!isMobile && (
+                <div className="hidden lg:flex mx-4 rounded-3xl p-3 flex-1 flex-col h-full min-h-0 overflow-hidden border-l">
+                    {/* Panel tabs */}
+                    <div className="shrink-0 flex items-center justify-between border-b h-10 bg-background">
+                        <div className="flex items-center gap-1 px-2">
+                            <button
+                                onClick={() => setRightPanel("code")}
+                                className={cn(
+                                    "flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md transition-colors",
+                                    rightPanel === "code"
+                                        ? "bg-primary text-primary-foreground"
+                                        : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                                )}
+                            >
+                                <Code className="h-3.5 w-3.5" />
+                                Code
+                            </button>
+                            <button
+                                onClick={() => {
+                                    setRightPanel("preview");
+                                    if (sandbox.status === "idle" && files.length > 0) {
+                                        handleStartPreview();
+                                    }
+                                }}
+                                className={cn(
+                                    "flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md transition-colors",
+                                    rightPanel === "preview"
+                                        ? "bg-primary text-primary-foreground"
+                                        : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                                )}
+                            >
+                                <Eye className="h-3.5 w-3.5" />
+                                Preview
+                                {sandbox.status === "running" && (
+                                    <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
+                                )}
+                            </button>
+                        </div>
+                        <button
+                            onClick={() => setShowRightPanel(!showRightPanel)}
+                            className="p-1.5 mr-2 text-muted-foreground hover:text-foreground rounded-md hover:bg-muted"
+                        >
+                            {showRightPanel ? (
+                                <PanelRightClose className="h-4 w-4" />
+                            ) : (
+                                <PanelRight className="h-4 w-4" />
+                            )}
+                        </button>
+                    </div>
+
+                    {/* Panel content */}
+                    <div className="flex-1 min-h-0 overflow-hidden">
+                        {rightPanel === "code" && (
+                            <CodeEditor files={files} projectId={projectId} />
+                        )}
+                        {rightPanel === "preview" && (
+                            <PreviewPanel
+                                url={sandbox.url}
+                                status={sandbox.status}
+                                error={sandbox.error}
+                                onStart={handleStartPreview}
+                                onRefresh={handleRefreshPreview}
+                                onStop={sandbox.destroy}
+                                isLoading={sandbox.isLoading}
+                                needsSync={needsSync}
+                            />
+                        )}
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

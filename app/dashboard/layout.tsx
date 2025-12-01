@@ -1,8 +1,7 @@
-import { UserButton } from "@clerk/nextjs";
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
-import CreditDisplay from "@/components/CreditDisplay";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
+import { DashboardMain } from "@/components/dashboard/DashboardMain";
 import connectToDatabase from "@/lib/db";
 import { getPlatformSettings } from "@/models/PlatformSettings";
 import UserStatus, { canUserAccessPlatform, createWaitingUser } from "@/models/UserStatus";
@@ -62,13 +61,7 @@ export default async function DashboardLayout({
             <DashboardSidebar isSuperAdmin={isSuperAdmin} />
 
             {/* Main Content */}
-            <main className="flex-1 md:ml-64 overflow-x-hidden">
-                <header className="flex h-16 items-center justify-between border-b border-gray-200 bg-white px-6 pl-16 md:pl-6 dark:border-gray-800 dark:bg-black">
-                    <CreditDisplay variant="compact" />
-                    <UserButton />
-                </header>
-                <div className="p-6 max-w-5xl mx-auto">{children}</div>
-            </main>
+            <DashboardMain>{children}</DashboardMain>
         </div>
     );
 }
