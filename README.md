@@ -24,6 +24,7 @@ Jersen is a premium software development agency based in Cambodia, specializing 
 -   **UI Components**: Radix UI, Lucide React, Sonner, Vaul
 
 ## Getting Started
+<<<<<<< HEAD
 
 First, install dependencies:
 
@@ -34,6 +35,10 @@ pnpm install
 ```
 
 Then, run the development server:
+=======
+d
+First, run the development server:frdd
+>>>>>>> 48bc9cf2d5cdb2abb542e56d1277e00b515676d5
 
 ```bash
 npm run dev
