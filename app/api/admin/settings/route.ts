@@ -41,6 +41,7 @@ export async function PATCH(request: NextRequest) {
             allowPublicOrgCreation,
             requireOrgApproval,
             maxOrgsPerUser,
+            disableDevTools,
         } = body;
 
         // Validate model
@@ -84,6 +85,7 @@ export async function PATCH(request: NextRequest) {
         if (allowPublicOrgCreation !== undefined) updateData.allowPublicOrgCreation = allowPublicOrgCreation;
         if (requireOrgApproval !== undefined) updateData.requireOrgApproval = requireOrgApproval;
         if (maxOrgsPerUser !== undefined) updateData.maxOrgsPerUser = maxOrgsPerUser;
+        if (disableDevTools !== undefined) updateData.disableDevTools = disableDevTools;
 
         const settings = await PlatformSettings.findByIdAndUpdate(
             "platform_settings",

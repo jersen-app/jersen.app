@@ -20,6 +20,8 @@ export interface IPlatformSettings {
     allowPublicOrgCreation: boolean; // If true, anyone can create orgs without approval
     requireOrgApproval: boolean; // If true, new orgs created by users need admin approval
     maxOrgsPerUser: number; // Max orgs a user can create (default: 1), can join unlimited
+    // Security settings
+    disableDevTools: boolean; // If true, attempts to open DevTools will refresh the page
     createdAt: Date;
     updatedAt: Date;
 }
@@ -70,6 +72,11 @@ const PlatformSettingsSchema = new Schema<IPlatformSettings>(
             min: 1,
             max: 10,
         },
+        // Security settings
+        disableDevTools: {
+            type: Boolean,
+            default: false, // Disabled by default
+        },
     },
     {
         timestamps: true,
@@ -100,6 +107,7 @@ export async function getPlatformSettings(): Promise<IPlatformSettings> {
         allowPublicOrgCreation: false,
         requireOrgApproval: true,
         maxOrgsPerUser: 1,
+        disableDevTools: false,
     });
     
     return defaultSettings.toObject();

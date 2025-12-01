@@ -4,6 +4,9 @@ import "./globals.css";
 import {
   ClerkProvider,
 } from "@clerk/nextjs";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { Toaster } from "@/components/ui/sonner";
+import DevToolsBlockerWrapper from "@/components/DevToolsBlockerWrapper";
 
 const recursive = Recursive({
   variable: "--font-recursive",
@@ -33,7 +36,11 @@ export default function RootLayout({
         <body
           className={`${recursive.variable} ${karla.variable} antialiased`}
         >
-          {children}
+          <TooltipProvider>
+            {children}
+            <Toaster />
+          </TooltipProvider>
+          <DevToolsBlockerWrapper />
         </body>
       </html>
     </ClerkProvider>

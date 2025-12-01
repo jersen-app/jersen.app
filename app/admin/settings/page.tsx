@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, CheckCircle2, Settings2, Box, Play, Users, Building2, Shield } from "lucide-react";
+import { Loader2, CheckCircle2, Settings2, Box, Play, Users, Building2, Shield, Bug } from "lucide-react";
 import { toast } from "sonner";
 
 interface AIModel {
@@ -25,6 +25,7 @@ interface PlatformSettings {
     allowPublicOrgCreation: boolean;
     requireOrgApproval: boolean;
     maxOrgsPerUser: number;
+    disableDevTools: boolean;
 }
 
 export default function AdminSettingsPage() {
@@ -42,6 +43,7 @@ export default function AdminSettingsPage() {
     const [allowPublicOrgCreation, setAllowPublicOrgCreation] = useState<boolean>(false);
     const [requireOrgApproval, setRequireOrgApproval] = useState<boolean>(true);
     const [maxOrgsPerUser, setMaxOrgsPerUser] = useState<number>(1);
+    const [disableDevTools, setDisableDevTools] = useState<boolean>(false);
 
     useEffect(() => {
         fetchSettings();
@@ -62,6 +64,7 @@ export default function AdminSettingsPage() {
             setAllowPublicOrgCreation(data.settings.allowPublicOrgCreation ?? false);
             setRequireOrgApproval(data.settings.requireOrgApproval ?? true);
             setMaxOrgsPerUser(data.settings.maxOrgsPerUser ?? 1);
+            setDisableDevTools(data.settings.disableDevTools ?? false);
         } catch (error) {
             console.error(error);
             toast.error("Failed to load settings");
@@ -85,6 +88,7 @@ export default function AdminSettingsPage() {
                     allowPublicOrgCreation,
                     requireOrgApproval,
                     maxOrgsPerUser,
+                    disableDevTools,
                 }),
             });
 
@@ -116,7 +120,8 @@ export default function AdminSettingsPage() {
         settings?.allowPublicSignup !== allowPublicSignup ||
         settings?.allowPublicOrgCreation !== allowPublicOrgCreation ||
         settings?.requireOrgApproval !== requireOrgApproval ||
-        settings?.maxOrgsPerUser !== maxOrgsPerUser;
+        settings?.maxOrgsPerUser !== maxOrgsPerUser ||
+        settings?.disableDevTools !== disableDevTools;
 
     return (
         <div className="space-y-6">
@@ -337,6 +342,41 @@ export default function AdminSettingsPage() {
                         <p className="text-xs text-muted-foreground">
                             Maximum number of organizations a user can create. They can join unlimited organizations as members.
                         </p>
+                    </div>
+                </CardContent>
+            </Card>
+
+            {/* Security Settings Card */}
+            <Card>
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                        <Bug className="h-5 w-5" />
+                        Security Settings
+                    </CardTitle>
+                    <CardDescription>
+                        Configure security-related platform settings.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                    {/* Disable DevTools */}
+                    <div className="flex items-center justify-between rounded-lg border p-4">
+                        <div className="space-y-0.5">
+                            <div className="flex items-center gap-2">
+                                <Bug className="h-4 w-4 text-muted-foreground" />
+                                <Label htmlFor="disable-devtools" className="font-medium">
+                                    Disable Browser DevTools
+                                </Label>
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                                When enabled, attempts to open browser DevTools (F12, right-click inspect) 
+                                will refresh the page. Note: This can be bypassed by advanced users.
+                            </p>
+                        </div>
+                        <Switch
+                            id="disable-devtools"
+                            checked={disableDevTools}
+                            onCheckedChange={setDisableDevTools}
+                        />
                     </div>
                 </CardContent>
             </Card>
