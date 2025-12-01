@@ -5,15 +5,28 @@ import mongoose from "mongoose";
 // Separate database for all project data
 const PROJECT_DB_URI = process.env.PROJECT_DB_URI || process.env.MONGO_URI;
 
+// Production domains that are always allowed
+const ALLOWED_PRODUCTION_ORIGINS = [
+    "https://jersen.app",
+    "https://www.jersen.app",
+    process.env.NEXT_PUBLIC_APP_URL,
+].filter(Boolean);
+
 // Check if origin is a valid E2B sandbox URL
 function isValidE2BSandbox(origin: string | null): boolean {
     if (!origin) return false;
     return /^https:\/\/3000-[a-z0-9]+\.e2b\.app$/.test(origin);
 }
 
-// Get CORS headers for E2B sandboxes
+// Check if origin is allowed (production domains or E2B sandboxes)
+function isOriginAllowed(origin: string | null): boolean {
+    if (!origin) return false;
+    return ALLOWED_PRODUCTION_ORIGINS.includes(origin) || isValidE2BSandbox(origin);
+}
+
+// Get CORS headers for allowed origins
 function getCorsHeaders(origin: string | null): Record<string, string> {
-    const isAllowed = isValidE2BSandbox(origin);
+    const isAllowed = isOriginAllowed(origin);
     return {
         "Access-Control-Allow-Origin": isAllowed && origin ? origin : "null",
         "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",

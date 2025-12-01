@@ -6,59 +6,116 @@ import connectToDatabase from "@/lib/db";
 import ProjectUser from "@/models/ProjectUser";
 import { authRatelimit, checkRateLimit, getClientIP } from "@/lib/ratelimit";
 
+// Production domains that are always allowed
+const ALLOWED_PRODUCTION_ORIGINS = [
+    "https://jersen.app",
+    "https://www.jersen.app",
+    process.env.NEXT_PUBLIC_APP_URL,
+].filter(Boolean);
+
+// Check if origin is a valid E2B sandbox URL
+function isValidE2BSandbox(origin: string | null): boolean {
+    if (!origin) return false;
+    return /^https:\/\/3000-[a-z0-9]+\.e2b\.app$/.test(origin);
+}
+
+// Check if origin is allowed (production domains or E2B sandboxes)
+function isOriginAllowed(origin: string | null): boolean {
+    if (!origin) return false;
+    return ALLOWED_PRODUCTION_ORIGINS.includes(origin) || isValidE2BSandbox(origin);
+}
+
+// Get CORS headers for allowed origins
+function getCorsHeaders(origin: string | null): Record<string, string> {
+    const isAllowed = isOriginAllowed(origin);
+    return {
+        "Access-Control-Allow-Origin": isAllowed && origin ? origin : "null",
+        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, x-jersen-api-key, x-user-id",
+        "Access-Control-Allow-Credentials": "true",
+    };
+}
+
+// OPTIONS handler for CORS preflight
+export async function OPTIONS(request: NextRequest) {
+    const origin = request.headers.get("origin");
+    return new NextResponse(null, { 
+        status: 204, 
+        headers: getCorsHeaders(origin)
+    });
+}
+
 // POST /api/providers/auth/signup
 export async function POST(request: NextRequest) {
+    const origin = request.headers.get("origin");
+    const corsHeaders = getCorsHeaders(origin);
+
     // Rate limit by IP for auth endpoints (no user ID yet)
     const ip = getClientIP(request);
     const rateLimited = await checkRateLimit(authRatelimit, `ip:${ip}`);
-    if (rateLimited) return rateLimited;
+    if (rateLimited) {
+        const headers = new Headers(rateLimited.headers);
+        Object.entries(corsHeaders).forEach(([key, value]) => headers.set(key, value));
+        return new NextResponse(rateLimited.body, { status: rateLimited.status, headers });
+    }
 
     const { searchParams } = new URL(request.url);
     const action = searchParams.get("action") || "signup";
 
     const auth = await validateApiKey(request);
-    if (auth instanceof NextResponse) return auth;
+    if (auth instanceof NextResponse) {
+        const headers = new Headers(auth.headers);
+        Object.entries(corsHeaders).forEach(([key, value]) => headers.set(key, value));
+        return new NextResponse(auth.body, { status: auth.status, headers });
+    }
 
     const { project } = auth;
 
     if (!project.providers?.auth?.enabled) {
         return NextResponse.json(
             { error: "Auth provider is not enabled for this project" },
-            { status: 403 }
+            { status: 403, headers: corsHeaders }
         );
     }
 
     if (action === "signup") {
-        return handleSignup(request, project);
+        return handleSignup(request, project, corsHeaders);
     } else if (action === "signin") {
-        return handleSignin(request, project);
+        return handleSignin(request, project, corsHeaders);
     } else if (action === "me") {
-        return handleGetUser(request, project);
+        return handleGetUser(request, project, corsHeaders);
     } else if (action === "signout") {
-        return handleSignout(request, project);
+        return handleSignout(request, project, corsHeaders);
     }
 
-    return NextResponse.json({ error: "Invalid action" }, { status: 400 });
+    return NextResponse.json({ error: "Invalid action" }, { status: 400, headers: corsHeaders });
 }
 
 // GET /api/providers/auth/me
 export async function GET(request: NextRequest) {
+    const origin = request.headers.get("origin");
+    const corsHeaders = getCorsHeaders(origin);
+
     const auth = await validateApiKey(request);
-    if (auth instanceof NextResponse) return auth;
+    if (auth instanceof NextResponse) {
+        const headers = new Headers(auth.headers);
+        Object.entries(corsHeaders).forEach(([key, value]) => headers.set(key, value));
+        return new NextResponse(auth.body, { status: auth.status, headers });
+    }
 
     const { project } = auth;
 
     if (!project.providers?.auth?.enabled) {
         return NextResponse.json(
             { error: "Auth provider is not enabled" },
-            { status: 403 }
+            { status: 403, headers: corsHeaders }
         );
     }
 
-    return handleGetUser(request, project);
+    return handleGetUser(request, project, corsHeaders);
 }
 
-async function handleSignup(request: NextRequest, project: any) {
+async function handleSignup(request: NextRequest, project: any, corsHeaders: Record<string, string>) {
     try {
         const body = await request.json();
         const { email, password, metadata } = body;
@@ -66,7 +123,7 @@ async function handleSignup(request: NextRequest, project: any) {
         if (!email || !password) {
             return NextResponse.json(
                 { error: "Email and password are required" },
-                { status: 400 }
+                { status: 400, headers: corsHeaders }
             );
         }
 
@@ -81,7 +138,7 @@ async function handleSignup(request: NextRequest, project: any) {
         if (existing) {
             return NextResponse.json(
                 { error: "User already exists" },
-                { status: 409 }
+                { status: 409, headers: corsHeaders }
             );
         }
 
@@ -116,17 +173,17 @@ async function handleSignup(request: NextRequest, project: any) {
                 email: projectUser.email,
                 metadata: projectUser.metadata,
             },
-        });
+        }, { headers: corsHeaders });
     } catch (error: any) {
         console.error("Auth signup error:", error);
         return NextResponse.json(
             { error: error.message || "Signup failed" },
-            { status: 500 }
+            { status: 500, headers: corsHeaders }
         );
     }
 }
 
-async function handleSignin(request: NextRequest, project: any) {
+async function handleSignin(request: NextRequest, project: any, corsHeaders: Record<string, string>) {
     try {
         const body = await request.json();
         const { email, password } = body;
@@ -134,7 +191,7 @@ async function handleSignin(request: NextRequest, project: any) {
         if (!email || !password) {
             return NextResponse.json(
                 { error: "Email and password are required" },
-                { status: 400 }
+                { status: 400, headers: corsHeaders }
             );
         }
 
@@ -149,7 +206,7 @@ async function handleSignin(request: NextRequest, project: any) {
         if (!projectUser) {
             return NextResponse.json(
                 { error: "Invalid credentials" },
-                { status: 401 }
+                { status: 401, headers: corsHeaders }
             );
         }
 
@@ -161,7 +218,7 @@ async function handleSignin(request: NextRequest, project: any) {
         if (!clerkUser) {
             return NextResponse.json(
                 { error: "User not found" },
-                { status: 404 }
+                { status: 404, headers: corsHeaders }
             );
         }
 
@@ -175,23 +232,23 @@ async function handleSignin(request: NextRequest, project: any) {
             },
             // TODO: Generate proper session token
             sessionToken: `session_${nanoid(32)}`,
-        });
+        }, { headers: corsHeaders });
     } catch (error: any) {
         console.error("Auth signin error:", error);
         return NextResponse.json(
             { error: error.message || "Signin failed" },
-            { status: 500 }
+            { status: 500, headers: corsHeaders }
         );
     }
 }
 
-async function handleGetUser(request: NextRequest, project: any) {
+async function handleGetUser(request: NextRequest, project: any, corsHeaders: Record<string, string>) {
     try {
         // Get user ID from request (header or query)
         const userId = request.headers.get("x-user-id") || request.nextUrl.searchParams.get("userId");
 
         if (!userId) {
-            return NextResponse.json({ error: "User ID required" }, { status: 400 });
+            return NextResponse.json({ error: "User ID required" }, { status: 400, headers: corsHeaders });
         }
 
         await connectToDatabase();
@@ -202,7 +259,7 @@ async function handleGetUser(request: NextRequest, project: any) {
         });
 
         if (!projectUser) {
-            return NextResponse.json({ error: "User not found" }, { status: 404 });
+            return NextResponse.json({ error: "User not found" }, { status: 404, headers: corsHeaders });
         }
 
         return NextResponse.json({
@@ -212,17 +269,17 @@ async function handleGetUser(request: NextRequest, project: any) {
                 email: projectUser.email,
                 metadata: projectUser.metadata,
             },
-        });
+        }, { headers: corsHeaders });
     } catch (error: any) {
         console.error("Auth get user error:", error);
         return NextResponse.json(
             { error: error.message || "Failed to get user" },
-            { status: 500 }
+            { status: 500, headers: corsHeaders }
         );
     }
 }
 
-async function handleSignout(request: NextRequest, project: any) {
+async function handleSignout(request: NextRequest, project: any, corsHeaders: Record<string, string>) {
     // In a full implementation, this would invalidate the session token
-    return NextResponse.json({ success: true, message: "Signed out" });
+    return NextResponse.json({ success: true, message: "Signed out" }, { headers: corsHeaders });
 }

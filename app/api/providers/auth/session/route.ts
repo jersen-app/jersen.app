@@ -13,6 +13,13 @@ interface SessionPayload {
     exp: number;
 }
 
+// Production domains that are always allowed
+const ALLOWED_PRODUCTION_ORIGINS = [
+    "https://jersen.app",
+    "https://www.jersen.app",
+    process.env.NEXT_PUBLIC_APP_URL,
+].filter(Boolean);
+
 // Check if origin is a valid E2B sandbox URL
 function isValidE2BSandbox(origin: string | null): boolean {
     if (!origin) return false;
@@ -20,14 +27,21 @@ function isValidE2BSandbox(origin: string | null): boolean {
     return /^https:\/\/3000-[a-z0-9]+\.e2b\.app$/.test(origin);
 }
 
-// Get CORS headers - allow E2B sandboxes and the stored sandbox URL
+// Check if origin is allowed (production domains or E2B sandboxes)
+function isOriginAllowed(origin: string | null): boolean {
+    if (!origin) return false;
+    return ALLOWED_PRODUCTION_ORIGINS.includes(origin) || isValidE2BSandbox(origin);
+}
+
+// Get CORS headers - allow E2B sandboxes, production domains, and the stored sandbox URL
 function getCorsHeaders(origin: string | null, allowedOrigin: string | null): Record<string, string> {
     // Allow if:
-    // 1. Origin matches the stored sandbox URL
-    // 2. Origin is a valid E2B sandbox URL (for flexibility during sandbox changes)
+    // 1. Origin is a production domain
+    // 2. Origin matches the stored sandbox URL
+    // 3. Origin is a valid E2B sandbox URL (for flexibility during sandbox changes)
     const isAllowed = origin && (
-        origin === allowedOrigin || 
-        isValidE2BSandbox(origin)
+        isOriginAllowed(origin) ||
+        origin === allowedOrigin
     );
     
     return {
@@ -45,8 +59,8 @@ function getCorsHeaders(origin: string | null, allowedOrigin: string | null): Re
 export async function OPTIONS(request: NextRequest) {
     const origin = request.headers.get("origin");
     
-    // For preflight from E2B sandboxes, allow it
-    const isAllowed = isValidE2BSandbox(origin);
+    // For preflight, allow production domains and E2B sandboxes
+    const isAllowed = isOriginAllowed(origin);
     
     return new NextResponse(null, { 
         status: 204, 
@@ -110,9 +124,9 @@ export async function GET(request: NextRequest) {
         const allowedOrigin = (project as any).sandboxUrl || null;
         const corsHeaders = getCorsHeaders(origin, allowedOrigin);
         
-        // Check if origin is allowed (E2B sandboxes are always allowed)
-        if (origin && !isValidE2BSandbox(origin) && allowedOrigin && origin !== allowedOrigin) {
-            console.log(`CORS rejected: origin ${origin} is not a valid E2B sandbox and !== allowed ${allowedOrigin}`);
+        // Check if origin is allowed (production domains, E2B sandboxes, or stored sandbox URL)
+        if (origin && !isOriginAllowed(origin) && allowedOrigin && origin !== allowedOrigin) {
+            console.log(`CORS rejected: origin ${origin} is not allowed and !== stored ${allowedOrigin}`);
             return NextResponse.json(
                 { error: "Origin not allowed" },
                 { status: 403, headers: corsHeaders }

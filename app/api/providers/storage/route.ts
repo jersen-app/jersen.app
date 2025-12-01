@@ -2,12 +2,56 @@ import { NextRequest, NextResponse } from "next/server";
 import { validateApiKey } from "@/lib/middleware/validateApiKey";
 import { uploadFile, getDownloadUrl, deleteFile } from "@/lib/storage/r2";
 
+// Production domains that are always allowed
+const ALLOWED_PRODUCTION_ORIGINS = [
+    "https://jersen.app",
+    "https://www.jersen.app",
+    process.env.NEXT_PUBLIC_APP_URL,
+].filter(Boolean);
+
+// Check if origin is a valid E2B sandbox URL
+function isValidE2BSandbox(origin: string | null): boolean {
+    if (!origin) return false;
+    return /^https:\/\/3000-[a-z0-9]+\.e2b\.app$/.test(origin);
+}
+
+// Check if origin is allowed (production domains or E2B sandboxes)
+function isOriginAllowed(origin: string | null): boolean {
+    if (!origin) return false;
+    return ALLOWED_PRODUCTION_ORIGINS.includes(origin) || isValidE2BSandbox(origin);
+}
+
+// Get CORS headers for allowed origins
+function getCorsHeaders(origin: string | null): Record<string, string> {
+    const isAllowed = isOriginAllowed(origin);
+    return {
+        "Access-Control-Allow-Origin": isAllowed && origin ? origin : "null",
+        "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, x-jersen-api-key",
+        "Access-Control-Allow-Credentials": "true",
+    };
+}
+
+// OPTIONS handler for CORS preflight
+export async function OPTIONS(request: NextRequest) {
+    const origin = request.headers.get("origin");
+    return new NextResponse(null, { 
+        status: 204, 
+        headers: getCorsHeaders(origin)
+    });
+}
+
 // POST /api/providers/storage/upload
 export async function POST(request: NextRequest) {
+    const origin = request.headers.get("origin");
+    const corsHeaders = getCorsHeaders(origin);
+
     // Validate API key
     const auth = await validateApiKey(request);
     if (auth instanceof NextResponse) {
-        return auth; // Return error response
+        const headers = new Headers(auth.headers);
+        Object.entries(corsHeaders).forEach(([key, value]) => headers.set(key, value));
+        return new NextResponse(auth.body, { status: auth.status, headers });
     }
 
     const { project } = auth;
@@ -16,7 +60,7 @@ export async function POST(request: NextRequest) {
     if (!project.providers?.storage?.enabled) {
         return NextResponse.json(
             { error: "Storage provider is not enabled for this project" },
-            { status: 403 }
+            { status: 403, headers: corsHeaders }
         );
     }
 
@@ -28,7 +72,7 @@ export async function POST(request: NextRequest) {
         if (!file || !key) {
             return NextResponse.json(
                 { error: "Missing required fields: file, key" },
-                { status: 400 }
+                { status: 400, headers: corsHeaders }
             );
         }
 
@@ -48,22 +92,27 @@ export async function POST(request: NextRequest) {
             success: true,
             key: fullKey,
             size: buffer.length,
-        });
+        }, { headers: corsHeaders });
     } catch (error: any) {
         console.error("Storage upload error:", error);
         return NextResponse.json(
             { error: error.message || "Upload failed" },
-            { status: 500 }
+            { status: 500, headers: corsHeaders }
         );
     }
 }
 
 // GET /api/providers/storage/download?key=xxx
 export async function GET(request: NextRequest) {
+    const origin = request.headers.get("origin");
+    const corsHeaders = getCorsHeaders(origin);
+
     // Validate API key
     const auth = await validateApiKey(request);
     if (auth instanceof NextResponse) {
-        return auth;
+        const headers = new Headers(auth.headers);
+        Object.entries(corsHeaders).forEach(([key, value]) => headers.set(key, value));
+        return new NextResponse(auth.body, { status: auth.status, headers });
     }
 
     const { project } = auth;
@@ -71,7 +120,7 @@ export async function GET(request: NextRequest) {
     if (!project.providers?.storage?.enabled) {
         return NextResponse.json(
             { error: "Storage provider is not enabled" },
-            { status: 403 }
+            { status: 403, headers: corsHeaders }
         );
     }
 
@@ -80,7 +129,7 @@ export async function GET(request: NextRequest) {
         const key = searchParams.get("key");
 
         if (!key) {
-            return NextResponse.json({ error: "Missing key parameter" }, { status: 400 });
+            return NextResponse.json({ error: "Missing key parameter" }, { status: 400, headers: corsHeaders });
         }
 
         // Get download URL
@@ -93,21 +142,26 @@ export async function GET(request: NextRequest) {
             success: true,
             url: downloadUrl,
             expiresIn: 3600,
-        });
+        }, { headers: corsHeaders });
     } catch (error: any) {
         console.error("Storage download error:", error);
         return NextResponse.json(
             { error: error.message || "Download failed" },
-            { status: 500 }
+            { status: 500, headers: corsHeaders }
         );
     }
 }
 
 // DELETE /api/providers/storage?key=xxx
 export async function DELETE(request: NextRequest) {
+    const origin = request.headers.get("origin");
+    const corsHeaders = getCorsHeaders(origin);
+
     const auth = await validateApiKey(request);
     if (auth instanceof NextResponse) {
-        return auth;
+        const headers = new Headers(auth.headers);
+        Object.entries(corsHeaders).forEach(([key, value]) => headers.set(key, value));
+        return new NextResponse(auth.body, { status: auth.status, headers });
     }
 
     const { project } = auth;
@@ -115,7 +169,7 @@ export async function DELETE(request: NextRequest) {
     if (!project.providers?.storage?.enabled) {
         return NextResponse.json(
             { error: "Storage provider is not enabled" },
-            { status: 403 }
+            { status: 403, headers: corsHeaders }
         );
     }
 
@@ -124,7 +178,7 @@ export async function DELETE(request: NextRequest) {
         const key = searchParams.get("key");
 
         if (!key) {
-            return NextResponse.json({ error: "Missing key parameter" }, { status: 400 });
+            return NextResponse.json({ error: "Missing key parameter" }, { status: 400, headers: corsHeaders });
         }
 
         await deleteFile({
@@ -132,12 +186,12 @@ export async function DELETE(request: NextRequest) {
             key,
         });
 
-        return NextResponse.json({ success: true });
+        return NextResponse.json({ success: true }, { headers: corsHeaders });
     } catch (error: any) {
         console.error("Storage delete error:", error);
         return NextResponse.json(
             { error: error.message || "Delete failed" },
-            { status: 500 }
+            { status: 500, headers: corsHeaders }
         );
     }
 }
