@@ -20,7 +20,7 @@ export default function Home() {
             </p>
             <div className="flex flex-col items-center justify-center gap-4 sm:flex-row">
               <Link
-                href="#"
+                href="/dashboard"
                 className="group inline-flex h-12 items-center justify-center rounded-full bg-black px-8 text-sm font-medium text-white transition-all hover:bg-gray-800 dark:bg-white dark:text-black dark:hover:bg-gray-200"
               >
                 Start Building
@@ -57,7 +57,7 @@ export default function Home() {
             </p>
             <div className="mt-10 flex justify-center">
               <Link
-                href="#"
+                href="/dashboard"
                 className="group inline-flex h-14 items-center justify-center rounded-full bg-white px-8 text-base font-medium text-black transition-all hover:bg-gray-200 dark:bg-black dark:text-white dark:hover:bg-gray-800"
               >
                 Launch AI Builder
