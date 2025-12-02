@@ -26,60 +26,60 @@ export default function Home() {
     <div className="flex min-h-screen flex-col bg-white text-black dark:bg-black dark:text-white font-sans selection:bg-gray-200 dark:selection:bg-gray-800">
       <main className="flex-1">
         {/* Hero Section */}
-        <section className="relative flex flex-col items-center justify-center px-6 py-32 text-center md:py-48 lg:py-56">
+        <section className="relative flex flex-col items-center justify-center px-4 sm:px-6 pt-24 pb-16 text-center md:pt-48 md:pb-32 lg:pt-56 lg:pb-40">
           <div className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(120,119,198,0.15),rgba(255,255,255,0))] dark:bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(120,119,198,0.3),rgba(0,0,0,0))]" />
-          <div className="mx-auto max-w-5xl space-y-8">
-            <div className="inline-flex items-center rounded-full border border-gray-200 bg-white/80 px-4 py-1.5 text-sm font-medium backdrop-blur-sm dark:border-gray-800 dark:bg-black/80">
+          <div className="mx-auto max-w-5xl space-y-6 sm:space-y-8">
+            <div className="inline-flex items-center rounded-full border border-gray-200 bg-white/80 px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-medium backdrop-blur-sm dark:border-gray-800 dark:bg-black/80">
               <span className="mr-2 inline-block h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
               Premium Development Services in Cambodia
             </div>
-            <h1 className="text-5xl font-medium tracking-tight sm:text-7xl md:text-8xl">
+            <h1 className="text-4xl font-medium tracking-tight sm:text-6xl md:text-7xl lg:text-8xl">
               Build anything.
               <br />
               <span className="bg-gradient-to-r from-gray-600 to-gray-400 bg-clip-text text-transparent dark:from-gray-400 dark:to-gray-600">
                 Ship faster.
               </span>
             </h1>
-            <p className="mx-auto max-w-2xl text-lg text-gray-600 dark:text-gray-400 sm:text-xl leading-relaxed">
+            <p className="mx-auto max-w-2xl text-base sm:text-lg text-gray-600 dark:text-gray-400 md:text-xl leading-relaxed px-2">
               Jersen transforms your vision into reality. From rapid MVPs to full-scale products, 
               we deliver precision engineering with our AI-powered development platform.
             </p>
-            <div className="flex flex-col items-center justify-center gap-4 sm:flex-row">
+            <div className="flex flex-col items-center justify-center gap-3 sm:gap-4 sm:flex-row">
               <Link
                 href="/dashboard"
-                className="group inline-flex h-12 items-center justify-center rounded-full bg-black px-8 text-sm font-medium text-white transition-all hover:bg-gray-800 hover:scale-105 dark:bg-white dark:text-black dark:hover:bg-gray-200"
+                className="group inline-flex h-12 w-full sm:w-auto items-center justify-center rounded-full bg-black px-8 text-sm font-medium text-white transition-all hover:bg-gray-800 hover:scale-105 dark:bg-white dark:text-black dark:hover:bg-gray-200"
               >
                 Start Building Free
                 <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
               </Link>
               <Link
                 href="#ai-builder"
-                className="group inline-flex h-12 items-center justify-center rounded-full border border-gray-200 px-8 text-sm font-medium transition-all hover:bg-gray-50 hover:border-gray-300 dark:border-gray-800 dark:hover:bg-gray-900 dark:hover:border-gray-700"
+                className="group inline-flex h-12 w-full sm:w-auto items-center justify-center rounded-full border border-gray-200 px-8 text-sm font-medium transition-all hover:bg-gray-50 hover:border-gray-300 dark:border-gray-800 dark:hover:bg-gray-900 dark:hover:border-gray-700"
               >
                 <Play className="mr-2 h-4 w-4" />
                 Watch Demo
               </Link>
             </div>
-            <p className="text-sm text-gray-500">
+            <p className="text-xs sm:text-sm text-gray-500">
               No credit card required • Free tier available
             </p>
           </div>
         </section>
 
         {/* What is Jersen */}
-        <section className="px-6 py-24 sm:py-32 border-t border-gray-100 dark:border-gray-900">
+        <section className="px-4 sm:px-6 py-16 sm:py-24 lg:py-32 border-t border-gray-100 dark:border-gray-900">
           <div className="mx-auto max-w-7xl">
-            <div className="grid gap-16 lg:grid-cols-2 lg:gap-24 items-center">
-              <div className="space-y-8">
+            <div className="grid gap-12 lg:grid-cols-2 lg:gap-24 items-center">
+              <div className="space-y-6 sm:space-y-8">
                 <div className="inline-flex items-center rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-sm font-medium dark:border-gray-800 dark:bg-gray-900">
                   What is Jersen?
                 </div>
-                <h2 className="text-4xl font-medium tracking-tight sm:text-5xl">
+                <h2 className="text-3xl sm:text-4xl font-medium tracking-tight lg:text-5xl">
                   Your complete
                   <br />
                   development partner
                 </h2>
-                <div className="space-y-6 text-lg text-gray-600 dark:text-gray-400">
+                <div className="space-y-4 sm:space-y-6 text-base sm:text-lg text-gray-600 dark:text-gray-400">
                   <p>
                     <strong className="text-black dark:text-white">Jersen is a development agency + AI platform</strong> based in Cambodia. 
                     We combine human expertise with cutting-edge AI to deliver exceptional software products.
@@ -89,27 +89,27 @@ export default function Home() {
                     then seamlessly transition to our expert team for production-ready development.
                   </p>
                 </div>
-                <div className="grid grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <div className="text-3xl font-bold">50+</div>
+                <div className="grid grid-cols-2 gap-4 sm:gap-6">
+                  <div className="space-y-1 sm:space-y-2">
+                    <div className="text-2xl sm:text-3xl font-bold">50+</div>
                     <div className="text-sm text-gray-500">Projects Delivered</div>
                   </div>
-                  <div className="space-y-2">
-                    <div className="text-3xl font-bold">2 weeks</div>
-                    <div className="text-sm text-gray-500">Average MVP Time</div>
+                  <div className="space-y-1 sm:space-y-2">
+                    <div className="text-2xl sm:text-3xl font-bold">2 weeks</div>
+                    <div className="text-xs sm:text-sm text-gray-500">Average MVP Time</div>
                   </div>
-                  <div className="space-y-2">
-                    <div className="text-3xl font-bold">24/7</div>
-                    <div className="text-sm text-gray-500">AI Builder Available</div>
+                  <div className="space-y-1 sm:space-y-2">
+                    <div className="text-2xl sm:text-3xl font-bold">24/7</div>
+                    <div className="text-xs sm:text-sm text-gray-500">AI Builder Available</div>
                   </div>
-                  <div className="space-y-2">
-                    <div className="text-3xl font-bold">100%</div>
+                  <div className="space-y-1 sm:space-y-2">
+                    <div className="text-2xl sm:text-3xl font-bold">100%</div>
                     <div className="text-sm text-gray-500">Code Ownership</div>
                   </div>
                 </div>
               </div>
-              <div className="relative">
-                <div className="aspect-square rounded-3xl bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-900 p-8 lg:p-12">
+              <div className="relative hidden sm:block">
+                <div className="aspect-square rounded-3xl bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-900 p-6 sm:p-8 lg:p-12">
                   <div className="h-full w-full rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-900 overflow-hidden">
                     <div className="flex items-center gap-2 border-b border-gray-100 px-4 py-3 dark:border-gray-800">
                       <div className="h-3 w-3 rounded-full bg-red-400" />
@@ -145,29 +145,29 @@ export default function Home() {
         </section>
 
         {/* AI Builder Section */}
-        <section id="ai-builder" className="px-6 py-24 sm:py-32 bg-black text-white dark:bg-white dark:text-black overflow-hidden relative">
+        <section id="ai-builder" className="px-4 sm:px-6 py-16 sm:py-24 lg:py-32 bg-black text-white dark:bg-white dark:text-black overflow-hidden relative">
           <div className="absolute inset-0 bg-[linear-gradient(to_right,#4f4f4f2e_1px,transparent_1px),linear-gradient(to_bottom,#4f4f4f2e_1px,transparent_1px)] bg-[size:14px_24px] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)]" />
           <div className="relative mx-auto max-w-7xl">
-            <div className="text-center mb-16">
-              <div className="inline-flex items-center rounded-full border border-white/20 bg-white/10 px-3 py-1 text-sm font-medium backdrop-blur-xl dark:border-black/20 dark:bg-black/10">
+            <div className="text-center mb-10 sm:mb-16">
+              <div className="inline-flex items-center rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs sm:text-sm font-medium backdrop-blur-xl dark:border-black/20 dark:bg-black/10">
                 <Sparkles className="mr-2 h-4 w-4 text-purple-400" />
                 AI-Powered Development
               </div>
-              <h2 className="mt-8 text-4xl font-medium tracking-tight sm:text-6xl">
+              <h2 className="mt-6 sm:mt-8 text-3xl sm:text-4xl font-medium tracking-tight lg:text-6xl">
                 Describe it. Build it.
                 <br />
                 <span className="text-gray-400 dark:text-gray-600">
                   Deploy it.
                 </span>
               </h2>
-              <p className="mx-auto mt-6 max-w-2xl text-lg text-gray-400 dark:text-gray-600">
+              <p className="mx-auto mt-4 sm:mt-6 max-w-2xl text-base sm:text-lg text-gray-400 dark:text-gray-600 px-2">
                 Our AI Builder creates fully functional web applications from natural language descriptions. 
                 Complete with authentication, database, and file storage—ready to deploy in minutes.
               </p>
             </div>
 
             {/* AI Builder Features */}
-            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 mb-12">
+            <div className="grid gap-4 sm:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 mb-10 sm:mb-12">
               {[
                 {
                   icon: Lock,
@@ -221,23 +221,23 @@ export default function Home() {
         </section>
 
         {/* Services Section */}
-        <section id="services" className="px-6 py-24 sm:py-32 border-t border-gray-100 dark:border-gray-900">
+        <section id="services" className="px-4 sm:px-6 py-16 sm:py-24 lg:py-32 border-t border-gray-100 dark:border-gray-900">
           <div className="mx-auto max-w-7xl">
-            <div className="text-center mb-16">
+            <div className="text-center mb-10 sm:mb-16">
               <div className="inline-flex items-center rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-sm font-medium dark:border-gray-800 dark:bg-gray-900">
                 Our Services
               </div>
-              <h2 className="mt-6 text-4xl font-medium tracking-tight sm:text-5xl">
+              <h2 className="mt-4 sm:mt-6 text-3xl sm:text-4xl font-medium tracking-tight lg:text-5xl">
                 From idea to production
               </h2>
-              <p className="mx-auto mt-4 max-w-2xl text-lg text-gray-600 dark:text-gray-400">
+              <p className="mx-auto mt-3 sm:mt-4 max-w-2xl text-base sm:text-lg text-gray-600 dark:text-gray-400 px-2">
                 Whether you need a quick prototype or a full-scale enterprise solution, 
                 we have the expertise to deliver.
               </p>
             </div>
 
-            <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
-              <div className="group rounded-3xl border border-gray-200 bg-white p-8 transition-all hover:shadow-xl hover:border-gray-300 dark:border-gray-800 dark:bg-black dark:hover:border-gray-700">
+            <div className="grid gap-6 sm:gap-8 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="group rounded-3xl border border-gray-200 bg-white p-6 sm:p-8 transition-all hover:shadow-xl hover:border-gray-300 dark:border-gray-800 dark:bg-black dark:hover:border-gray-700">
                 <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50 dark:bg-blue-900/20 mb-6">
                   <Rocket className="h-7 w-7 text-blue-600 dark:text-blue-400" />
                 </div>
@@ -262,7 +262,7 @@ export default function Home() {
                 </ul>
               </div>
 
-              <div className="group rounded-3xl border border-gray-200 bg-white p-8 transition-all hover:shadow-xl hover:border-gray-300 dark:border-gray-800 dark:bg-black dark:hover:border-gray-700">
+              <div className="group rounded-3xl border border-gray-200 bg-white p-6 sm:p-8 transition-all hover:shadow-xl hover:border-gray-300 dark:border-gray-800 dark:bg-black dark:hover:border-gray-700">
                 <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 dark:bg-emerald-900/20 mb-6">
                   <Code2 className="h-7 w-7 text-emerald-600 dark:text-emerald-400" />
                 </div>
@@ -287,7 +287,7 @@ export default function Home() {
                 </ul>
               </div>
 
-              <div className="group rounded-3xl border border-gray-200 bg-white p-8 transition-all hover:shadow-xl hover:border-gray-300 dark:border-gray-800 dark:bg-black dark:hover:border-gray-700">
+              <div className="group rounded-3xl border border-gray-200 bg-white p-6 sm:p-8 transition-all hover:shadow-xl hover:border-gray-300 dark:border-gray-800 dark:bg-black dark:hover:border-gray-700">
                 <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-purple-50 dark:bg-purple-900/20 mb-6">
                   <ShieldCheck className="h-7 w-7 text-purple-600 dark:text-purple-400" />
                 </div>
@@ -316,21 +316,21 @@ export default function Home() {
         </section>
 
         {/* Projects Showcase */}
-        <section id="projects" className="px-6 py-24 sm:py-32 bg-gray-50 dark:bg-gray-900/50">
-          <div className="mx-auto max-w-7xl space-y-16">
+        <section id="projects" className="px-4 sm:px-6 py-16 sm:py-24 lg:py-32 bg-gray-50 dark:bg-gray-900/50">
+          <div className="mx-auto max-w-7xl space-y-10 sm:space-y-16">
             <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
               <div className="space-y-2">
-                <div className="inline-flex items-center rounded-full border border-gray-200 bg-white px-3 py-1 text-sm font-medium dark:border-gray-800 dark:bg-gray-900">
+                <div className="inline-flex items-center rounded-full border border-gray-200 bg-white px-3 py-1 text-xs sm:text-sm font-medium dark:border-gray-800 dark:bg-gray-900">
                   Showcase
                 </div>
-                <h2 className="text-3xl font-medium tracking-tight sm:text-4xl">Selected Work</h2>
-                <p className="text-lg text-gray-600 dark:text-gray-400">
+                <h2 className="text-2xl sm:text-3xl font-medium tracking-tight lg:text-4xl">Selected Work</h2>
+                <p className="text-base sm:text-lg text-gray-600 dark:text-gray-400">
                   A glimpse into what we've built for our partners.
                 </p>
               </div>
             </div>
 
-            <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-6 sm:gap-8 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
               {[
                 {
                   title: "FinTech Dashboard",
@@ -375,11 +375,11 @@ export default function Home() {
                   tech: ["React Native", "Firebase", "Maps API"]
                 }
               ].map((project, i) => (
-                <div key={i} className="group relative overflow-hidden rounded-3xl border border-gray-200 bg-white transition-all hover:shadow-xl dark:border-gray-800 dark:bg-black">
+                <div key={i} className="group relative overflow-hidden rounded-2xl sm:rounded-3xl border border-gray-200 bg-white transition-all hover:shadow-xl dark:border-gray-800 dark:bg-black">
                   <div className={`aspect-video w-full ${project.color} flex items-center justify-center`}>
-                    <div className="h-16 w-16 rounded-2xl bg-white/80 dark:bg-black/80 backdrop-blur-sm" />
+                    <div className="h-12 w-12 sm:h-16 sm:w-16 rounded-xl sm:rounded-2xl bg-white/80 dark:bg-black/80 backdrop-blur-sm" />
                   </div>
-                  <div className="p-6">
+                  <div className="p-4 sm:p-6">
                     <div className="mb-2 text-xs font-medium uppercase tracking-wider text-gray-500">
                       {project.category}
                     </div>
@@ -402,26 +402,26 @@ export default function Home() {
         </section>
 
         {/* Documentation Section */}
-        <section id="docs" className="px-6 py-24 sm:py-32 border-t border-gray-100 dark:border-gray-900">
+        <section id="docs" className="px-4 sm:px-6 py-16 sm:py-24 lg:py-32 border-t border-gray-100 dark:border-gray-900">
           <div className="mx-auto max-w-7xl">
-            <div className="grid gap-12 lg:grid-cols-2 lg:gap-16 items-center">
-              <div className="space-y-8">
-                <div className="inline-flex items-center rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-sm font-medium dark:border-gray-800 dark:bg-gray-900">
+            <div className="grid gap-10 lg:grid-cols-2 lg:gap-16 items-center">
+              <div className="space-y-6 sm:space-y-8">
+                <div className="inline-flex items-center rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-xs sm:text-sm font-medium dark:border-gray-800 dark:bg-gray-900">
                   <BookOpen className="mr-2 h-4 w-4" />
                   Documentation
                 </div>
-                <h2 className="text-4xl font-medium tracking-tight sm:text-5xl">
+                <h2 className="text-3xl sm:text-4xl font-medium tracking-tight lg:text-5xl">
                   Everything you need
                   <br />
                   to get started
                 </h2>
-                <p className="text-lg text-gray-600 dark:text-gray-400">
+                <p className="text-base sm:text-lg text-gray-600 dark:text-gray-400">
                   Comprehensive guides, API references, and examples to help you 
                   build with Jersen's AI platform and integrate our services.
                 </p>
-                <div className="space-y-4">
-                  <Link href="/docs" className="flex items-center gap-4 rounded-2xl border border-gray-200 p-4 transition-all hover:border-gray-300 hover:shadow-md dark:border-gray-800 dark:hover:border-gray-700">
-                    <div className="h-12 w-12 rounded-xl bg-blue-50 flex items-center justify-center dark:bg-blue-900/20">
+                <div className="space-y-3 sm:space-y-4">
+                  <Link href="/docs" className="flex items-center gap-3 sm:gap-4 rounded-xl sm:rounded-2xl border border-gray-200 p-3 sm:p-4 transition-all hover:border-gray-300 hover:shadow-md dark:border-gray-800 dark:hover:border-gray-700">
+                    <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-lg sm:rounded-xl bg-blue-50 flex items-center justify-center flex-shrink-0 dark:bg-blue-900/20">
                       <Zap className="h-6 w-6 text-blue-600 dark:text-blue-400" />
                     </div>
                     <div className="flex-1">
@@ -430,8 +430,8 @@ export default function Home() {
                     </div>
                     <ArrowRight className="h-5 w-5 text-gray-400" />
                   </Link>
-                  <Link href="/docs/providers" className="flex items-center gap-4 rounded-2xl border border-gray-200 p-4 transition-all hover:border-gray-300 hover:shadow-md dark:border-gray-800 dark:hover:border-gray-700">
-                    <div className="h-12 w-12 rounded-xl bg-emerald-50 flex items-center justify-center dark:bg-emerald-900/20">
+                  <Link href="/docs/providers" className="flex items-center gap-3 sm:gap-4 rounded-xl sm:rounded-2xl border border-gray-200 p-3 sm:p-4 transition-all hover:border-gray-300 hover:shadow-md dark:border-gray-800 dark:hover:border-gray-700">
+                    <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-lg sm:rounded-xl bg-emerald-50 flex items-center justify-center flex-shrink-0 dark:bg-emerald-900/20">
                       <Database className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
                     </div>
                     <div className="flex-1">
@@ -440,8 +440,8 @@ export default function Home() {
                     </div>
                     <ArrowRight className="h-5 w-5 text-gray-400" />
                   </Link>
-                  <Link href="/docs/deploy" className="flex items-center gap-4 rounded-2xl border border-gray-200 p-4 transition-all hover:border-gray-300 hover:shadow-md dark:border-gray-800 dark:hover:border-gray-700">
-                    <div className="h-12 w-12 rounded-xl bg-purple-50 flex items-center justify-center dark:bg-purple-900/20">
+                  <Link href="/docs/deploy" className="flex items-center gap-3 sm:gap-4 rounded-xl sm:rounded-2xl border border-gray-200 p-3 sm:p-4 transition-all hover:border-gray-300 hover:shadow-md dark:border-gray-800 dark:hover:border-gray-700">
+                    <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-lg sm:rounded-xl bg-purple-50 flex items-center justify-center flex-shrink-0 dark:bg-purple-900/20">
                       <Globe className="h-6 w-6 text-purple-600 dark:text-purple-400" />
                     </div>
                     <div className="flex-1">
@@ -452,8 +452,8 @@ export default function Home() {
                   </Link>
                 </div>
               </div>
-              <div className="relative">
-                <div className="rounded-3xl bg-gray-900 p-6 text-white dark:bg-gray-100 dark:text-black overflow-hidden">
+              <div className="relative hidden lg:block">
+                <div className="rounded-2xl sm:rounded-3xl bg-gray-900 p-4 sm:p-6 text-white dark:bg-gray-100 dark:text-black overflow-hidden">
                   <div className="flex items-center gap-2 mb-4">
                     <div className="h-3 w-3 rounded-full bg-red-400" />
                     <div className="h-3 w-3 rounded-full bg-yellow-400" />
@@ -482,41 +482,41 @@ await insertOne('todos', {
         </section>
 
         {/* Open Source Section */}
-        <section className="px-6 py-24 sm:py-32 bg-gray-50 dark:bg-gray-900/50">
+        <section className="px-4 sm:px-6 py-16 sm:py-24 lg:py-32 bg-gray-50 dark:bg-gray-900/50">
           <div className="mx-auto max-w-7xl">
-            <div className="rounded-3xl border border-gray-200 bg-white p-8 sm:p-12 lg:p-16 dark:border-gray-800 dark:bg-black">
-              <div className="grid gap-12 lg:grid-cols-2 lg:gap-16 items-center">
-                <div className="space-y-6">
-                  <div className="inline-flex items-center rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-sm font-medium dark:border-gray-800 dark:bg-gray-900">
+            <div className="rounded-2xl sm:rounded-3xl border border-gray-200 bg-white p-6 sm:p-8 lg:p-16 dark:border-gray-800 dark:bg-black">
+              <div className="grid gap-8 lg:grid-cols-2 lg:gap-16 items-center">
+                <div className="space-y-5 sm:space-y-6">
+                  <div className="inline-flex items-center rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-xs sm:text-sm font-medium dark:border-gray-800 dark:bg-gray-900">
                     <Github className="mr-2 h-4 w-4" />
                     Open Source
                   </div>
-                  <h2 className="text-3xl font-medium tracking-tight sm:text-4xl">
+                  <h2 className="text-2xl sm:text-3xl font-medium tracking-tight lg:text-4xl">
                     Self-hosting coming soon
                   </h2>
-                  <p className="text-lg text-gray-600 dark:text-gray-400">
+                  <p className="text-base sm:text-lg text-gray-600 dark:text-gray-400">
                     We're building Jersen to be fully open source and self-hostable. 
                     Deploy the entire platform on your own infrastructure with complete control.
                   </p>
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-3 text-gray-600 dark:text-gray-400">
-                      <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                  <div className="space-y-2 sm:space-y-3">
+                    <div className="flex items-center gap-3 text-sm sm:text-base text-gray-600 dark:text-gray-400">
+                      <CheckCircle2 className="h-5 w-5 text-emerald-500 flex-shrink-0" />
                       <span>Full source code access</span>
                     </div>
-                    <div className="flex items-center gap-3 text-gray-600 dark:text-gray-400">
-                      <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                    <div className="flex items-center gap-3 text-sm sm:text-base text-gray-600 dark:text-gray-400">
+                      <CheckCircle2 className="h-5 w-5 text-emerald-500 flex-shrink-0" />
                       <span>Docker deployment ready</span>
                     </div>
-                    <div className="flex items-center gap-3 text-gray-600 dark:text-gray-400">
-                      <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                    <div className="flex items-center gap-3 text-sm sm:text-base text-gray-600 dark:text-gray-400">
+                      <CheckCircle2 className="h-5 w-5 text-emerald-500 flex-shrink-0" />
                       <span>Bring your own AI providers</span>
                     </div>
-                    <div className="flex items-center gap-3 text-gray-600 dark:text-gray-400">
-                      <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                    <div className="flex items-center gap-3 text-sm sm:text-base text-gray-600 dark:text-gray-400">
+                      <CheckCircle2 className="h-5 w-5 text-emerald-500 flex-shrink-0" />
                       <span>Community-driven development</span>
                     </div>
                   </div>
-                  <div className="flex flex-col sm:flex-row gap-4 pt-4">
+                  <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 pt-2 sm:pt-4">
                     <Link
                       href="https://github.com/jersen-app"
                       target="_blank"
@@ -569,30 +569,30 @@ await insertOne('todos', {
         </section>
 
         {/* CTA Section */}
-        <section id="contact" className="px-6 py-24 sm:py-32 border-t border-gray-100 dark:border-gray-900">
+        <section id="contact" className="px-4 sm:px-6 py-16 sm:py-24 lg:py-32 border-t border-gray-100 dark:border-gray-900">
           <div className="mx-auto max-w-4xl text-center">
-            <h2 className="text-4xl font-medium tracking-tight sm:text-5xl mb-6">
+            <h2 className="text-3xl sm:text-4xl font-medium tracking-tight lg:text-5xl mb-4 sm:mb-6">
               Ready to build
               <br />
               something amazing?
             </h2>
-            <p className="text-lg text-gray-600 dark:text-gray-400 mb-10 max-w-2xl mx-auto">
+            <p className="text-base sm:text-lg text-gray-600 dark:text-gray-400 mb-8 sm:mb-10 max-w-2xl mx-auto px-2">
               Whether you want to try our AI Builder or discuss a custom project, 
               we're here to help turn your vision into reality.
             </p>
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4">
               <Link
                 href="/dashboard"
-                className="group inline-flex h-14 items-center justify-center rounded-full bg-black px-8 text-base font-medium text-white transition-all hover:bg-gray-800 hover:scale-105 dark:bg-white dark:text-black dark:hover:bg-gray-200"
+                className="group inline-flex h-12 sm:h-14 w-full sm:w-auto items-center justify-center rounded-full bg-black px-6 sm:px-8 text-sm sm:text-base font-medium text-white transition-all hover:bg-gray-800 hover:scale-105 dark:bg-white dark:text-black dark:hover:bg-gray-200"
               >
                 Start Building Free
-                <ArrowRight className="ml-2 h-5 w-5 transition-transform group-hover:translate-x-1" />
+                <ArrowRight className="ml-2 h-4 sm:h-5 w-4 sm:w-5 transition-transform group-hover:translate-x-1" />
               </Link>
               <Link
                 href="mailto:hello@jersen.app"
-                className="group inline-flex h-14 items-center justify-center rounded-full border border-gray-200 px-8 text-base font-medium transition-all hover:bg-gray-50 hover:border-gray-300 dark:border-gray-800 dark:hover:bg-gray-900"
+                className="group inline-flex h-12 sm:h-14 w-full sm:w-auto items-center justify-center rounded-full border border-gray-200 px-6 sm:px-8 text-sm sm:text-base font-medium transition-all hover:bg-gray-50 hover:border-gray-300 dark:border-gray-800 dark:hover:bg-gray-900"
               >
-                <MessageSquare className="mr-2 h-5 w-5" />
+                <MessageSquare className="mr-2 h-4 sm:h-5 w-4 sm:w-5" />
                 Contact Sales
               </Link>
             </div>
@@ -601,12 +601,12 @@ await insertOne('todos', {
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-gray-100 py-16 dark:border-gray-900">
-        <div className="mx-auto max-w-7xl px-6">
-          <div className="grid gap-12 sm:grid-cols-2 lg:grid-cols-4 mb-12">
-            <div className="space-y-4">
+      <footer className="border-t border-gray-100 py-12 sm:py-16 dark:border-gray-900">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6">
+          <div className="grid gap-8 sm:gap-12 grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 mb-8 sm:mb-12">
+            <div className="col-span-2 sm:col-span-1 space-y-4">
               <div className="text-xl font-bold">Jersen</div>
-              <p className="text-sm text-gray-500 leading-relaxed">
+              <p className="text-sm text-gray-500 leading-relaxed max-w-xs">
                 Premium development services in Cambodia. From MVP to full-scale product, 
                 we turn your vision into reality.
               </p>
@@ -616,27 +616,27 @@ await insertOne('todos', {
                 </Link>
               </div>
             </div>
-            <div className="space-y-4">
-              <div className="font-medium">Product</div>
-              <div className="space-y-3 text-sm">
+            <div className="space-y-3 sm:space-y-4">
+              <div className="font-medium text-sm sm:text-base">Product</div>
+              <div className="space-y-2 sm:space-y-3 text-sm">
                 <Link href="/dashboard" className="block text-gray-500 hover:text-black dark:hover:text-white transition-colors">AI Builder</Link>
                 <Link href="#services" className="block text-gray-500 hover:text-black dark:hover:text-white transition-colors">Services</Link>
                 <Link href="#projects" className="block text-gray-500 hover:text-black dark:hover:text-white transition-colors">Showcase</Link>
                 <Link href="/pricing" className="block text-gray-500 hover:text-black dark:hover:text-white transition-colors">Pricing</Link>
               </div>
             </div>
-            <div className="space-y-4">
-              <div className="font-medium">Resources</div>
-              <div className="space-y-3 text-sm">
+            <div className="space-y-3 sm:space-y-4">
+              <div className="font-medium text-sm sm:text-base">Resources</div>
+              <div className="space-y-2 sm:space-y-3 text-sm">
                 <Link href="/docs" className="block text-gray-500 hover:text-black dark:hover:text-white transition-colors">Documentation</Link>
                 <Link href="/docs/providers" className="block text-gray-500 hover:text-black dark:hover:text-white transition-colors">API Reference</Link>
                 <Link href="https://github.com/jersen-app" target="_blank" className="block text-gray-500 hover:text-black dark:hover:text-white transition-colors">GitHub</Link>
                 <Link href="/changelog" className="block text-gray-500 hover:text-black dark:hover:text-white transition-colors">Changelog</Link>
               </div>
             </div>
-            <div className="space-y-4">
-              <div className="font-medium">Company</div>
-              <div className="space-y-3 text-sm">
+            <div className="space-y-3 sm:space-y-4">
+              <div className="font-medium text-sm sm:text-base">Company</div>
+              <div className="space-y-2 sm:space-y-3 text-sm">
                 <Link href="/about" className="block text-gray-500 hover:text-black dark:hover:text-white transition-colors">About</Link>
                 <Link href="mailto:hello@jersen.app" className="block text-gray-500 hover:text-black dark:hover:text-white transition-colors">Contact</Link>
                 <Link href="/privacy" className="block text-gray-500 hover:text-black dark:hover:text-white transition-colors">Privacy</Link>
@@ -644,8 +644,8 @@ await insertOne('todos', {
               </div>
             </div>
           </div>
-          <div className="border-t border-gray-100 dark:border-gray-900 pt-8 flex flex-col sm:flex-row items-center justify-between gap-4">
-            <p className="text-sm text-gray-500">
+          <div className="border-t border-gray-100 dark:border-gray-900 pt-6 sm:pt-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <p className="text-xs sm:text-sm text-gray-500">
               © {new Date().getFullYear()} Jersen. All rights reserved.
             </p>
             <p className="text-sm text-gray-500">
