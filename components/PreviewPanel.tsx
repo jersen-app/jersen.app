@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
     Play,
     RefreshCw,
@@ -10,6 +10,9 @@ import {
     Smartphone,
     Tablet,
     Monitor,
+    Maximize,
+    Minimize,
+    RotateCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -46,6 +49,8 @@ export function PreviewPanel({
     const [viewport, setViewport] = useState<ViewportSize>("desktop");
     const [iframeKey, setIframeKey] = useState(0);
     const [iframeLoading, setIframeLoading] = useState(true);
+    const [isFullscreen, setIsFullscreen] = useState(false);
+    const containerRef = useRef<HTMLDivElement>(null);
 
     // Reset iframe loading state when URL changes or iframe key changes
     useEffect(() => {
@@ -54,9 +59,27 @@ export function PreviewPanel({
         }
     }, [url, iframeKey]);
 
+    // Handle fullscreen change events
+    useEffect(() => {
+        const handleFullscreenChange = () => {
+            setIsFullscreen(!!document.fullscreenElement);
+        };
+
+        document.addEventListener("fullscreenchange", handleFullscreenChange);
+        return () => {
+            document.removeEventListener("fullscreenchange", handleFullscreenChange);
+        };
+    }, []);
+
     const handleRefresh = () => {
         setIframeKey((prev) => prev + 1);
         onRefresh();
+    };
+
+    // Refresh only the iframe (not the sandbox)
+    const handleRefreshIframe = () => {
+        setIframeLoading(true);
+        setIframeKey((prev) => prev + 1);
     };
 
     const handleOpenExternal = () => {
@@ -65,8 +88,22 @@ export function PreviewPanel({
         }
     };
 
+    const handleToggleFullscreen = async () => {
+        if (!containerRef.current) return;
+
+        try {
+            if (!document.fullscreenElement) {
+                await containerRef.current.requestFullscreen();
+            } else {
+                await document.exitFullscreen();
+            }
+        } catch (err) {
+            console.error("Fullscreen error:", err);
+        }
+    };
+
     return (
-        <div className="flex flex-col h-full bg-background">
+        <div ref={containerRef} className="flex flex-col h-full bg-background">
             {/* Toolbar */}
             <div className="flex items-center justify-between border-b px-3 py-2 shrink-0">
                 <div className="flex items-center gap-2">
@@ -102,7 +139,29 @@ export function PreviewPanel({
                             <Button
                                 size="sm"
                                 variant="outline"
+                                onClick={handleRefreshIframe}
+                                disabled={isLoading}
+                                title="Refresh preview"
+                            >
+                                <RotateCw className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={handleToggleFullscreen}
+                                title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+                            >
+                                {isFullscreen ? (
+                                    <Minimize className="h-3.5 w-3.5" />
+                                ) : (
+                                    <Maximize className="h-3.5 w-3.5" />
+                                )}
+                            </Button>
+                            <Button
+                                size="sm"
+                                variant="outline"
                                 onClick={handleOpenExternal}
+                                title="Open in new tab"
                             >
                                 <ExternalLink className="h-3.5 w-3.5" />
                             </Button>
@@ -111,6 +170,7 @@ export function PreviewPanel({
                                 variant="ghost"
                                 onClick={onStop}
                                 className="text-muted-foreground hover:text-destructive"
+                                title="Stop sandbox"
                             >
                                 <X className="h-3.5 w-3.5" />
                             </Button>

@@ -121,15 +121,53 @@ export default function BuilderClient({
         };
     }, [files, saveFiles]);
 
+    // Handle streaming file updates (real-time editor update, no sandbox sync)
+    const handleStreamingFiles = useCallback(
+        (newFiles: { path: string; content: string; isDelete?: boolean }[]) => {
+            // Only update files in editor, don't trigger sandbox sync
+            const filesToDelete = newFiles.filter(f => f.isDelete).map(f => f.path);
+            const filesToUpdate = newFiles.filter(f => !f.isDelete);
+            
+            setFiles(prevFiles => {
+                const fileMap = new Map(prevFiles.map((f) => [f.path, f]));
+                
+                // Remove deleted files
+                for (const path of filesToDelete) {
+                    fileMap.delete(path);
+                }
+                
+                // Add/update files
+                filesToUpdate.forEach((file) => {
+                    fileMap.set(file.path, file);
+                });
+                
+                return Array.from(fileMap.values());
+            });
+        },
+        []
+    );
+
     // Handle new files generated from AI (with auto-preview)
     const handleFilesGenerated = useCallback(
-        async (newFiles: { path: string; content: string }[]) => {
-            console.log(`[BuilderClient] Received ${newFiles.length} new files:`, newFiles.map(f => f.path));
+        async (newFiles: { path: string; content: string; isDelete?: boolean }[]) => {
+            console.log(`[BuilderClient] Received ${newFiles.length} file operations:`, newFiles.map(f => ({ path: f.path, isDelete: f.isDelete })));
             
-            // Merge new files with existing ones
+            // Separate deletions from additions/updates
+            const filesToDelete = newFiles.filter(f => f.isDelete).map(f => f.path);
+            const filesToUpdate = newFiles.filter(f => !f.isDelete);
+            
+            // Merge new files with existing ones, handling deletions
             const updatedFiles = (() => {
                 const fileMap = new Map(files.map((f) => [f.path, f]));
-                newFiles.forEach((file) => {
+                
+                // Remove deleted files
+                for (const path of filesToDelete) {
+                    fileMap.delete(path);
+                    console.log(`[BuilderClient] Deleted file: ${path}`);
+                }
+                
+                // Add/update files
+                filesToUpdate.forEach((file) => {
                     fileMap.set(file.path, file);
                 });
                 return Array.from(fileMap.values());
@@ -303,6 +341,7 @@ export default function BuilderClient({
                     <ChatInterface
                         projectId={projectId}
                         onFilesGenerated={handleFilesGenerated}
+                        onStreamingFiles={handleStreamingFiles}
                         existingFiles={files}
                         initialPrompt={initialPrompt}
                     />

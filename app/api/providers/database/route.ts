@@ -37,6 +37,7 @@ function processQuery(query: any): any {
 const ALLOWED_PRODUCTION_ORIGINS = [
     "https://jersen.app",
     "https://www.jersen.app",
+    "http://localhost:3000",
     process.env.NEXT_PUBLIC_APP_URL,
 ].filter(Boolean);
 

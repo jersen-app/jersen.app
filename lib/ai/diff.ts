@@ -48,8 +48,11 @@ export function parseDiffBlocks(content: string): FileDiff | null {
     const path = filepathMatch[1].trim();
     const restContent = lines.slice(1).join('\n');
     
-    // Check if this contains SEARCH/REPLACE blocks
-    if (!restContent.includes('<<<<<<< SEARCH') || !restContent.includes('>>>>>>> REPLACE')) {
+    // Check if this contains SEARCH/REPLACE blocks (flexible check)
+    const hasDiffMarkers = (restContent.includes('<<<<<<< SEARCH') || restContent.includes('<<<<<<<SEARCH') || restContent.includes('<<<<<<< search') || restContent.includes('<<<<<<<:')) 
+        && (restContent.includes('>>>>>>> REPLACE') || restContent.includes('>>>>>>>REPLACE') || restContent.includes('>>>>>>> replace') || restContent.includes('>>>>>>>:'));
+    
+    if (!hasDiffMarkers) {
         // This is a full file, not a diff
         return {
             path,
@@ -59,9 +62,9 @@ export function parseDiffBlocks(content: string): FileDiff | null {
         };
     }
     
-    // Parse SEARCH/REPLACE blocks
+    // Parse SEARCH/REPLACE blocks (flexible regex)
     const blocks: DiffBlock[] = [];
-    const blockRegex = /<<<<<<< SEARCH\n([\s\S]*?)\n=======\n([\s\S]*?)\n>>>>>>> REPLACE/g;
+    const blockRegex = /<<<<<<<?:?\s*SEARCH\s*\n([\s\S]*?)\n?=======\n?([\s\S]*?)\n?>>>>>>>?:?\s*REPLACE/gi;
     
     let match;
     while ((match = blockRegex.exec(restContent)) !== null) {

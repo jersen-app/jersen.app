@@ -8,6 +8,7 @@ interface SandboxState {
     status: "idle" | "creating" | "running" | "updating" | "error";
     error: string | null;
     expiresAt: number | null;
+    warning: string | null;
 }
 
 interface SandboxSettings {
@@ -28,6 +29,7 @@ export function useSandbox({ projectId, autoCreate = false }: UseSandboxOptions)
         status: "idle",
         error: null,
         expiresAt: null,
+        warning: null,
     });
 
     const [settings, setSettings] = useState<SandboxSettings>({
@@ -90,6 +92,7 @@ export function useSandbox({ projectId, autoCreate = false }: UseSandboxOptions)
                     status: "running",
                     error: null,
                     expiresAt: Date.now() + settings.sandboxTimeoutMinutes * 60 * 1000,
+                    warning: null,
                 });
 
                 return data;
@@ -182,6 +185,7 @@ export function useSandbox({ projectId, autoCreate = false }: UseSandboxOptions)
                 status: "idle",
                 error: null,
                 expiresAt: null,
+                warning: null,
             });
 
             filesRef.current = {};

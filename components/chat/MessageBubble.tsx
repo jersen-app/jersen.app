@@ -1,9 +1,11 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Bot, User, ChevronDown, ChevronUp, Image as ImageIcon, FileText } from "lucide-react";
+import { useUser } from "@clerk/nextjs";
+import { User, ChevronDown, ChevronUp, Image as ImageIcon, FileText, Trash2 } from "lucide-react";
+import Image from "next/image";
 import { cn } from "@/lib/utils";
-import type { Message } from "./types";
+import type { Message, ParsedBlock } from "./types";
 import { FileBlock } from "./FileBlock";
 import { CodeBlock } from "./CodeBlock";
 import { MarkdownContent } from "./MarkdownContent";
@@ -16,11 +18,26 @@ import {
 
 const MAX_CONTENT_LENGTH = 500; // Characters before collapsing
 
+// Component to render delete file blocks
+function DeleteBlock({ block }: { block: ParsedBlock }) {
+  return (
+    <div className="my-2 rounded-lg border border-red-500/30 bg-red-500/5 overflow-hidden">
+      <div className="flex items-center gap-2 px-2 py-1.5 bg-red-500/10">
+        <Trash2 className="h-3.5 w-3.5 text-red-600 dark:text-red-400 shrink-0" />
+        <span className="text-xs font-medium text-red-700 dark:text-red-300">
+          Deleted: {block.filename}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 interface MessageBubbleProps {
   message: Message;
 }
 
 export function MessageBubble({ message }: MessageBubbleProps) {
+  const { user } = useUser();
   const isUser = message.role === "user";
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -71,6 +88,9 @@ export function MessageBubble({ message }: MessageBubbleProps) {
   const renderContent = () => {
     if (message.parsedBlocks && message.parsedBlocks.length > 0) {
       return message.parsedBlocks.map((block, idx) => {
+        if (block.type === "delete") {
+          return <DeleteBlock key={idx} block={block} />;
+        }
         if (block.type === "file" || block.type === "diff") {
           // File blocks are collapsed by default
           return <FileBlock key={idx} block={block} defaultCollapsed={true} />;
@@ -87,14 +107,19 @@ export function MessageBubble({ message }: MessageBubbleProps) {
   return (
     <div className={cn("flex gap-3 py-3", isUser && "flex-row-reverse")}>
       {/* Avatar */}
-      <div
-        className={cn(
-          "flex h-8 w-8 shrink-0 select-none items-center justify-center rounded-full",
-          isUser ? "bg-primary text-primary-foreground" : "bg-muted"
-        )}
-      >
-        {isUser ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
-      </div>
+      {isUser ? (
+        <div className="flex h-8 w-8 shrink-0 select-none items-center justify-center rounded-full overflow-hidden bg-primary text-primary-foreground">
+          {user?.imageUrl ? (
+            <Image src={user.imageUrl} alt="You" width={32} height={32} className="object-cover" />
+          ) : (
+            <User className="h-4 w-4" />
+          )}
+        </div>
+      ) : (
+        <div className="flex h-12 w-12 shrink-0 select-none items-center justify-center">
+          <Image src="/logo.png" alt="Jersen AI" width={56} height={56} className="dark:invert" />
+        </div>
+      )}
 
       {/* Content */}
       <div

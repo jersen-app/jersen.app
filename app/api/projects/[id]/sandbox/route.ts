@@ -29,7 +29,22 @@ function getJersenApiUrl(): string {
         url = 'http://localhost:3000';
     }
     // Remove trailing slash to prevent double slashes in URLs
-    return url.replace(/\/$/, '');
+    const cleanUrl = url.replace(/\/$/, '');
+    
+    // Warn if using localhost - E2B sandbox cannot reach localhost
+    if (cleanUrl.includes('localhost') || cleanUrl.includes('127.0.0.1')) {
+        console.warn(
+            '⚠️  WARNING: NEXT_PUBLIC_APP_URL is set to localhost.',
+            '\n   E2B sandbox CANNOT reach localhost on your machine.',
+            '\n   Auth, Storage, and Database providers will NOT work in preview.',
+            '\n   To fix: Use ngrok or a tunnel service:',
+            '\n   1. Run: ngrok http 3000',
+            '\n   2. Update .env.local: NEXT_PUBLIC_APP_URL=https://your-ngrok-url.ngrok.io',
+            '\n   3. Restart the dev server'
+        );
+    }
+    
+    return cleanUrl;
 }
 
 const JERSEN_API_URL = getJersenApiUrl();
@@ -280,10 +295,16 @@ async function createSandbox(
     );
     console.log(`Saved sandbox URL to project: ${url}`);
 
+    // Check if providers will work (not if using localhost)
+    const isLocalhost = JERSEN_API_URL.includes('localhost') || JERSEN_API_URL.includes('127.0.0.1');
+
     return NextResponse.json({
         sandboxId: sandbox.sandboxId,
         url,
         status: "created",
+        warning: isLocalhost ? 
+            "Auth, Storage, and Database providers will not work because NEXT_PUBLIC_APP_URL is set to localhost. Use ngrok or a tunnel service to expose your local server." : 
+            undefined,
     });
 }
 
