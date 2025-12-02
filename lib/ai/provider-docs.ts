@@ -571,6 +571,204 @@ export function StorageImageByKey({ storageKey, alt, ...props }: { storageKey: s
 }
 \`\`\`
 
+### Complete Example: Todo with File Attachment
+
+This shows the CORRECT way to add file uploads to a todo list. The key insight is that the **attachment URL must be included when creating the todo record**.
+
+**API Route with Attachment Support:**
+\`\`\`typescript
+// filepath: app/api/todos/route.ts
+import { NextResponse } from 'next/server';
+import { getUserFromToken } from '@/lib/auth';
+import { find, insertOne, updateOne, deleteOne } from '@/lib/jersen-db';
+
+async function getAuthUser(request: Request) {
+  const authHeader = request.headers.get('Authorization');
+  if (!authHeader?.startsWith('Bearer ')) return null;
+  const token = authHeader.split(' ')[1];
+  return getUserFromToken(token);
+}
+
+export async function GET(request: Request) {
+  const user = await getAuthUser(request);
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const result = await find('todos', { userId: user.id });
+  return NextResponse.json(result.documents || []);
+}
+
+export async function POST(request: Request) {
+  const user = await getAuthUser(request);
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  // ⚠️ IMPORTANT: Accept attachment in the request body!
+  const { text, attachment } = await request.json();
+  
+  const newTodo = {
+    userId: user.id,
+    text,
+    completed: false,
+    createdAt: new Date().toISOString(),
+    // Include attachment if provided
+    ...(attachment && {
+      attachment: {
+        key: attachment.key,
+        url: attachment.url,
+        name: attachment.name,
+      }
+    }),
+  };
+
+  const result = await insertOne('todos', newTodo);
+  return NextResponse.json({ _id: result.insertedId, ...newTodo });
+}
+\`\`\`
+
+**Frontend Form Component:**
+\`\`\`tsx
+// filepath: components/AddTodoForm.tsx
+"use client";
+import { useState } from 'react';
+import { uploadFile } from '@/lib/jersen-storage';
+
+interface Attachment {
+  key: string;
+  url: string;
+  name: string;
+}
+
+export function AddTodoForm({ onAdd }: { onAdd: () => void }) {
+  const [text, setText] = useState('');
+  const [file, setFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!text.trim()) return;
+    
+    setUploading(true);
+    
+    try {
+      let attachment: Attachment | undefined;
+      
+      // Step 1: Upload file first if selected
+      if (file) {
+        const key = \`todos/\${Date.now()}-\${file.name}\`;
+        const uploadResult = await uploadFile(file, key);
+        
+        if (uploadResult.success && uploadResult.url) {
+          attachment = {
+            key: uploadResult.key!,
+            url: uploadResult.url,
+            name: file.name,
+          };
+        }
+      }
+      
+      // Step 2: Create todo WITH the attachment info
+      const token = localStorage.getItem('jersen_session');
+      await fetch('/api/todos', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': \`Bearer \${token}\`,
+        },
+        body: JSON.stringify({
+          text: text.trim(),
+          attachment,  // ⚠️ Include the attachment!
+        }),
+      });
+      
+      setText('');
+      setFile(null);
+      onAdd();
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="flex gap-2">
+      <input
+        type="text"
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        placeholder="Add todo..."
+        className="flex-1 border rounded px-3 py-2"
+      />
+      <input
+        type="file"
+        onChange={(e) => setFile(e.target.files?.[0] || null)}
+        accept="image/*"
+      />
+      <button type="submit" disabled={uploading}>
+        {uploading ? 'Adding...' : 'Add'}
+      </button>
+    </form>
+  );
+}
+\`\`\`
+
+**Display Todo with Attachment:**
+\`\`\`tsx
+// filepath: components/TodoItem.tsx
+interface Todo {
+  _id: string;
+  text: string;
+  completed: boolean;
+  attachment?: {
+    key: string;
+    url: string;
+    name: string;
+  };
+}
+
+export function TodoItem({ todo }: { todo: Todo }) {
+  return (
+    <div className="p-4 border rounded">
+      <p>{todo.text}</p>
+      {todo.attachment && (
+        <div className="mt-2">
+          {/* Use the URL directly - it's a public gateway URL */}
+          <img 
+            src={todo.attachment.url} 
+            alt={todo.attachment.name}
+            className="max-w-xs rounded"
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+\`\`\`
+
+### Key Pattern: Upload → Include URL in Data
+
+The correct flow is:
+1. **Upload file to storage** → Get back \`{ key, url }\`
+2. **Create/update database record** → Include the \`key\` and \`url\` in the record
+3. **When displaying** → Use the \`url\` directly (it's a public CDN URL)
+
+❌ **WRONG** - Upload and create separately without connecting them:
+\`\`\`typescript
+// This creates a todo WITHOUT the image!
+await uploadFile(file, key);
+await insertOne('todos', { text }); // Missing attachment!
+\`\`\`
+
+✅ **CORRECT** - Upload first, then include in record:
+\`\`\`typescript
+const upload = await uploadFile(file, key);
+await insertOne('todos', { 
+  text,
+  attachment: { key: upload.key, url: upload.url, name: file.name }
+});
+\`\`\`
+
 ### Best Practices
 - **Always store file metadata in the database** - Storage only stores the file, not metadata!
 - Use meaningful key paths: \`users/{userId}/avatar.jpg\`, \`products/{productId}/images/main.jpg\`
@@ -958,6 +1156,313 @@ export async function POST(request: Request) {
   return NextResponse.json(result);
 }
 \`\`\`
+
+### Complete Example: Auth + Database + Storage (Todo with Attachments)
+
+When all three providers are used together, here's the complete pattern:
+
+**API Route:**
+\`\`\`typescript
+// filepath: app/api/todos/route.ts
+import { NextResponse } from 'next/server';
+import { getUserFromToken } from '@/lib/auth';
+import { find, insertOne, updateOne, deleteOne } from '@/lib/jersen-db';
+
+interface Todo {
+  _id: string;
+  userId: string;
+  text: string;
+  completed: boolean;
+  createdAt: string;
+  attachment?: {
+    key: string;
+    url: string;
+    name: string;
+  };
+}
+
+async function getAuthUser(request: Request) {
+  const authHeader = request.headers.get('Authorization');
+  if (!authHeader?.startsWith('Bearer ')) return null;
+  const token = authHeader.split(' ')[1];
+  return getUserFromToken(token);
+}
+
+// GET - List user's todos (with attachments)
+export async function GET(request: Request) {
+  const user = await getAuthUser(request);
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const result = await find<Todo>('todos', { userId: user.id });
+  return NextResponse.json(result.documents || []);
+}
+
+// POST - Create todo (with optional attachment)
+export async function POST(request: Request) {
+  const user = await getAuthUser(request);
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  // ⚠️ Accept both text AND attachment from client
+  const { text, attachment } = await request.json();
+  
+  if (!text?.trim()) {
+    return NextResponse.json({ error: 'Text is required' }, { status: 400 });
+  }
+
+  const newTodo: Omit<Todo, '_id'> = {
+    userId: user.id,
+    text: text.trim(),
+    completed: false,
+    createdAt: new Date().toISOString(),
+  };
+
+  // Include attachment if provided (already uploaded client-side)
+  if (attachment?.key && attachment?.url) {
+    newTodo.attachment = {
+      key: attachment.key,
+      url: attachment.url,
+      name: attachment.name || 'file',
+    };
+  }
+
+  const result = await insertOne('todos', newTodo);
+  return NextResponse.json({ _id: result.insertedId, ...newTodo }, { status: 201 });
+}
+
+// PATCH - Toggle completed status
+export async function PATCH(request: Request) {
+  const user = await getAuthUser(request);
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const { id, completed } = await request.json();
+  const result = await updateOne(
+    'todos',
+    { _id: id, userId: user.id },
+    { $set: { completed } }
+  );
+  return NextResponse.json({ success: result.modifiedCount > 0 });
+}
+
+// DELETE - Remove todo
+export async function DELETE(request: Request) {
+  const user = await getAuthUser(request);
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const { searchParams } = new URL(request.url);
+  const id = searchParams.get('id');
+  
+  const result = await deleteOne('todos', { _id: id, userId: user.id });
+  return NextResponse.json({ success: result.deletedCount > 0 });
+}
+\`\`\`
+
+**Frontend - Add Todo Form with File Upload:**
+\`\`\`tsx
+// filepath: components/AddTodoForm.tsx
+"use client";
+import { useState } from 'react';
+import { uploadFile } from '@/lib/jersen-storage';
+import { getToken } from '@/lib/auth';
+
+interface AddTodoFormProps {
+  onAdd: () => void;
+}
+
+export function AddTodoForm({ onAdd }: AddTodoFormProps) {
+  const [text, setText] = useState('');
+  const [file, setFile] = useState<File | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!text.trim() || loading) return;
+    
+    setLoading(true);
+    
+    try {
+      let attachment;
+      
+      // Step 1: If file selected, upload it first
+      if (file) {
+        const key = \`todos/\${Date.now()}-\${file.name.replace(/\\s+/g, '-')}\`;
+        const uploadResult = await uploadFile(file, key);
+        
+        if (uploadResult.success && uploadResult.url) {
+          attachment = {
+            key: uploadResult.key,
+            url: uploadResult.url,
+            name: file.name,
+          };
+        } else {
+          throw new Error(uploadResult.error || 'Upload failed');
+        }
+      }
+      
+      // Step 2: Create todo with attachment info included
+      const res = await fetch('/api/todos', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': \`Bearer \${getToken()}\`,
+        },
+        body: JSON.stringify({
+          text: text.trim(),
+          attachment, // ⚠️ This includes the uploaded file's URL!
+        }),
+      });
+      
+      if (!res.ok) throw new Error('Failed to create todo');
+      
+      // Reset form
+      setText('');
+      setFile(null);
+      onAdd(); // Refresh list
+    } catch (error) {
+      console.error('Error creating todo:', error);
+      alert('Failed to add todo');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <input
+        type="text"
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        placeholder="What needs to be done?"
+        className="w-full p-3 border rounded-xl"
+        disabled={loading}
+      />
+      <div className="flex gap-2">
+        <input
+          type="file"
+          onChange={(e) => setFile(e.target.files?.[0] || null)}
+          accept="image/*,application/pdf"
+          className="flex-1"
+          disabled={loading}
+        />
+        <button
+          type="submit"
+          disabled={loading || !text.trim()}
+          className="px-4 py-2 bg-black text-white rounded-xl disabled:opacity-50"
+        >
+          {loading ? 'Adding...' : 'Add Todo'}
+        </button>
+      </div>
+      {file && (
+        <p className="text-sm text-gray-500">Selected: {file.name}</p>
+      )}
+    </form>
+  );
+}
+\`\`\`
+
+**Frontend - Todo Item with Attachment Display:**
+\`\`\`tsx
+// filepath: components/TodoItem.tsx
+"use client";
+import { getToken } from '@/lib/auth';
+
+interface Todo {
+  _id: string;
+  text: string;
+  completed: boolean;
+  attachment?: {
+    key: string;
+    url: string;
+    name: string;
+  };
+}
+
+interface TodoItemProps {
+  todo: Todo;
+  onUpdate: () => void;
+}
+
+export function TodoItem({ todo, onUpdate }: TodoItemProps) {
+  const handleToggle = async () => {
+    await fetch('/api/todos', {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': \`Bearer \${getToken()}\`,
+      },
+      body: JSON.stringify({ id: todo._id, completed: !todo.completed }),
+    });
+    onUpdate();
+  };
+
+  const handleDelete = async () => {
+    await fetch(\`/api/todos?id=\${todo._id}\`, {
+      method: 'DELETE',
+      headers: { 'Authorization': \`Bearer \${getToken()}\` },
+    });
+    onUpdate();
+  };
+
+  const isImage = todo.attachment?.name.match(/\\.(jpg|jpeg|png|gif|webp)$/i);
+
+  return (
+    <div className="p-4 border rounded-xl">
+      <div className="flex items-center gap-3">
+        <input
+          type="checkbox"
+          checked={todo.completed}
+          onChange={handleToggle}
+          className="w-5 h-5"
+        />
+        <span className={todo.completed ? 'line-through text-gray-400' : ''}>
+          {todo.text}
+        </span>
+        <button onClick={handleDelete} className="ml-auto text-red-500">
+          Delete
+        </button>
+      </div>
+      
+      {/* Display attachment if present */}
+      {todo.attachment && (
+        <div className="mt-3 pl-8">
+          {isImage ? (
+            <img 
+              src={todo.attachment.url}  // Direct public URL
+              alt={todo.attachment.name}
+              className="max-w-xs rounded-lg"
+            />
+          ) : (
+            <a 
+              href={todo.attachment.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-500 hover:underline"
+            >
+              📎 {todo.attachment.name}
+            </a>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+\`\`\`
+
+### Key Integration Points:
+
+1. **Client uploads file to storage** → Gets \`{ key, url, name }\`
+2. **Client sends todo + attachment info to API** → API saves both in database
+3. **When fetching todos** → Attachment URL is already in the document
+4. **When displaying** → Use \`todo.attachment.url\` directly (public CDN)
+
+This ensures the file URL is **stored with the todo record** so it appears when listing todos.
 `;
 }
 
