@@ -311,3 +311,31 @@ export function extractDependencies(files: ParsedFile[] | Record<string, string>
     
     return Array.from(packages);
 }
+
+/**
+ * Extract explicit package install commands from AI response
+ * Parses: <jersen_install>package1 package2 @scope/package</jersen_install>
+ * 
+ * @param aiResponse - The full AI response text
+ * @returns Array of package names to install
+ */
+export function extractInstallCommands(aiResponse: string): string[] {
+    const packages: string[] = [];
+    
+    // Match <jersen_install>...</jersen_install> blocks
+    const installRegex = /<jersen_install>([\s\S]*?)<\/jersen_install>/gi;
+    let match;
+    
+    while ((match = installRegex.exec(aiResponse)) !== null) {
+        const content = match[1].trim();
+        // Split by whitespace, commas, or newlines
+        const pkgs = content.split(/[\s,]+/).filter(pkg => pkg.length > 0);
+        packages.push(...pkgs);
+    }
+    
+    // Validate package names (basic validation)
+    return packages.filter(pkg => {
+        // Valid npm package name pattern
+        return /^(@[a-z0-9-~][a-z0-9-._~]*\/)?[a-z0-9-~][a-z0-9-._~]*$/i.test(pkg);
+    });
+}

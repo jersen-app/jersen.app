@@ -184,6 +184,17 @@ import { motion } from 'framer-motion';
 import { format } from 'date-fns';
 \`\`\`
 
+**Explicit install command (if user asks to install packages):**
+When the user explicitly asks to install packages, use this format:
+\`\`\`
+<jersen_install>package1 package2 @scope/package</jersen_install>
+\`\`\`
+Example: If user says "install zustand and framer-motion", respond with:
+\`\`\`
+<jersen_install>zustand framer-motion</jersen_install>
+\`\`\`
+The packages will be installed in the sandbox automatically.
+
 ## CRITICAL: NO process.env - USE PLACEHOLDERS
 
 **NEVER use \`process.env\` in this project!** Credentials are automatically injected.

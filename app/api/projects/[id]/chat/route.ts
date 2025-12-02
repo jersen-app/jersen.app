@@ -6,7 +6,7 @@ import ChatMessage from "@/models/ChatMessage";
 import Project from "@/models/Project";
 import { getPlatformSettings } from "@/models/PlatformSettings";
 import { SYSTEM_PROMPT, buildContextPrompt } from "@/lib/ai/prompts";
-import { parseGeneratedFiles, extractDependencies } from "@/lib/ai/files";
+import { parseGeneratedFiles, extractDependencies, extractInstallCommands } from "@/lib/ai/files";
 import { type FileChange } from "@/lib/ai/tools";
 import { checkCredits, consumeCredit } from "@/lib/subscription";
 import { 
@@ -343,14 +343,20 @@ ${autoInjectedDocs}`;
                                 fileMap.set(path, { path, content, updatedAt: now });
                             }
                             
-                            // Extract dependencies from the FINAL file contents (not raw parsed files)
-                            // This ensures we get imports from both new files and applied diffs
-                            const newDeps = extractDependencies(generatedFiles);
+                            // Extract dependencies from:
+                            // 1. Import statements in generated files
+                            // 2. Explicit <jersen_install>...</jersen_install> commands
+                            const depsFromImports = extractDependencies(generatedFiles);
+                            const depsFromCommands = extractInstallCommands(text);
+                            const newDeps = [...new Set([...depsFromImports, ...depsFromCommands])];
                             const existingDeps: string[] = (project as any).dependencies || [];
                             const allDeps = [...new Set([...existingDeps, ...newDeps])];
                             
                             if (newDeps.length > 0) {
                                 console.log(`Adding dependencies to project ${projectId}: ${newDeps.join(', ')}`);
+                                if (depsFromCommands.length > 0) {
+                                    console.log(`  - From install commands: ${depsFromCommands.join(', ')}`);
+                                }
                             }
                             
                             // Use updateOne with $set for both files and dependencies
