@@ -17,6 +17,8 @@ export interface IProject {
     apiKeyHash?: string;
     // Current sandbox URL for CORS whitelist
     sandboxUrl?: string;
+    // Array of allowed origins for CORS (deployed URLs, custom domains, etc.)
+    allowedOrigins?: string[];
     // Store project files directly in the document
     files: IProjectFile[];
     // NPM dependencies to install in sandbox
@@ -91,6 +93,10 @@ const ProjectSchema = new Schema<IProject>(
         },
         sandboxUrl: {
             type: String,
+        },
+        allowedOrigins: {
+            type: [String],
+            default: [],
         },
         files: {
             type: [ProjectFileSchema],

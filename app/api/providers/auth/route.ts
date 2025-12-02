@@ -25,7 +25,7 @@ function isOriginAllowed(origin: string | null): boolean {
     return ALLOWED_PRODUCTION_ORIGINS.includes(origin) || isValidE2BSandbox(origin);
 }
 
-// Get CORS headers for allowed origins
+// Get CORS headers for allowed origins (without project context)
 function getCorsHeaders(origin: string | null): Record<string, string> {
     const isAllowed = isOriginAllowed(origin);
     return {
@@ -36,19 +36,45 @@ function getCorsHeaders(origin: string | null): Record<string, string> {
     };
 }
 
+// Get CORS headers with project-specific allowed origins
+function getCorsHeadersWithProject(origin: string | null, project: { sandboxUrl?: string; allowedOrigins?: string[] } | null): Record<string, string> {
+    const isAllowed = origin && (
+        isOriginAllowed(origin) ||
+        origin === project?.sandboxUrl ||
+        (project?.allowedOrigins || []).includes(origin)
+    );
+    return {
+        "Access-Control-Allow-Origin": isAllowed ? origin : "null",
+        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, x-jersen-api-key, x-user-id",
+        "Access-Control-Allow-Credentials": "true",
+    };
+}
+
 // OPTIONS handler for CORS preflight
+// Be permissive for preflight - actual validation happens in POST/GET handlers
 export async function OPTIONS(request: NextRequest) {
     const origin = request.headers.get("origin");
+    const isAllowed = origin && (
+        isOriginAllowed(origin) ||
+        origin.startsWith("https://")
+    );
+    
     return new NextResponse(null, { 
         status: 204, 
-        headers: getCorsHeaders(origin)
+        headers: {
+            "Access-Control-Allow-Origin": isAllowed ? origin : "null",
+            "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, x-jersen-api-key, x-user-id",
+            "Access-Control-Allow-Credentials": "true",
+        }
     });
 }
 
 // POST /api/providers/auth/signup
 export async function POST(request: NextRequest) {
     const origin = request.headers.get("origin");
-    const corsHeaders = getCorsHeaders(origin);
+    let corsHeaders = getCorsHeaders(origin);
 
     // Rate limit by IP for auth endpoints (no user ID yet)
     const ip = getClientIP(request);
@@ -70,6 +96,9 @@ export async function POST(request: NextRequest) {
     }
 
     const { project } = auth;
+    
+    // Update CORS headers with project-specific allowed origins
+    corsHeaders = getCorsHeadersWithProject(origin, project);
 
     if (!project.providers?.auth?.enabled) {
         return NextResponse.json(
@@ -94,7 +123,7 @@ export async function POST(request: NextRequest) {
 // GET /api/providers/auth/me
 export async function GET(request: NextRequest) {
     const origin = request.headers.get("origin");
-    const corsHeaders = getCorsHeaders(origin);
+    let corsHeaders = getCorsHeaders(origin);
 
     const auth = await validateApiKey(request);
     if (auth instanceof NextResponse) {
@@ -104,6 +133,9 @@ export async function GET(request: NextRequest) {
     }
 
     const { project } = auth;
+    
+    // Update CORS headers with project-specific allowed origins
+    corsHeaders = getCorsHeadersWithProject(origin, project);
 
     if (!project.providers?.auth?.enabled) {
         return NextResponse.json(

@@ -33,15 +33,17 @@ function isOriginAllowed(origin: string | null): boolean {
     return ALLOWED_PRODUCTION_ORIGINS.includes(origin) || isValidE2BSandbox(origin);
 }
 
-// Get CORS headers - allow E2B sandboxes, production domains, and the stored sandbox URL
-function getCorsHeaders(origin: string | null, allowedOrigin: string | null): Record<string, string> {
+// Get CORS headers - allow E2B sandboxes, production domains, and project's allowed origins
+function getCorsHeaders(origin: string | null, project: { sandboxUrl?: string; allowedOrigins?: string[] } | null): Record<string, string> {
     // Allow if:
     // 1. Origin is a production domain
     // 2. Origin matches the stored sandbox URL
     // 3. Origin is a valid E2B sandbox URL (for flexibility during sandbox changes)
+    // 4. Origin is in the project's allowedOrigins array
     const isAllowed = origin && (
         isOriginAllowed(origin) ||
-        origin === allowedOrigin
+        origin === project?.sandboxUrl ||
+        (project?.allowedOrigins || []).includes(origin)
     );
     
     return {
@@ -55,17 +57,27 @@ function getCorsHeaders(origin: string | null, allowedOrigin: string | null): Re
 /**
  * OPTIONS /api/providers/auth/session
  * Handle CORS preflight
+ * 
+ * Note: We allow any origin for preflight because we can't access the API key
+ * from preflight requests (browsers don't send custom headers in preflight).
+ * The actual CORS check happens in the GET/DELETE handlers where we validate
+ * the API key and check the project's allowedOrigins.
  */
 export async function OPTIONS(request: NextRequest) {
     const origin = request.headers.get("origin");
     
-    // For preflight, allow production domains and E2B sandboxes
-    const isAllowed = isOriginAllowed(origin);
+    // For preflight, be permissive - allow production domains, E2B sandboxes,
+    // and any https origin (actual validation happens in GET/DELETE)
+    // This is safe because the actual request will validate the API key
+    const isAllowed = origin && (
+        isOriginAllowed(origin) ||
+        origin.startsWith("https://")
+    );
     
     return new NextResponse(null, { 
         status: 204, 
         headers: {
-            "Access-Control-Allow-Origin": isAllowed && origin ? origin : "null",
+            "Access-Control-Allow-Origin": isAllowed ? origin : "null",
             "Access-Control-Allow-Methods": "GET, DELETE, OPTIONS",
             "Access-Control-Allow-Headers": "Content-Type, Authorization, x-jersen-api-key",
             "Access-Control-Allow-Credentials": "true",
@@ -109,9 +121,13 @@ export async function GET(request: NextRequest) {
             );
         }
 
-        // Validate API key and get project (includes sandboxUrl)
+        // Validate API key and get project (includes sandboxUrl and allowedOrigins)
         await connectToDatabase();
-        const project = await Project.findOne({ apiKey }).lean();
+        const project = await Project.findOne({ apiKey }).lean() as { 
+            _id: any; 
+            sandboxUrl?: string; 
+            allowedOrigins?: string[] 
+        } | null;
 
         if (!project) {
             return NextResponse.json(
@@ -120,13 +136,13 @@ export async function GET(request: NextRequest) {
             );
         }
 
-        // Get allowed origin from project's sandbox URL
-        const allowedOrigin = (project as any).sandboxUrl || null;
-        const corsHeaders = getCorsHeaders(origin, allowedOrigin);
+        // Get CORS headers using project's allowed origins
+        const corsHeaders = getCorsHeaders(origin, project);
         
-        // Check if origin is allowed (production domains, E2B sandboxes, or stored sandbox URL)
-        if (origin && !isOriginAllowed(origin) && allowedOrigin && origin !== allowedOrigin) {
-            console.log(`CORS rejected: origin ${origin} is not allowed and !== stored ${allowedOrigin}`);
+        // Check if origin is allowed (production domains, E2B sandboxes, stored sandbox URL, or allowedOrigins)
+        const allowedOrigins = project.allowedOrigins || [];
+        if (origin && !isOriginAllowed(origin) && origin !== project.sandboxUrl && !allowedOrigins.includes(origin)) {
+            console.log(`CORS rejected: origin ${origin} is not allowed. sandboxUrl=${project.sandboxUrl}, allowedOrigins=${allowedOrigins.join(',')}`);
             return NextResponse.json(
                 { error: "Origin not allowed" },
                 { status: 403, headers: corsHeaders }
@@ -192,9 +208,18 @@ export async function DELETE(request: NextRequest) {
     
     // For JWT-based auth, the client just needs to delete the token
     // We can optionally track invalidated tokens in a blacklist
+    // For logout, we allow any origin that looks valid (E2B sandbox pattern or production)
+    const isAllowed = isOriginAllowed(origin);
     
     return NextResponse.json({
         success: true,
         message: "Session invalidated. Please delete the token from client storage."
-    }, { headers: getCorsHeaders(origin, origin) }); // Allow the requesting origin for logout
+    }, { 
+        headers: {
+            "Access-Control-Allow-Origin": isAllowed && origin ? origin : "*",
+            "Access-Control-Allow-Methods": "GET, DELETE, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization, x-jersen-api-key",
+            "Access-Control-Allow-Credentials": "true",
+        }
+    });
 }

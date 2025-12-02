@@ -270,9 +270,13 @@ async function createSandbox(
     );
     
     // Save sandbox URL to project for CORS whitelist
+    // Also add to allowedOrigins array so it persists even when sandbox changes
     await Project.updateOne(
         { _id: projectId },
-        { $set: { sandboxUrl: url } }
+        { 
+            $set: { sandboxUrl: url },
+            $addToSet: { allowedOrigins: url }
+        }
     );
     console.log(`Saved sandbox URL to project: ${url}`);
 

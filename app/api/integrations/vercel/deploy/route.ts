@@ -271,12 +271,20 @@ export default nextConfig;
         }
 
         const deployment = await deployResponse.json();
+        
+        // Add the deployed URL to the project's allowedOrigins for CORS
+        const deployedUrl = `https://${deployment.url}`;
+        await Project.updateOne(
+            { _id: projectId },
+            { $addToSet: { allowedOrigins: deployedUrl } }
+        );
+        console.log(`Added deployed URL to allowedOrigins: ${deployedUrl}`);
 
         return NextResponse.json({
             success: true,
             deployment: {
                 id: deployment.id,
-                url: `https://${deployment.url}`,
+                url: deployedUrl,
                 inspectorUrl: deployment.inspectorUrl,
                 state: deployment.readyState,
                 createdAt: deployment.createdAt,

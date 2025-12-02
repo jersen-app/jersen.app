@@ -24,7 +24,7 @@ function isOriginAllowed(origin: string | null): boolean {
     return ALLOWED_PRODUCTION_ORIGINS.includes(origin) || isValidE2BSandbox(origin);
 }
 
-// Get CORS headers for allowed origins
+// Get CORS headers for allowed origins (without project context)
 function getCorsHeaders(origin: string | null): Record<string, string> {
     const isAllowed = isOriginAllowed(origin);
     return {
@@ -35,12 +35,37 @@ function getCorsHeaders(origin: string | null): Record<string, string> {
     };
 }
 
-// OPTIONS handler for CORS preflight
+// Get CORS headers with project-specific allowed origins
+function getCorsHeadersWithProject(origin: string | null, project: { sandboxUrl?: string; allowedOrigins?: string[] } | null): Record<string, string> {
+    const isAllowed = origin && (
+        isOriginAllowed(origin) ||
+        origin === project?.sandboxUrl ||
+        (project?.allowedOrigins || []).includes(origin)
+    );
+    return {
+        "Access-Control-Allow-Origin": isAllowed ? origin : "null",
+        "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, x-jersen-api-key",
+        "Access-Control-Allow-Credentials": "true",
+    };
+}
+
+// OPTIONS handler for CORS preflight - permissive, actual validation in handlers
 export async function OPTIONS(request: NextRequest) {
     const origin = request.headers.get("origin");
+    const isAllowed = origin && (
+        isOriginAllowed(origin) ||
+        origin.startsWith("https://")
+    );
+    
     return new NextResponse(null, { 
         status: 204, 
-        headers: getCorsHeaders(origin)
+        headers: {
+            "Access-Control-Allow-Origin": isAllowed ? origin : "null",
+            "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, x-jersen-api-key",
+            "Access-Control-Allow-Credentials": "true",
+        }
     });
 }
 
@@ -73,7 +98,7 @@ function getCollectionName(projectId: string, collection: string): string {
 // POST /api/providers/database
 export async function POST(request: NextRequest) {
     const origin = request.headers.get("origin");
-    const corsHeaders = getCorsHeaders(origin);
+    let corsHeaders = getCorsHeaders(origin);
 
     const auth = await validateApiKey(request);
     if (auth instanceof NextResponse) {
@@ -83,6 +108,7 @@ export async function POST(request: NextRequest) {
     }
 
     const { project } = auth;
+    corsHeaders = getCorsHeadersWithProject(origin, project);
 
     try {
         const body = await request.json();
@@ -115,7 +141,7 @@ export async function POST(request: NextRequest) {
 // GET /api/providers/database?collection=xxx&query={}
 export async function GET(request: NextRequest) {
     const origin = request.headers.get("origin");
-    const corsHeaders = getCorsHeaders(origin);
+    let corsHeaders = getCorsHeaders(origin);
 
     const auth = await validateApiKey(request);
     if (auth instanceof NextResponse) {
@@ -125,6 +151,7 @@ export async function GET(request: NextRequest) {
     }
 
     const { project } = auth;
+    corsHeaders = getCorsHeadersWithProject(origin, project);
 
     try {
         const { searchParams } = new URL(request.url);
@@ -167,7 +194,7 @@ export async function GET(request: NextRequest) {
 // PATCH /api/providers/database
 export async function PATCH(request: NextRequest) {
     const origin = request.headers.get("origin");
-    const corsHeaders = getCorsHeaders(origin);
+    let corsHeaders = getCorsHeaders(origin);
 
     const auth = await validateApiKey(request);
     if (auth instanceof NextResponse) {
@@ -177,6 +204,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     const { project } = auth;
+    corsHeaders = getCorsHeadersWithProject(origin, project);
 
     try {
         const body = await request.json();
@@ -215,7 +243,7 @@ export async function PATCH(request: NextRequest) {
 // DELETE /api/providers/database?collection=xxx&query={}
 export async function DELETE(request: NextRequest) {
     const origin = request.headers.get("origin");
-    const corsHeaders = getCorsHeaders(origin);
+    let corsHeaders = getCorsHeaders(origin);
 
     const auth = await validateApiKey(request);
     if (auth instanceof NextResponse) {
@@ -225,6 +253,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     const { project } = auth;
+    corsHeaders = getCorsHeadersWithProject(origin, project);
 
     try {
         const { searchParams } = new URL(request.url);
