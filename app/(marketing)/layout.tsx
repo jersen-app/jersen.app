@@ -9,19 +9,19 @@ export default function MarketingLayout({
     return (
         <div className="relative flex min-h-screen flex-col">
             <header className="fixed top-6 left-1/2 z-50 -translate-x-1/2 rounded-full border border-gray-200 bg-white/80 px-2 py-2 backdrop-blur-md dark:border-gray-800 dark:bg-black/80">
-                <div className="flex items-center gap-2 md:gap-8">
+                <div className="flex items-center gap-2 md:gap-6">
                     <Link
                         href="/"
                         className="ml-4 text-lg font-bold tracking-tight md:text-xl"
                     >
                         Jersen
                     </Link>
-                    <nav className="hidden items-center gap-6 text-sm font-medium text-gray-600 dark:text-gray-400 md:flex">
+                    <nav className="hidden items-center gap-5 text-sm font-medium text-gray-600 dark:text-gray-400 md:flex">
                         <Link
-                            href="/"
+                            href="#ai-builder"
                             className="transition-colors hover:text-black dark:hover:text-white"
                         >
-                            Home
+                            AI Builder
                         </Link>
                         <Link
                             href="#services"
@@ -33,7 +33,13 @@ export default function MarketingLayout({
                             href="#projects"
                             className="transition-colors hover:text-black dark:hover:text-white"
                         >
-                            Projects
+                            Showcase
+                        </Link>
+                        <Link
+                            href="#docs"
+                            className="transition-colors hover:text-black dark:hover:text-white"
+                        >
+                            Docs
                         </Link>
                         <Link
                             href="#contact"
