@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Bot, User, ChevronDown, ChevronUp, Image as ImageIcon, FileText, Trash2 } from "lucide-react";
+import { User, ChevronDown, ChevronUp, Image as ImageIcon, FileText, Trash2 } from "lucide-react";
+import Image from "next/image";
 import { cn } from "@/lib/utils";
 import type { Message, ParsedBlock } from "./types";
 import { FileBlock } from "./FileBlock";
@@ -104,14 +105,15 @@ export function MessageBubble({ message }: MessageBubbleProps) {
   return (
     <div className={cn("flex gap-3 py-3", isUser && "flex-row-reverse")}>
       {/* Avatar */}
-      <div
-        className={cn(
-          "flex h-8 w-8 shrink-0 select-none items-center justify-center rounded-full",
-          isUser ? "bg-primary text-primary-foreground" : "bg-muted"
-        )}
-      >
-        {isUser ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
-      </div>
+      {isUser ? (
+        <div className="flex h-8 w-8 shrink-0 select-none items-center justify-center rounded-full bg-primary text-primary-foreground">
+          <User className="h-4 w-4" />
+        </div>
+      ) : (
+        <div className="flex h-8 w-8 shrink-0 select-none items-center justify-center">
+          <Image src="/logo.png" alt="Jersen AI" width={36} height={36} className="dark:invert" />
+        </div>
+      )}
 
       {/* Content */}
       <div
