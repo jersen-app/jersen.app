@@ -246,8 +246,10 @@ export async function getProjectFiles(projectId: string): Promise<ParsedFile[]> 
 /**
  * Extract npm packages from import statements in generated files
  * Returns packages that are NOT in the base Next.js template
+ * 
+ * @param files - Either ParsedFile[] or Record<string, string> (path -> content)
  */
-export function extractDependencies(files: ParsedFile[]): string[] {
+export function extractDependencies(files: ParsedFile[] | Record<string, string>): string[] {
     // Packages already in the base nextjs-developer template
     const basePackages = new Set([
         'react',
@@ -264,9 +266,16 @@ export function extractDependencies(files: ParsedFile[]): string[] {
     // Matches: import X from 'package' or import { X } from "package"
     const importRegex = /import\s+(?:[\w\s{},*]+\s+from\s+)?['"]([^'"]+)['"]/g;
     
-    for (const file of files) {
+    // Normalize input to array of contents
+    const contents: string[] = Array.isArray(files)
+        ? files.map(f => f.content)
+        : Object.values(files);
+    
+    for (const content of contents) {
         let match;
-        while ((match = importRegex.exec(file.content)) !== null) {
+        // Reset regex state for each file
+        importRegex.lastIndex = 0;
+        while ((match = importRegex.exec(content)) !== null) {
             const importPath = match[1];
             
             // Skip relative imports (., .., @/)

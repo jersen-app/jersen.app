@@ -151,6 +151,10 @@ export default function BuilderClient({
                 return acc;
             }, {} as Record<string, string>);
             
+            // Small delay to ensure server's onFinish callback has saved dependencies
+            // This prevents a race condition where sandbox.update fetches project before deps are saved
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
             // Auto-preview: If enabled, automatically start or update sandbox
             if (sandbox.autoPreviewEnabled) {
                 isSyncingRef.current = true;

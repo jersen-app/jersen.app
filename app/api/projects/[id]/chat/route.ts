@@ -343,8 +343,9 @@ ${autoInjectedDocs}`;
                                 fileMap.set(path, { path, content, updatedAt: now });
                             }
                             
-                            // Extract dependencies from imports
-                            const newDeps = extractDependencies(parsedFiles);
+                            // Extract dependencies from the FINAL file contents (not raw parsed files)
+                            // This ensures we get imports from both new files and applied diffs
+                            const newDeps = extractDependencies(generatedFiles);
                             const existingDeps: string[] = (project as any).dependencies || [];
                             const allDeps = [...new Set([...existingDeps, ...newDeps])];
                             
