@@ -8,6 +8,7 @@ interface SandboxState {
     status: "idle" | "creating" | "running" | "updating" | "error";
     error: string | null;
     expiresAt: number | null;
+    warning: string | null;
 }
 
 interface SandboxSettings {

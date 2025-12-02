@@ -1,13 +1,13 @@
 import { google } from "@ai-sdk/google";
-import { streamText, type CoreMessage } from "ai";
+import { streamText, stepCountIs, type CoreMessage } from "ai";
 import { auth } from "@clerk/nextjs/server";
 import connectToDatabase from "@/lib/db";
 import ChatMessage from "@/models/ChatMessage";
 import Project from "@/models/Project";
 import { getPlatformSettings } from "@/models/PlatformSettings";
 import { SYSTEM_PROMPT, buildContextPrompt } from "@/lib/ai/prompts";
-import { parseGeneratedFiles, extractDependencies, extractInstallCommands } from "@/lib/ai/files";
-import { type FileChange } from "@/lib/ai/tools";
+import { parseGeneratedFiles, extractDependencies, extractInstallCommands, extractFileDeletions } from "@/lib/ai/files";
+import { type FileChange, createAiTools } from "@/lib/ai/tools";
 import { checkCredits, consumeCredit } from "@/lib/subscription";
 import { 
     aiChatRatelimit, 
@@ -19,11 +19,6 @@ import {
     buildMemoryContext, 
     shouldSummarize, 
     generateSummary,
-    executeSearchFiles,
-    executeReadFile,
-    executeListDirectory,
-    executeFindRelated,
-    executeGetProviderDocs,
 } from "@/lib/ai/memory";
 import {
     getProviderOverview,
@@ -268,10 +263,21 @@ ${autoInjectedDocs}`;
     const platformSettings = await getPlatformSettings();
     const modelId = platformSettings.aiModel || "gemini-2.5-flash";
 
-    // Stream response from Gemini
+    // Create AI tools with project context
+    const aiTools = createAiTools({
+        projectId,
+        orgId,
+        files: existingFiles,
+        projectConfig,
+    });
+
+    // Stream response from Gemini with tools
+    // stopWhen enables multi-step: after tool call, model generates text response
     const result = streamText({
         model: google(modelId),
         messages: allMessages,
+        tools: aiTools,
+        stopWhen: stepCountIs(3), // Allow up to 3 steps: tool call -> tool result -> text response
         temperature: 0.7,
         async onFinish({ text }) {
             // Save messages to DB
@@ -328,8 +334,11 @@ ${autoInjectedDocs}`;
                     });
                 }
 
+                // Extract file deletions
+                const filesToDelete = extractFileDeletions(text);
+
                 // Save files to Project model for persistence
-                if (Object.keys(generatedFiles).length > 0) {
+                if (Object.keys(generatedFiles).length > 0 || filesToDelete.length > 0) {
                     try {
                         const project = await Project.findById(projectId);
                         if (project) {
@@ -338,6 +347,14 @@ ${autoInjectedDocs}`;
                             for (const file of project.files || []) {
                                 fileMap.set(file.path, file);
                             }
+                            
+                            // Delete files
+                            for (const path of filesToDelete) {
+                                fileMap.delete(path);
+                                console.log(`Deleted file from project: ${path}`);
+                            }
+                            
+                            // Add/update files
                             const now = new Date();
                             for (const [path, content] of Object.entries(generatedFiles)) {
                                 fileMap.set(path, { path, content, updatedAt: now });
@@ -370,7 +387,7 @@ ${autoInjectedDocs}`;
                                 }
                             );
                             
-                            console.log(`Saved ${Object.keys(generatedFiles).length} files to project ${projectId}. Modified: ${result.modifiedCount}`);
+                            console.log(`Saved ${Object.keys(generatedFiles).length} files, deleted ${filesToDelete.length} files from project ${projectId}. Modified: ${result.modifiedCount}`);
                             
                             // Verify the save
                             if (newDeps.length > 0) {
@@ -383,11 +400,15 @@ ${autoInjectedDocs}`;
                     }
                 }
 
-                // Save assistant message with files
+                // Save assistant message with files (only if there's content)
+                const messageContent = text || (Object.keys(generatedFiles).length > 0 
+                    ? `Generated ${Object.keys(generatedFiles).length} file(s)` 
+                    : "[Tool response]");
+                
                 await ChatMessage.create({
                     projectId,
                     role: "assistant",
-                    content: text,
+                    content: messageContent,
                     files: generatedFiles,
                     metadata: { fileChanges },
                 });

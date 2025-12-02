@@ -5,14 +5,17 @@ export interface ParsedFile {
     content: string;
     isEdit?: boolean;
     diffBlocks?: DiffBlock[];
+    isDelete?: boolean;
 }
 
 /**
  * Parse SEARCH/REPLACE blocks from content
+ * Uses flexible regex to handle variations in whitespace
  */
 function extractDiffBlocks(content: string): DiffBlock[] {
     const blocks: DiffBlock[] = [];
-    const blockRegex = /<<<<<<< SEARCH\n([\s\S]*?)\n=======\n([\s\S]*?)\n>>>>>>> REPLACE/g;
+    // More flexible regex - handle optional whitespace and different line endings
+    const blockRegex = /<<<<<<<?:?\s*SEARCH\s*\n([\s\S]*?)\n?=======\n?([\s\S]*?)\n?>>>>>>>?:?\s*REPLACE/gi;
     
     let match;
     while ((match = blockRegex.exec(content)) !== null) {
@@ -23,6 +26,33 @@ function extractDiffBlocks(content: string): DiffBlock[] {
     }
     
     return blocks;
+}
+
+/**
+ * Check if content contains raw diff markers
+ */
+function containsDiffMarkers(content: string): boolean {
+    return (content.includes('<<<<<<< SEARCH') || content.includes('<<<<<<<SEARCH') || content.includes('<<<<<<< search') || content.includes('<<<<<<<:')) 
+        && (content.includes('>>>>>>> REPLACE') || content.includes('>>>>>>>REPLACE') || content.includes('>>>>>>> replace') || content.includes('>>>>>>>:'));
+}
+
+/**
+ * Extract file deletion commands from AI response
+ * Format: <jersen_delete>path/to/file.tsx</jersen_delete>
+ */
+export function extractFileDeletions(aiResponse: string): string[] {
+    const deletedFiles: string[] = [];
+    const deleteRegex = /<jersen_delete>([^<]+)<\/jersen_delete>/gi;
+    
+    let match;
+    while ((match = deleteRegex.exec(aiResponse)) !== null) {
+        const filepath = match[1].trim();
+        if (filepath) {
+            deletedFiles.push(filepath);
+        }
+    }
+    
+    return deletedFiles;
 }
 
 /**

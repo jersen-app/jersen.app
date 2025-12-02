@@ -4,13 +4,15 @@ export interface DiffBlock {
 }
 
 export interface ParsedBlock {
-  type: "text" | "code" | "file" | "diff";
+  type: "text" | "code" | "file" | "diff" | "delete";
   content: string;
   language?: string;
   filename?: string;
   // For diff blocks
   diffBlocks?: DiffBlock[];
   isFullFile?: boolean;
+  // For delete blocks
+  isDelete?: boolean;
 }
 
 export interface Attachment {
@@ -38,4 +40,6 @@ export interface FileData {
   // For tracking if this is an edit vs new file
   isEdit?: boolean;
   diffBlocks?: DiffBlock[];
+  // For file deletion
+  isDelete?: boolean;
 }

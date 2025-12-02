@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Bot, User, ChevronDown, ChevronUp, Image as ImageIcon, FileText } from "lucide-react";
+import { Bot, User, ChevronDown, ChevronUp, Image as ImageIcon, FileText, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { Message } from "./types";
+import type { Message, ParsedBlock } from "./types";
 import { FileBlock } from "./FileBlock";
 import { CodeBlock } from "./CodeBlock";
 import { MarkdownContent } from "./MarkdownContent";
@@ -15,6 +15,20 @@ import {
 } from "@/components/ui/collapsible";
 
 const MAX_CONTENT_LENGTH = 500; // Characters before collapsing
+
+// Component to render delete file blocks
+function DeleteBlock({ block }: { block: ParsedBlock }) {
+  return (
+    <div className="my-2 rounded-lg border border-red-500/30 bg-red-500/5 overflow-hidden">
+      <div className="flex items-center gap-2 px-2 py-1.5 bg-red-500/10">
+        <Trash2 className="h-3.5 w-3.5 text-red-600 dark:text-red-400 shrink-0" />
+        <span className="text-xs font-medium text-red-700 dark:text-red-300">
+          Deleted: {block.filename}
+        </span>
+      </div>
+    </div>
+  );
+}
 
 interface MessageBubbleProps {
   message: Message;
@@ -71,6 +85,9 @@ export function MessageBubble({ message }: MessageBubbleProps) {
   const renderContent = () => {
     if (message.parsedBlocks && message.parsedBlocks.length > 0) {
       return message.parsedBlocks.map((block, idx) => {
+        if (block.type === "delete") {
+          return <DeleteBlock key={idx} block={block} />;
+        }
         if (block.type === "file" || block.type === "diff") {
           // File blocks are collapsed by default
           return <FileBlock key={idx} block={block} defaultCollapsed={true} />;

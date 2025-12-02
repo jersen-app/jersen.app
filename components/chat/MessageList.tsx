@@ -8,13 +8,27 @@ import { EmptyState } from "./EmptyState";
 import { FileBlock } from "./FileBlock";
 import { CodeBlock } from "./CodeBlock";
 import { MarkdownContent } from "./MarkdownContent";
-import { Bot } from "lucide-react";
+import { Bot, Trash2 } from "lucide-react";
 
 interface MessageListProps {
   messages: Message[];
   isLoading: boolean;
   streamingContent: string;
   streamingBlocks: ParsedBlock[] | null;
+}
+
+// Component to render delete file blocks
+function DeleteBlock({ block }: { block: ParsedBlock }) {
+  return (
+    <div className="my-2 rounded-lg border border-red-500/30 bg-red-500/5 overflow-hidden">
+      <div className="flex items-center gap-2 px-2 py-1.5 bg-red-500/10">
+        <Trash2 className="h-3.5 w-3.5 text-red-600 dark:text-red-400 shrink-0" />
+        <span className="text-xs font-medium text-red-700 dark:text-red-300">
+          Deleted: {block.filename}
+        </span>
+      </div>
+    </div>
+  );
 }
 
 export function MessageList({
@@ -62,6 +76,9 @@ export function MessageList({
               </span>
               <div className="space-y-2">
                 {streamingBlocks.map((block, idx) => {
+                  if (block.type === "delete") {
+                    return <DeleteBlock key={idx} block={block} />;
+                  }
                   if (block.type === "file" || block.type === "diff") {
                     return (
                       <FileBlock key={idx} block={block} />

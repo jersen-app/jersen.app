@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { MessageSquarePlus, Trash2, Loader2, AlertCircle, Brain, Sparkles } from "lucide-react";
 import type { Message, FileData, ParsedBlock, Attachment } from "./types";
-import { generateId, parseAIResponse } from "./utils";
+import { generateId, parseAIResponse, containsRawDiffMarkers } from "./utils";
 import { applyDiffBlocks } from "@/lib/ai/diff";
 import { MessageList } from "./MessageList";
 import { ChatInput } from "./ChatInput";
@@ -50,6 +50,7 @@ const fileToBase64 = (file: File): Promise<string> => {
 interface ChatInterfaceProps {
   projectId: string;
   onFilesGenerated?: (files: FileData[]) => void;
+  onStreamingFiles?: (files: FileData[]) => void; // Real-time file updates (no sandbox sync)
   existingFiles?: { path: string; content: string }[];
   onNewChat?: () => void;
   initialPrompt?: string;
@@ -58,6 +59,7 @@ interface ChatInterfaceProps {
 export function ChatInterface({
   projectId,
   onFilesGenerated,
+  onStreamingFiles,
   existingFiles = [],
   onNewChat,
   initialPrompt,
@@ -77,6 +79,12 @@ export function ChatInterface({
    */
   const processFiles = useCallback((rawFiles: FileData[]): FileData[] => {
     return rawFiles.map(file => {
+      // Handle file deletions
+      if (file.isDelete) {
+        filesRef.current.delete(file.path);
+        return file;
+      }
+      
       // If it's a full file (not an edit), return as-is
       if (!file.isEdit || !file.diffBlocks || file.diffBlocks.length === 0) {
         // Update our ref with this new file content
@@ -314,6 +322,7 @@ export function ChatInterface({
 
       const decoder = new TextDecoder();
       let fullContent = "";
+      let lastStreamedFileCount = 0;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -327,9 +336,22 @@ export function ChatInterface({
         const { blocks, files } = parseAIResponse(fullContent);
         setStreamingBlocks(blocks);
 
-        // Note: We no longer call onFilesGenerated during streaming
-        // to prevent multiple sandbox sync calls. Files will be synced
-        // once at the end when streaming completes.
+        // Stream files to editor in real-time (only complete files)
+        // This updates the code editor without triggering sandbox sync
+        if (onStreamingFiles && files.length > lastStreamedFileCount) {
+          // Only send newly completed files (not still streaming)
+          const completeFiles = files.filter(f => !f.content.endsWith('\n...'));
+          if (completeFiles.length > lastStreamedFileCount) {
+            // Process files to apply diffs before sending to editor
+            const processedStreamFiles = processFiles(completeFiles);
+            // Filter out files that still have raw diff markers (failed to parse/apply)
+            const validFiles = processedStreamFiles.filter(f => !containsRawDiffMarkers(f.content));
+            if (validFiles.length > 0) {
+              onStreamingFiles(validFiles);
+            }
+            lastStreamedFileCount = completeFiles.length;
+          }
+        }
       }
 
       // Parse the final content
@@ -351,10 +373,11 @@ export function ChatInterface({
       setStreamingContent("");
       setStreamingBlocks(null);
 
-      // Final file notification with processed files
-      if (processedFiles.length > 0 && onFilesGenerated) {
-        console.log(`[ChatInterface] Calling onFilesGenerated with ${processedFiles.length} files:`, processedFiles.map(f => f.path));
-        onFilesGenerated(processedFiles);
+      // Final file notification with processed files (filter out any with raw diff markers)
+      const validProcessedFiles = processedFiles.filter(f => !containsRawDiffMarkers(f.content));
+      if (validProcessedFiles.length > 0 && onFilesGenerated) {
+        console.log(`[ChatInterface] Calling onFilesGenerated with ${validProcessedFiles.length} files:`, validProcessedFiles.map(f => f.path));
+        onFilesGenerated(validProcessedFiles);
       }
     } catch (error) {
       console.error("Failed to send message:", error);

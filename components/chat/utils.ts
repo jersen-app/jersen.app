@@ -9,10 +9,12 @@ export function generateId(): string {
 
 /**
  * Parse SEARCH/REPLACE blocks from diff content
+ * More flexible regex to handle variations in whitespace
  */
 function parseDiffBlocks(content: string): DiffBlock[] {
   const blocks: DiffBlock[] = [];
-  const blockRegex = /<<<<<<< SEARCH\n([\s\S]*?)\n=======\n([\s\S]*?)\n>>>>>>> REPLACE/g;
+  // More flexible regex - handle optional whitespace and different line endings
+  const blockRegex = /<<<<<<<?:?\s*SEARCH\s*\n([\s\S]*?)\n?=======\n?([\s\S]*?)\n?>>>>>>>?:?\s*REPLACE/gi;
   
   let match;
   while ((match = blockRegex.exec(content)) !== null) {
@@ -22,6 +24,43 @@ function parseDiffBlocks(content: string): DiffBlock[] {
     });
   }
   
+  // Debug: log if markers detected but no blocks parsed
+  if (blocks.length === 0 && content.includes('SEARCH') && content.includes('REPLACE')) {
+    console.warn('[parseDiffBlocks] Markers detected but no blocks parsed. Content preview:', content.substring(0, 300));
+  }
+  
+  return blocks;
+}
+
+/**
+ * Even more aggressive diff block parsing for edge cases
+ * This handles cases where the markers might have unusual formatting
+ */
+function parseAggressiveDiffBlocks(content: string): DiffBlock[] {
+  const blocks: DiffBlock[] = [];
+  
+  // Try multiple patterns
+  const patterns = [
+    // Standard with various spacing
+    /<{7,}\s*SEARCH\s*\n([\s\S]*?)=======\n?([\s\S]*?)>{7,}\s*REPLACE/gi,
+    // Without newlines around equals
+    /<{7,}\s*SEARCH\s*([\s\S]*?)\s*=======\s*([\s\S]*?)\s*>{7,}\s*REPLACE/gi,
+    // With colons
+    /<{7,}:\s*SEARCH\s*\n([\s\S]*?)=======\n?([\s\S]*?)>{7,}:\s*REPLACE/gi,
+  ];
+  
+  for (const pattern of patterns) {
+    let match;
+    while ((match = pattern.exec(content)) !== null) {
+      const search = match[1]?.trim();
+      const replace = match[2]?.trim();
+      if (search !== undefined && replace !== undefined) {
+        blocks.push({ search, replace });
+      }
+    }
+    if (blocks.length > 0) break;
+  }
+  
   return blocks;
 }
 
@@ -29,7 +68,38 @@ function parseDiffBlocks(content: string): DiffBlock[] {
  * Check if content contains diff markers
  */
 function isDiffContent(content: string): boolean {
-  return content.includes('<<<<<<< SEARCH') && content.includes('>>>>>>> REPLACE');
+  // More flexible check for diff markers
+  return (content.includes('<<<<<<< SEARCH') || content.includes('<<<<<<<SEARCH') || content.includes('<<<<<<< search') || content.includes('<<<<<<<:')) 
+    && (content.includes('>>>>>>> REPLACE') || content.includes('>>>>>>>REPLACE') || content.includes('>>>>>>> replace') || content.includes('>>>>>>>:'));
+}
+
+/**
+ * Check if content still contains raw diff markers (for debugging/safety)
+ */
+export function containsRawDiffMarkers(content: string): boolean {
+  return /<{3,}\s*(SEARCH|search)/i.test(content) || />{3,}\s*(REPLACE|replace)/i.test(content);
+}
+
+/**
+ * Extract file deletion commands from content
+ * Format: <jersen_delete>path/to/file.tsx</jersen_delete>
+ */
+function extractFileDeletions(content: string): { deletedFiles: string[], cleanedContent: string } {
+  const deletedFiles: string[] = [];
+  const deleteRegex = /<jersen_delete>([^<]+)<\/jersen_delete>/gi;
+  
+  let match;
+  while ((match = deleteRegex.exec(content)) !== null) {
+    const filepath = match[1].trim();
+    if (filepath) {
+      deletedFiles.push(filepath);
+    }
+  }
+  
+  // Remove the delete tags from content for display
+  const cleanedContent = content.replace(deleteRegex, '').trim();
+  
+  return { deletedFiles, cleanedContent };
 }
 
 /**
@@ -42,9 +112,27 @@ export function parseAIResponse(content: string): {
   const blocks: ParsedBlock[] = [];
   const files: FileData[] = [];
 
+  // First, extract file deletions
+  const { deletedFiles, cleanedContent } = extractFileDeletions(content);
+  
+  // Add delete blocks and file entries for deletions
+  for (const filepath of deletedFiles) {
+    blocks.push({
+      type: "delete",
+      content: `Delete: ${filepath}`,
+      filename: filepath,
+      isDelete: true,
+    });
+    files.push({
+      path: filepath,
+      content: "",
+      isDelete: true,
+    });
+  }
+
   // Pre-process: Handle "filepath: xxx\n\n```lang" pattern (filepath outside code block)
   // Convert to "```lang\nfilepath: xxx" pattern
-  let processedContent = content.replace(
+  let processedContent = cleanedContent.replace(
     /filepath:\s*([^\n]+)\n\n```(\w+)?/gi,
     (_, filepath, lang) => `\`\`\`${lang || 'tsx'}\nfilepath: ${filepath.trim()}`
   );
@@ -154,17 +242,35 @@ export function parseAIResponse(content: string): {
           diffBlocks,
         });
       } else {
-        // Has filepath but no valid diff blocks - treat as full file
-        const codeContent = restContent.trim();
-        if (codeContent) {
+        // Has diff markers but regex didn't parse - this is an ERROR case
+        // Still push as diff block, just with empty diffBlocks (will need original content to apply)
+        console.warn(`[chat/utils] Diff markers detected but failed to parse for ${filepath}. Content: ${restContent.substring(0, 200)}`);
+        
+        // Try a more aggressive parsing approach
+        const aggressiveDiffBlocks = parseAggressiveDiffBlocks(restContent);
+        
+        if (aggressiveDiffBlocks.length > 0) {
           blocks.push({
-            type: "file",
-            content: codeContent,
-            language: language === "diff" ? "tsx" : language,
+            type: "diff",
+            content: restContent,
+            language: "diff",
             filename: filepath,
-            isFullFile: true,
+            diffBlocks: aggressiveDiffBlocks,
+            isFullFile: false,
           });
-          files.push({ path: filepath, content: codeContent, isEdit: false });
+          
+          files.push({
+            path: filepath,
+            content: restContent,
+            isEdit: true,
+            diffBlocks: aggressiveDiffBlocks,
+          });
+        } else {
+          // Last resort: Push as text block, not file - don't sync broken diff to sandbox
+          blocks.push({
+            type: "text",
+            content: `⚠️ Edit block for ${filepath} could not be parsed:\n\`\`\`diff\n${restContent}\n\`\`\``,
+          });
         }
       }
     } else if (filepath) {
@@ -299,6 +405,7 @@ export function parseAIResponse(content: string): {
   }
   
   // Filter out config files that shouldn't be generated
+  // NOTE: app/layout.tsx is NOT filtered - it's essential and AI should generate it
   const configFilesToIgnore = new Set([
     'tailwind.config.ts',
     'tailwind.config.js',
@@ -309,8 +416,6 @@ export function parseAIResponse(content: string): {
     'next.config.mjs',
     'tsconfig.json',
     'package.json',
-    'app/globals.css',
-    'app/layout.tsx',
   ]);
   
   const filteredFiles = Array.from(uniqueFiles.values()).filter(
