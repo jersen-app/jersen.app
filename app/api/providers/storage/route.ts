@@ -107,7 +107,7 @@ export async function POST(request: NextRequest) {
         const buffer = Buffer.from(arrayBuffer);
 
         // Upload to R2
-        const fullKey = await uploadFile({
+        const result = await uploadFile({
             projectId: project._id.toString(),
             key,
             body: buffer,
@@ -116,7 +116,8 @@ export async function POST(request: NextRequest) {
 
         return NextResponse.json({
             success: true,
-            key: fullKey,
+            key: result.key,
+            url: result.url,  // Public gateway URL - use this directly in your app
             size: buffer.length,
         }, { headers: corsHeaders });
     } catch (error: any) {
@@ -159,8 +160,8 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: "Missing key parameter" }, { status: 400, headers: corsHeaders });
         }
 
-        // Get download URL
-        const downloadUrl = await getDownloadUrl({
+        // Get public gateway URL (no bandwidth cost on Vercel)
+        const downloadUrl = getDownloadUrl({
             projectId: project._id.toString(),
             key,
         });
@@ -168,7 +169,7 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({
             success: true,
             url: downloadUrl,
-            expiresIn: 3600,
+            // Note: Public gateway URLs don't expire
         }, { headers: corsHeaders });
     } catch (error: any) {
         console.error("Storage download error:", error);

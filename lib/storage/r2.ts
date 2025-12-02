@@ -4,7 +4,8 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 const R2_ACCOUNT_ID = process.env.R2_ACCOUNT_ID;
 const R2_ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID;
 const R2_SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY;
-const R2_BUCKET_NAME = process.env.R2_BUCKET_NAME || "jersen-storage";
+const R2_BUCKET_NAME = process.env.R2_BUCKET_NAME || "jersen-vercel";
+const PUBLIC_GATEWAY = process.env.PUBLIC_GATEWAY || "https://gateway.jersen.app";
 
 if (!R2_ACCOUNT_ID || !R2_ACCESS_KEY_ID || !R2_SECRET_ACCESS_KEY) {
     console.warn("R2 credentials not configured. Storage provider will not work.");
@@ -44,9 +45,18 @@ function getProjectKey(projectId: string, key: string): string {
 }
 
 /**
- * Upload a file to R2
+ * Get the public URL for a file via the Cloudflare gateway
  */
-export async function uploadFile(options: UploadOptions): Promise<string> {
+export function getPublicUrl(projectId: string, key: string): string {
+    const fullKey = getProjectKey(projectId, key);
+    return `${PUBLIC_GATEWAY}/${fullKey}`;
+}
+
+/**
+ * Upload a file to R2
+ * Returns both the key and the public URL
+ */
+export async function uploadFile(options: UploadOptions): Promise<{ key: string; url: string }> {
     const fullKey = getProjectKey(options.projectId, options.key);
 
     await r2Client.send(
@@ -58,13 +68,16 @@ export async function uploadFile(options: UploadOptions): Promise<string> {
         })
     );
 
-    return fullKey;
+    return {
+        key: fullKey,
+        url: getPublicUrl(options.projectId, options.key),
+    };
 }
 
 /**
- * Get a presigned URL for downloading a file
+ * Get a presigned URL for downloading a file (for private files)
  */
-export async function getDownloadUrl(
+export async function getSignedDownloadUrl(
     options: DownloadOptions,
     expiresIn: number = 3600
 ): Promise<string> {
@@ -76,6 +89,14 @@ export async function getDownloadUrl(
     });
 
     return getSignedUrl(r2Client, command, { expiresIn });
+}
+
+/**
+ * Get the public download URL for a file (via Cloudflare gateway)
+ * This is the preferred method as it doesn't consume Vercel bandwidth
+ */
+export function getDownloadUrl(options: DownloadOptions): string {
+    return getPublicUrl(options.projectId, options.key);
 }
 
 /**

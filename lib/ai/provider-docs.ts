@@ -385,12 +385,44 @@ export function getStorageDocs(config: ProjectConfig): string {
 ⚠️ Storage is NOT enabled for this project. Enable it in project settings first.`;
     }
 
+    const needsDatabase = !config.providers.database.enabled;
+    const dbWarning = needsDatabase ? `
+### ⚠️ IMPORTANT: Storage + Database
+
+Storage only stores files - it does NOT track file metadata!
+
+To list files, store metadata, or associate files with users/records, you MUST:
+1. Enable the **Database provider** in project settings
+2. Store file info (key, url, userId, etc.) in the database after upload
+
+**Example pattern:**
+\`\`\`typescript
+// After uploading a file, save metadata to database
+const uploadResult = await uploadFile(file, key);
+if (uploadResult.success) {
+  await insertOne('files', {
+    key: uploadResult.key,
+    url: uploadResult.url,
+    userId: currentUser.id,
+    filename: file.name,
+    contentType: file.type,
+    size: uploadResult.size,
+    createdAt: new Date().toISOString()
+  });
+}
+
+// To list user's files, query the database
+const result = await find('files', { userId: currentUser.id });
+\`\`\`
+` : '';
+
     return `## Jersen Storage Provider
 
 This project uses Jersen Storage (built on Cloudflare R2) for file storage.
+Files are served via a public Cloudflare gateway - no bandwidth cost on your app!
 
 **Quota:** ${config.providers.storage.quota || 1024}MB
-
+${dbWarning}
 ### Environment Setup
 Credentials are automatically injected when you preview.
 
@@ -404,14 +436,14 @@ const API_URL = '__JERSEN_URL__';
 interface UploadResult {
   success: boolean;
   key?: string;
+  url?: string;  // Public gateway URL - use this directly!
   size?: number;
   error?: string;
 }
 
-interface DownloadResult {
+interface FileUrlResult {
   success: boolean;
-  url?: string;
-  expiresIn?: number;
+  url?: string;  // Public gateway URL
   error?: string;
 }
 
@@ -430,7 +462,7 @@ export async function uploadFile(file: File, key: string): Promise<UploadResult>
   return res.json();
 }
 
-export async function getFileUrl(key: string): Promise<DownloadResult> {
+export async function getFileUrl(key: string): Promise<FileUrlResult> {
   const res = await fetch(\`\${API_URL}/api/providers/storage?key=\${encodeURIComponent(key)}\`, {
     headers: {
       'x-jersen-api-key': API_KEY,
@@ -455,7 +487,7 @@ export async function deleteFile(key: string): Promise<{ success: boolean; error
 filepath: components/FileUpload.tsx
 "use client";
 import { useState } from 'react';
-import { uploadFile, getFileUrl } from '@/lib/jersen-storage';
+import { uploadFile } from '@/lib/jersen-storage';
 
 interface FileUploadProps {
   onUpload?: (key: string, url: string) => void;
@@ -482,10 +514,9 @@ export function FileUpload({ onUpload, accept = "image/*" }: FileUploadProps) {
         throw new Error(uploadResult.error || 'Upload failed');
       }
 
-      // Get signed URL for the uploaded file
-      const urlResult = await getFileUrl(uploadResult.key!);
-      if (urlResult.success && urlResult.url) {
-        onUpload?.(uploadResult.key!, urlResult.url);
+      // URL is returned directly from upload - no need for extra API call!
+      if (uploadResult.url) {
+        onUpload?.(uploadResult.key!, uploadResult.url);
       }
     } catch (err: any) {
       setError(err.message);
@@ -509,14 +540,21 @@ export function FileUpload({ onUpload, accept = "image/*" }: FileUploadProps) {
 }
 \`\`\`
 
-### Image Display with Signed URLs
+### Image Display Component
 \`\`\`tsx
 filepath: components/StorageImage.tsx
 "use client";
+
+// Since URLs are public gateway URLs, just use them directly!
+export function StorageImage({ url, alt, ...props }: { url: string; alt: string } & React.ImgHTMLAttributes<HTMLImageElement>) {
+  return <img src={url} alt={alt} {...props} />;
+}
+
+// Or if you only have the key and need to fetch the URL:
 import { useState, useEffect } from 'react';
 import { getFileUrl } from '@/lib/jersen-storage';
 
-export function StorageImage({ storageKey, alt, ...props }: { storageKey: string; alt: string } & React.ImgHTMLAttributes<HTMLImageElement>) {
+export function StorageImageByKey({ storageKey, alt, ...props }: { storageKey: string; alt: string } & React.ImgHTMLAttributes<HTMLImageElement>) {
   const [url, setUrl] = useState<string | null>(null);
 
   useEffect(() => {
@@ -534,9 +572,11 @@ export function StorageImage({ storageKey, alt, ...props }: { storageKey: string
 \`\`\`
 
 ### Best Practices
+- **Always store file metadata in the database** - Storage only stores the file, not metadata!
 - Use meaningful key paths: \`users/{userId}/avatar.jpg\`, \`products/{productId}/images/main.jpg\`
-- The signed URLs expire in 1 hour, fetch fresh URLs when needed
-- Store the storage key in your database, not the URL
+- Store the storage key AND url in your database after upload
+- The public gateway URL never expires - safe to store permanently
+- To list files, query your database (storage has no list API)
 `;
 }
 
