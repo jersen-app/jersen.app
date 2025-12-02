@@ -5,6 +5,34 @@ import mongoose from "mongoose";
 // Separate database for all project data
 const PROJECT_DB_URI = process.env.PROJECT_DB_URI || process.env.MONGO_URI;
 
+// Helper to convert string _id to ObjectId in queries
+function processQuery(query: any): any {
+    if (!query || typeof query !== 'object') return query;
+    
+    const processed = { ...query };
+    
+    // Convert _id string to ObjectId if it's a valid ObjectId string
+    if (processed._id && typeof processed._id === 'string') {
+        try {
+            if (mongoose.Types.ObjectId.isValid(processed._id)) {
+                processed._id = new mongoose.Types.ObjectId(processed._id);
+            }
+        } catch {
+            // Keep as string if conversion fails
+        }
+    }
+    
+    // Handle nested $and, $or operators
+    if (Array.isArray(processed.$and)) {
+        processed.$and = processed.$and.map(processQuery);
+    }
+    if (Array.isArray(processed.$or)) {
+        processed.$or = processed.$or.map(processQuery);
+    }
+    
+    return processed;
+}
+
 // Production domains that are always allowed
 const ALLOWED_PRODUCTION_ORIGINS = [
     "https://jersen.app",
@@ -166,7 +194,8 @@ export async function GET(request: NextRequest) {
             );
         }
 
-        const query = JSON.parse(queryStr);
+        const rawQuery = JSON.parse(queryStr);
+        const query = processQuery(rawQuery);
         const limit = parseInt(limitStr, 10);
 
         const conn = await getProjectDb();
@@ -220,11 +249,14 @@ export async function PATCH(request: NextRequest) {
         const conn = await getProjectDb();
         const fullCollectionName = getCollectionName(project._id.toString(), collection);
         
+        // Process query to convert string _id to ObjectId
+        const processedQuery = processQuery(query);
+        
         // Handle both $set style and direct field updates
         const updateOp = update.$set ? update : { $set: update };
         const result = await conn.db!
             .collection(fullCollectionName)
-            .updateMany(query, updateOp);
+            .updateMany(processedQuery, updateOp);
 
         return NextResponse.json({
             success: true,
@@ -267,7 +299,8 @@ export async function DELETE(request: NextRequest) {
             );
         }
 
-        const query = JSON.parse(queryStr);
+        const rawQuery = JSON.parse(queryStr);
+        const query = processQuery(rawQuery);
 
         const conn = await getProjectDb();
         const fullCollectionName = getCollectionName(project._id.toString(), collection);
