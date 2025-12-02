@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { useUser } from "@clerk/nextjs";
 import { User, ChevronDown, ChevronUp, Image as ImageIcon, FileText, Trash2 } from "lucide-react";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
@@ -36,6 +37,7 @@ interface MessageBubbleProps {
 }
 
 export function MessageBubble({ message }: MessageBubbleProps) {
+  const { user } = useUser();
   const isUser = message.role === "user";
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -106,12 +108,16 @@ export function MessageBubble({ message }: MessageBubbleProps) {
     <div className={cn("flex gap-3 py-3", isUser && "flex-row-reverse")}>
       {/* Avatar */}
       {isUser ? (
-        <div className="flex h-8 w-8 shrink-0 select-none items-center justify-center rounded-full bg-primary text-primary-foreground">
-          <User className="h-4 w-4" />
+        <div className="flex h-8 w-8 shrink-0 select-none items-center justify-center rounded-full overflow-hidden bg-primary text-primary-foreground">
+          {user?.imageUrl ? (
+            <Image src={user.imageUrl} alt="You" width={32} height={32} className="object-cover" />
+          ) : (
+            <User className="h-4 w-4" />
+          )}
         </div>
       ) : (
-        <div className="flex h-8 w-8 shrink-0 select-none items-center justify-center">
-          <Image src="/logo.png" alt="Jersen AI" width={36} height={36} className="dark:invert" />
+        <div className="flex h-12 w-12 shrink-0 select-none items-center justify-center">
+          <Image src="/logo.png" alt="Jersen AI" width={56} height={56} className="dark:invert" />
         </div>
       )}
 
