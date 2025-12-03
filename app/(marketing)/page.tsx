@@ -21,6 +21,11 @@ import {
   Building2,
   MessageSquare
 } from "lucide-react";
+import { ShimmerButton } from "@/components/ui/shimmer-button";
+import { DottedMap } from "@/components/ui/dotted-map";
+import { MorphingText } from "@/components/ui/morphing-text";
+import { AnimatedGradientText } from "@/components/ui/animated-gradient-text";
+import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { motion } from "motion/react";
 
@@ -78,33 +83,63 @@ export default function Home() {
     <div className="flex min-h-screen flex-col bg-white text-black dark:bg-black dark:text-white font-sans selection:bg-gray-200 dark:selection:bg-gray-800">
       <main className="flex-1">
         {/* Hero Section */}
-        <section className="relative flex flex-col items-center justify-center px-4 sm:px-6 pt-24 pb-16 text-center md:pt-48 md:pb-32 lg:pt-56 lg:pb-40">
+        <section className="relative flex flex-col items-center justify-center px-4 sm:px-6 pt-24 pb-16 text-center md:pt-48 md:pb-32 lg:pt-56 lg:pb-40 overflow-hidden">
           <div className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(120,119,198,0.15),rgba(255,255,255,0))] dark:bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(120,119,198,0.3),rgba(0,0,0,0))]" />
+          
+          {/* Dotted Map Background */}
+          <div className="absolute inset-0 z-0 flex items-center justify-center opacity-40 dark:opacity-30 pointer-events-none">
+            <div className="w-full max-w-6xl h-[500px] md:h-[600px]">
+              <DottedMap 
+                dotRadius={0.4}
+                dotColor="currentColor"
+                markerColor="#10b981"
+                markers={[
+                  { lat: 11.5564, lng: 104.9282, size: 0.8 }, // Phnom Penh, Cambodia
+                  { lat: 37.7749, lng: -122.4194, size: 0.6 }, // San Francisco
+                  { lat: 51.5074, lng: -0.1278, size: 0.6 }, // London
+                  { lat: 35.6762, lng: 139.6503, size: 0.6 }, // Tokyo
+                  { lat: 1.3521, lng: 103.8198, size: 0.6 }, // Singapore
+                  { lat: -33.8688, lng: 151.2093, size: 0.6 }, // Sydney
+                ]}
+              />
+            </div>
+          </div>
+
           <motion.div 
-            className="mx-auto max-w-5xl space-y-6 sm:space-y-8"
+            className="relative z-10 mx-auto max-w-5xl space-y-6 sm:space-y-8"
             initial="hidden"
             animate="visible"
             variants={containerVariants}
           >
             <motion.div 
-              className="inline-flex items-center rounded-full border border-gray-200 bg-white/80 px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-medium backdrop-blur-sm dark:border-gray-800 dark:bg-black/80"
+              className="group relative inline-flex items-center justify-center rounded-full bg-white/80 dark:bg-black/80 backdrop-blur-sm px-4 py-1.5 shadow-[inset_0_-8px_10px_#8fdfff1f] transition-shadow duration-500 ease-out hover:shadow-[inset_0_-5px_10px_#8fdfff3f]"
               variants={itemVariants}
             >
+              <span
+                className={cn(
+                  "animate-gradient absolute inset-0 block size-full rounded-[inherit] bg-gradient-to-r from-[#ffaa40]/50 via-[#9c40ff]/50 to-[#ffaa40]/50 bg-[length:300%_100%] p-[1px]"
+                )}
+                style={{
+                  WebkitMask:
+                    "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
+                  WebkitMaskComposite: "destination-out",
+                  mask: "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
+                  maskComposite: "subtract",
+                }}
+              />
               <span className="mr-2 inline-block h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-              Premium Development Services in Cambodia
+              <AnimatedGradientText className="text-xs sm:text-sm font-medium">
+                Premium Development in Cambodia
+              </AnimatedGradientText>
             </motion.div>
-            <motion.h1 
-              className="text-4xl font-medium tracking-tight sm:text-6xl md:text-7xl lg:text-8xl"
-              variants={itemVariants}
-            >
-              Build anything.
-              <br />
-              <span className="bg-gradient-to-r from-gray-600 to-gray-400 bg-clip-text text-transparent dark:from-gray-400 dark:to-gray-600">
-                Ship faster.
-              </span>
-            </motion.h1>
+            <motion.div variants={itemVariants} className="mb-4">
+              <MorphingText 
+                texts={["Build.", "Ship.", "Scale."]} 
+                className="text-5xl sm:text-7xl md:text-8xl lg:text-9xl h-16 sm:h-24 md:h-28 lg:h-36"
+              />
+            </motion.div>
             <motion.p 
-              className="mx-auto max-w-2xl text-base sm:text-lg text-gray-600 dark:text-gray-400 md:text-xl leading-relaxed px-2"
+              className="mx-auto max-w-2xl text-base sm:text-lg text-gray-700 dark:text-gray-300 md:text-xl leading-relaxed px-4 py-3 rounded-2xl bg-white/70 dark:bg-black/70 backdrop-blur-sm mt-8"
               variants={itemVariants}
             >
               Jersen transforms your vision into reality. From rapid MVPs to full-scale products, 
@@ -115,12 +150,11 @@ export default function Home() {
               variants={itemVariants}
             >
               <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                <Link
-                  href="/dashboard"
-                  className="group inline-flex h-12 w-full sm:w-auto items-center justify-center rounded-full bg-black px-8 text-sm font-medium text-white transition-all hover:bg-gray-800 dark:bg-white dark:text-black dark:hover:bg-gray-200"
-                >
-                  Start Building Free
-                  <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
+                <Link href="/dashboard">
+                  <ShimmerButton className="h-12 w-full sm:w-auto px-8 text-sm font-medium">
+                    Start Building Free
+                    <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
+                  </ShimmerButton>
                 </Link>
               </motion.div>
               <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
@@ -377,12 +411,15 @@ export default function Home() {
               transition={{ delay: 0.4, duration: 0.6 }}
             >
               <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                <Link
-                  href="/dashboard"
-                  className="group inline-flex h-14 items-center justify-center rounded-full bg-white px-8 text-base font-medium text-black transition-all hover:bg-gray-200 dark:bg-black dark:text-white dark:hover:bg-gray-800"
-                >
-                  Launch AI Builder
-                  <Sparkles className="ml-2 h-5 w-5 text-purple-500 transition-transform group-hover:scale-110" />
+                <Link href="/dashboard">
+                  <ShimmerButton 
+                    className="h-14 px-8 text-base font-medium"
+                    background="rgba(255, 255, 255, 1)"
+                    shimmerColor="#a855f7"
+                  >
+                    <span className="text-black dark:text-white">Launch AI Builder</span>
+                    <Sparkles className="ml-2 h-5 w-5 text-purple-500 transition-transform group-hover:scale-110" />
+                  </ShimmerButton>
                 </Link>
               </motion.div>
             </motion.div>
@@ -792,12 +829,11 @@ await insertOne('todos', {
                       </Link>
                     </motion.div>
                     <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                      <Link
-                        href="/waitlist"
-                        className="inline-flex h-12 items-center justify-center rounded-full bg-black px-6 text-sm font-medium text-white transition-all hover:bg-gray-800 dark:bg-white dark:text-black dark:hover:bg-gray-200"
-                      >
-                        Join Waitlist
-                        <ArrowRight className="ml-2 h-4 w-4" />
+                      <Link href="/waitlist">
+                        <ShimmerButton className="h-12 px-6 text-sm font-medium">
+                          Join Waitlist
+                          <ArrowRight className="ml-2 h-4 w-4" />
+                        </ShimmerButton>
                       </Link>
                     </motion.div>
                   </motion.div>
@@ -883,12 +919,11 @@ await insertOne('todos', {
               variants={itemVariants}
             >
               <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                <Link
-                  href="/dashboard"
-                  className="group inline-flex h-12 sm:h-14 w-full sm:w-auto items-center justify-center rounded-full bg-black px-6 sm:px-8 text-sm sm:text-base font-medium text-white transition-all hover:bg-gray-800 dark:bg-white dark:text-black dark:hover:bg-gray-200"
-                >
-                  Start Building Free
-                  <ArrowRight className="ml-2 h-4 sm:h-5 w-4 sm:w-5 transition-transform group-hover:translate-x-1" />
+                <Link href="/dashboard">
+                  <ShimmerButton className="h-12 sm:h-14 w-full sm:w-auto px-6 sm:px-8 text-sm sm:text-base font-medium">
+                    Start Building Free
+                    <ArrowRight className="ml-2 h-4 sm:h-5 w-4 sm:w-5 transition-transform group-hover:translate-x-1" />
+                  </ShimmerButton>
                 </Link>
               </motion.div>
               <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
