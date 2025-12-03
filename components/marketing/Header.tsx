@@ -4,6 +4,7 @@ import { SignInButton, SignUpButton, SignedIn, SignedOut, UserButton } from "@cl
 import Link from "next/link";
 import { useState } from "react";
 import { Menu, X } from "lucide-react";
+import { ShimmerButton } from "@/components/ui/shimmer-button";
 
 const navLinks = [
   { href: "#ai-builder", label: "AI Builder" },
@@ -47,17 +48,16 @@ export function Header() {
                   </button>
                 </SignInButton>
                 <SignUpButton mode="modal">
-                  <button className="rounded-full bg-black px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-800 dark:bg-white dark:text-black dark:hover:bg-gray-200">
+                  <ShimmerButton className="px-4 py-2 text-sm font-medium">
                     Sign Up
-                  </button>
+                  </ShimmerButton>
                 </SignUpButton>
               </SignedOut>
               <SignedIn>
-                <Link
-                  href="/dashboard"
-                  className="rounded-full bg-black px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-800 dark:bg-white dark:text-black dark:hover:bg-gray-200"
-                >
-                  Dashboard
+                <Link href="/dashboard">
+                  <ShimmerButton className="px-4 py-2 text-sm font-medium">
+                    Dashboard
+                  </ShimmerButton>
                 </Link>
                 <UserButton />
               </SignedIn>
@@ -74,19 +74,18 @@ export function Header() {
           </Link>
           <div className="flex items-center gap-3">
             <SignedIn>
-              <Link
-                href="/dashboard"
-                className="rounded-full bg-black px-4 py-2 text-sm font-medium text-white dark:bg-white dark:text-black"
-              >
-                Dashboard
+              <Link href="/dashboard">
+                <ShimmerButton className="px-4 py-2 text-sm font-medium">
+                  Dashboard
+                </ShimmerButton>
               </Link>
               <UserButton />
             </SignedIn>
             <SignedOut>
               <SignUpButton mode="modal">
-                <button className="rounded-full bg-black px-4 py-2 text-sm font-medium text-white dark:bg-white dark:text-black">
+                <ShimmerButton className="px-4 py-2 text-sm font-medium">
                   Sign Up
-                </button>
+                </ShimmerButton>
               </SignUpButton>
             </SignedOut>
             <button

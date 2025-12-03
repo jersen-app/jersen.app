@@ -21,6 +21,7 @@ import {
   Utensils,
   Heart,
   Camera,
+  Link2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -30,6 +31,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { ShineBorder } from "@/components/ui/shine-border";
 
 // Template data
 const TEMPLATES = [
@@ -112,11 +114,11 @@ const MAX_INPUT_LENGTH = 4000;
 
 interface Attachment {
   id: string;
-  type: "image" | "pdf";
+  type: "image" | "pdf" | "link";
   name: string;
   size: number;
   url: string;
-  file: File;
+  file?: File;
 }
 
 export default function DashboardClient() {
@@ -133,6 +135,8 @@ export default function DashboardClient() {
   const [recordingTime, setRecordingTime] = useState(0);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(true);
+  const [showLinkInput, setShowLinkInput] = useState(false);
+  const [linkUrl, setLinkUrl] = useState("");
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -217,7 +221,34 @@ export default function DashboardClient() {
       if (!response.ok) throw new Error("Failed to create project");
 
       const result = await response.json();
+      
+      // Store prompt in sessionStorage
       sessionStorage.setItem(`project_initial_prompt_${result.projectId}`, finalPrompt);
+      
+      // Store attachments in sessionStorage (convert files to base64 for images)
+      if (attachments.length > 0) {
+        const attachmentData = await Promise.all(
+          attachments.map(async (att) => {
+            if (att.type === "link") {
+              return { type: "link", url: att.url, name: att.name };
+            } else if (att.file) {
+              // Convert file to base64
+              const base64 = await new Promise<string>((resolve) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result as string);
+                reader.readAsDataURL(att.file!);
+              });
+              return { type: att.type, base64, name: att.name };
+            }
+            return null;
+          })
+        );
+        sessionStorage.setItem(
+          `project_initial_attachments_${result.projectId}`,
+          JSON.stringify(attachmentData.filter(Boolean))
+        );
+      }
+      
       router.push(`/dashboard/projects/${result.projectId}/builder`);
     } catch (error) {
       console.error("Failed to create project:", error);
@@ -269,9 +300,35 @@ export default function DashboardClient() {
   const removeAttachment = (id: string) => {
     setAttachments((prev) => {
       const att = prev.find((a) => a.id === id);
-      if (att) URL.revokeObjectURL(att.url);
+      if (att && att.url && att.type !== "link") URL.revokeObjectURL(att.url);
       return prev.filter((a) => a.id !== id);
     });
+  };
+
+  const handleAddLink = () => {
+    if (!linkUrl.trim()) return;
+    
+    // Basic URL validation
+    let url = linkUrl.trim();
+    if (!url.startsWith("http://") && !url.startsWith("https://")) {
+      url = "https://" + url;
+    }
+    
+    try {
+      new URL(url); // Validate URL
+      const attachment: Attachment = {
+        id: Math.random().toString(36).slice(2),
+        type: "link",
+        name: new URL(url).hostname,
+        size: 0,
+        url: url,
+      };
+      setAttachments((prev) => [...prev, attachment]);
+      setLinkUrl("");
+      setShowLinkInput(false);
+    } catch {
+      alert("Please enter a valid URL");
+    }
   };
 
   const handlePaste = useCallback(
@@ -377,17 +434,24 @@ export default function DashboardClient() {
         {attachments.length > 0 && (
           <div className="mb-2 flex flex-wrap gap-2">
             {attachments.map((att) => (
-              <div key={att.id} className="relative group rounded-lg overflow-hidden border bg-muted/50 w-14 h-14">
+              <div key={att.id} className="relative group rounded-lg overflow-hidden border bg-muted/50">
                 {att.type === "image" ? (
-                  <img src={att.url} alt={att.name} className="w-full h-full object-cover" />
+                  <div className="w-16 h-16">
+                    <img src={att.url} alt={att.name} className="w-full h-full object-cover" />
+                  </div>
+                ) : att.type === "link" ? (
+                  <div className="px-3 py-2 flex items-center gap-2 max-w-[200px]">
+                    <Link2 className="h-4 w-4 text-blue-500 flex-shrink-0" />
+                    <span className="text-xs truncate">{att.name}</span>
+                  </div>
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center">
+                  <div className="w-16 h-16 flex items-center justify-center">
                     <FileText className="h-6 w-6 text-red-500" />
                   </div>
                 )}
                 <button
                   onClick={() => removeAttachment(att.id)}
-                  className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground rounded-full p-0.5"
+                  className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
                 >
                   <X className="h-3 w-3" />
                 </button>
@@ -396,7 +460,12 @@ export default function DashboardClient() {
           </div>
         )}
 
-        <div className="relative rounded-xl border-2 bg-background shadow-sm focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20 transition-all">
+        <div className="relative rounded-2xl border bg-background shadow-lg overflow-hidden transition-all">
+          <ShineBorder 
+            shineColor={["#8B5CF6", "#EC4899", "#3B82F6"]} 
+            borderWidth={2}
+            duration={10}
+          />
           <Textarea
             ref={textareaRef}
             value={prompt}
@@ -418,7 +487,23 @@ export default function DashboardClient() {
                     <Paperclip className="h-4 w-4" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>Attach images</TooltipContent>
+                <TooltipContent>Attach images or PDF</TooltipContent>
+              </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button 
+                    type="button" 
+                    variant={showLinkInput ? "secondary" : "ghost"} 
+                    size="icon" 
+                    className="h-8 w-8" 
+                    onClick={() => setShowLinkInput(!showLinkInput)} 
+                    disabled={isCreating}
+                  >
+                    <Link2 className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Add reference link</TooltipContent>
               </Tooltip>
 
               <Tooltip>
@@ -444,13 +529,51 @@ export default function DashboardClient() {
               <span className={cn("text-xs tabular-nums", prompt.length > MAX_INPUT_LENGTH * 0.9 ? "text-destructive" : "text-muted-foreground")}>
                 {prompt.length}/{MAX_INPUT_LENGTH}
               </span>
-              <Button onClick={() => handleSubmit()} disabled={!prompt.trim() || isCreating} className="gap-2">
+              <Button 
+                onClick={() => handleSubmit()} 
+                disabled={!prompt.trim() || isCreating} 
+                className="rounded-full border gap-2  hover:from-violet-700 hover:via-pink-700 hover:to-blue-700 text-white shadow-lg shadow-violet-500/25 hover:shadow-violet-500/40 transition-all duration-300"
+              >
                 {isCreating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                 Build
               </Button>
             </div>
           </div>
+
         </div>
+
+        {/* Link Input Popup - positioned outside the chat box */}
+        {showLinkInput && (
+          <div className="mt-2 p-3 rounded-lg border bg-background shadow-lg">
+            <div className="flex items-center gap-2">
+              <input
+                type="url"
+                value={linkUrl}
+                onChange={(e) => setLinkUrl(e.target.value)}
+                placeholder="Paste a reference URL (e.g., dribbble.com/shot/...)"
+                className="flex-1 text-sm px-3 py-2 rounded-md border bg-muted/50 focus:outline-none focus:ring-2 focus:ring-primary"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleAddLink();
+                  } else if (e.key === "Escape") {
+                    setShowLinkInput(false);
+                  }
+                }}
+                autoFocus
+              />
+              <Button size="sm" onClick={handleAddLink} disabled={!linkUrl.trim()}>
+                Add
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setShowLinkInput(false)}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground mt-2">
+              Add design references like Dribbble, Behance, or any website URL
+            </p>
+          </div>
+        )}
 
         <p className="text-xs text-muted-foreground text-center mt-2">Press Enter to build • Shift+Enter for new line</p>
       </div>

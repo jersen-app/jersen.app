@@ -29,6 +29,12 @@ import {
     type ProjectConfig,
 } from "@/lib/ai/provider-docs";
 
+// Import new optimization modules
+import { optimizeContext } from "@/lib/ai/context-optimizer";
+import { getRelevantFiles } from "@/lib/ai/file-relevance";
+import { getTemplatesContext } from "@/lib/ai/templates";
+// Note: applyDiffBlocksWithRecovery is dynamically imported when needed
+
 export const maxDuration = 60;
 
 interface AttachmentData {
@@ -146,9 +152,6 @@ export async function POST(
         }
     }
 
-    // Build context with file structure
-    const contextPrompt = buildContextPrompt(existingFiles);
-
     // Build memory context (summary of past conversations)
     const memoryContext = await buildMemoryContext(projectId);
 
@@ -192,6 +195,15 @@ export async function POST(
         }
     }
 
+    // === Use file relevance scoring to prioritize files ===
+    const relevantFiles = getRelevantFiles(existingFiles, userContent, {
+        maxFiles: 15, // Limit to most relevant files
+        minScore: 5,   // Minimum relevance score
+    });
+    
+    // Get template context (lightweight overview)
+    const templatesContext = getTemplatesContext();
+
     // Build conversation history from DB (limit to recent messages to save context)
     const recentHistory = chatHistory.slice(-20); // Last 20 messages
     const historyMessages: CoreMessage[] = recentHistory.map((msg: any) => ({
@@ -199,15 +211,42 @@ export async function POST(
         content: String(msg.content || ""),
     }));
 
-    // Combine system prompt with context and memory
-    const fullSystemPrompt = `${SYSTEM_PROMPT}
+    // Prepare conversation history for optimizer
+    const historyForOptimizer = recentHistory.map((msg: any) => ({
+        role: msg.role as string,
+        content: String(msg.content || ""),
+    }));
 
-${memoryContext ? `\n${memoryContext}\n` : ''}
+    // === Optimize context to fit within token budget ===
+    const optimizedContext = optimizeContext({
+        systemPrompt: SYSTEM_PROMPT,
+        providerDocs: `${providerOverview}\n${autoInjectedDocs}\n\n${templatesContext}`,
+        memory: memoryContext || '',
+        files: relevantFiles,
+        conversationHistory: historyForOptimizer,
+        userMessage: userContent,
+    });
 
-${providerOverview}
+    // Build final system prompt with optimized parts
+    const fullSystemPrompt = `${optimizedContext.systemPrompt}
 
-${contextPrompt}
-${autoInjectedDocs}`;
+${optimizedContext.memory ? `## Project Memory\n${optimizedContext.memory}\n` : ''}
+
+${optimizedContext.providerDocs}
+
+## Current Files
+${optimizedContext.fileContext}`;
+    
+    // Log optimization stats in development
+    if (process.env.NODE_ENV === 'development') {
+        console.log(`Context: ${optimizedContext.totalTokens} tokens${optimizedContext.wasCompressed ? ' (compressed)' : ''}`);
+        if (optimizedContext.compressionDetails) {
+            console.log(`  - Original: ${optimizedContext.compressionDetails.originalTokens} tokens`);
+            for (const detail of optimizedContext.compressionDetails.removedParts) {
+                console.log(`  - ${detail}`);
+            }
+        }
+    }
 
     // Build user message content - can be multimodal with images
     type MessageContent = string | Array<{ type: "text"; text: string } | { type: "image"; image: string; mimeType?: string }>;
@@ -272,13 +311,18 @@ ${autoInjectedDocs}`;
     });
 
     // Stream response from Gemini with tools
-    // stopWhen enables multi-step: after tool call, model generates text response
+    // stopWhen: stepCountIs(N) allows multi-step: AI calls tool -> gets result -> continues generating
     const result = streamText({
         model: google(modelId),
         messages: allMessages,
         tools: aiTools,
-        stopWhen: stepCountIs(3), // Allow up to 3 steps: tool call -> tool result -> text response
+        stopWhen: stepCountIs(5), // Allow up to 5 steps for tool calls
+        maxOutputTokens: 8192, // Ensure we have room for complete responses
         temperature: 0.7,
+        onStepFinish: async (step) => {
+            const hasToolCalls = step.toolCalls && step.toolCalls.length > 0;
+            console.log(`[AI Step] Finish reason: ${step.finishReason}, Tool calls: ${step.toolCalls?.length || 0}, Text length: ${step.text?.length || 0}${hasToolCalls ? `, Tools: ${step.toolCalls.map(t => t.toolName).join(', ')}` : ''}`);
+        },
         async onFinish({ text }) {
             // Save messages to DB
             try {
@@ -319,9 +363,24 @@ ${autoInjectedDocs}`;
                             finalContent = diffResult.content;
                             console.log(`Applied ${diffResult.appliedBlocks} diff blocks to ${file.path}`);
                         } else {
-                            // Diff failed - use the REPLACE content as the new file
-                            console.warn(`Diff failed for ${file.path}, using REPLACE content as full file`);
-                            finalContent = file.diffBlocks[file.diffBlocks.length - 1].replace;
+                            // Use advanced diff recovery
+                            console.warn(`Standard diff failed for ${file.path}, trying recovery strategies...`);
+                            
+                            // Try recovery with multiple strategies using applyDiffBlocksWithRecovery
+                            const { applyDiffBlocksWithRecovery } = await import("@/lib/ai/diff-recovery");
+                            const recoveryResult = applyDiffBlocksWithRecovery(existingContent, file.diffBlocks);
+                            
+                            if (recoveryResult.success || recoveryResult.appliedBlocks > 0) {
+                                finalContent = recoveryResult.content;
+                                console.log(`Recovered diff for ${file.path}: applied ${recoveryResult.appliedBlocks} blocks`);
+                                if (recoveryResult.warnings.length > 0) {
+                                    console.log(`  Warnings: ${recoveryResult.warnings.join(', ')}`);
+                                }
+                            } else {
+                                // Ultimate fallback - use the REPLACE content as the new file
+                                console.warn(`All recovery strategies failed for ${file.path}, using REPLACE content as full file`);
+                                finalContent = file.diffBlocks[file.diffBlocks.length - 1].replace;
+                            }
                         }
                     }
                     
@@ -440,7 +499,8 @@ ${autoInjectedDocs}`;
         },
     });
 
-    return result.toTextStreamResponse();
+    // Use UI message stream to include tool call information for frontend visibility
+    return result.toUIMessageStreamResponse();
 }
 
 // GET chat history

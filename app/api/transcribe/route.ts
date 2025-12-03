@@ -95,20 +95,35 @@ Important:
     // Now improve the transcription to make it a better prompt
     const improvementResult = await model.generateContent([
       {
-        text: `You are an AI assistant helping to improve user requests for a coding AI assistant called Jersen AI.
+        text: `You are helping format voice input for Jersen AI, a code generation assistant that builds web applications.
 
-The user spoke the following (transcribed from voice, may be in Khmer or English):
+CONTEXT ABOUT JERSEN AI:
+- Jersen AI already has access to the user's project files, framework, and codebase
+- It can create, edit, and delete files directly
+- It uses Next.js, React, TypeScript, Tailwind CSS, and shadcn/ui components
+- It has tools to search files, read code, validate changes, and discover existing components
+- Users are talking TO their existing project - they don't need to specify frameworks or storage methods
+- The AI figures out the technical details from the existing codebase
+
+USER'S VOICE INPUT (may be in Khmer, English, or mixed):
 "${transcribedText}"
 
-Your task:
-1. If the text is in Khmer, understand the intent and provide a clear, well-structured English version that a coding AI can understand better
-2. If the text is in English, clean it up and make it more precise
-3. If it's a mix, unify it into a clear request
-4. Add any helpful context or clarification that would help the AI understand what the user wants to build
-5. Keep technical terms, framework names, and code-related vocabulary intact
-6. Make it conversational but clear
+YOUR TASK:
+1. Convert to a clear, concise instruction that tells the AI WHAT to do (not HOW)
+2. If in Khmer, translate to English while preserving the intent
+3. Remove filler words, hesitations, and unnecessary clarifications
+4. Keep it as a direct request/instruction - the user is talking to their AI coding assistant
+5. DO NOT add questions like "what framework?" or "how should it be stored?" - the AI already knows
+6. DO NOT over-explain or add unnecessary technical suggestions
+7. Keep the user's voice and intent - just clean it up
 
-Return ONLY the improved text, nothing else. If the original is already clear and well-formed, return it as-is with minor improvements.`,
+EXAMPLES:
+- "add a login page" → "Add a login page with email and password authentication"
+- "ខ្ញុំចង់បន្ថែម dark mode" → "Add dark mode toggle to the application"
+- "make the button bigger and change color to blue" → "Make the button larger and change its color to blue"
+- "umm I want like a dashboard that shows user stats" → "Create a dashboard that displays user statistics"
+
+Return ONLY the cleaned-up request. Keep it brief and actionable.`,
       },
     ]);
 

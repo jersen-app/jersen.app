@@ -10,6 +10,18 @@ import {
 } from "./memory";
 import type { ProjectConfig } from "./provider-docs";
 
+// Import new tools
+import { createPlanningTool } from "./tools/planning";
+import { createValidationTool } from "./tools/validation";
+import { createDiscoveryTool } from "./tools/discovery";
+import { createTemplateTool } from "./templates";
+
+// Export new tool modules
+export { createPlanningTool } from "./tools/planning";
+export { createValidationTool } from "./tools/validation";
+export { createDiscoveryTool } from "./tools/discovery";
+export { createTemplateTool } from "./templates";
+
 /**
  * AI Tools for Jersen code generation
  * 
@@ -17,6 +29,10 @@ import type { ProjectConfig } from "./provider-docs";
  * 1. Search and read project files before making changes
  * 2. Get provider documentation for auth/storage/database
  * 3. Remember important decisions and context
+ * 4. Plan multi-file changes before implementing
+ * 5. Validate TypeScript code before outputting
+ * 6. Discover existing reusable components
+ * 7. Use pre-built templates for common patterns
  * 
  * Tools are executed server-side and results are returned to the AI.
  */
@@ -31,6 +47,18 @@ export interface ToolContext {
 
 // Create tools with execute functions for Vercel AI SDK v5
 export function createAiTools(context: ToolContext) {
+    // Prepare existing file paths for planning tool
+    const existingFilePaths = context.files.map(f => f.path);
+    
+    // Get the new tools with proper context
+    const planningTools = createPlanningTool({
+        projectId: context.projectId,
+        existingFiles: existingFilePaths,
+    });
+    const validationTools = createValidationTool();
+    const discoveryTools = createDiscoveryTool({ files: context.files });
+    const templateTools = createTemplateTool();
+    
     return {
         // Tool: Get provider documentation
         getProviderDocs: tool({
@@ -93,8 +121,8 @@ export function createAiTools(context: ToolContext) {
             },
         }),
 
-        // Tool: Find related files
-        findRelated: tool({
+        // Tool: Find related files (base tool)
+        findRelatedFiles: tool({
             description: "Find files that import from or are imported by a given file.",
             inputSchema: z.object({
                 path: z.string().describe("The file path to find related files for"),
@@ -128,6 +156,20 @@ export function createAiTools(context: ToolContext) {
                 };
             },
         }),
+        
+        // === NEW TOOLS ===
+        
+        // Planning tools for multi-file changes
+        ...planningTools,
+        
+        // Validation tool for TypeScript code
+        ...validationTools,
+        
+        // Discovery tool for finding existing components
+        ...discoveryTools,
+        
+        // Template tools for code generation
+        ...templateTools,
     };
 }
 

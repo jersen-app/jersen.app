@@ -9,6 +9,38 @@ export interface ParsedFile {
 }
 
 /**
+ * Remove duplicate import lines from file content
+ * Preserves the first occurrence of each import
+ */
+function removeDuplicateImports(content: string): string {
+    const lines = content.split('\n');
+    const seenImports = new Set<string>();
+    const resultLines: string[] = [];
+    
+    for (const line of lines) {
+        const trimmedLine = line.trim();
+        
+        // Check if this is an import line
+        if (trimmedLine.startsWith('import ')) {
+            // Normalize the import for comparison
+            const normalizedImport = trimmedLine.replace(/\s+/g, ' ');
+            
+            if (seenImports.has(normalizedImport)) {
+                // Skip duplicate import
+                console.log(`[removeDuplicateImports] Removing duplicate: ${trimmedLine.substring(0, 60)}...`);
+                continue;
+            }
+            
+            seenImports.add(normalizedImport);
+        }
+        
+        resultLines.push(line);
+    }
+    
+    return resultLines.join('\n');
+}
+
+/**
  * Parse SEARCH/REPLACE blocks from content
  * Uses flexible regex to handle variations in whitespace
  */
@@ -168,6 +200,16 @@ export function parseGeneratedFiles(aiResponse: string): ParsedFile[] {
         fileMap.set(file.path, file);
     }
     
+    // Post-process: Remove duplicate imports from generated files
+    const deduplicatedFiles = Array.from(fileMap.values()).map(file => {
+        if (file.isEdit) {
+            return file; // Don't modify diffs
+        }
+        // For full files, remove duplicate import lines
+        const content = removeDuplicateImports(file.content);
+        return { ...file, content };
+    });
+    
     // Filter out config files that shouldn't be generated
     const configFilesToIgnore = [
         'tailwind.config.ts',
@@ -189,7 +231,7 @@ export function parseGeneratedFiles(aiResponse: string): ParsedFile[] {
         // NOTE: app/layout.tsx is allowed - needed for AuthProvider and other context providers
     ];
     
-    const filteredFiles = Array.from(fileMap.values()).filter(
+    const filteredFiles = deduplicatedFiles.filter(
         file => !configFilesToIgnore.includes(file.path)
     );
 

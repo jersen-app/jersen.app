@@ -16,7 +16,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 
-const MAX_CONTENT_LENGTH = 500; // Characters before collapsing
+const MAX_CONTENT_LENGTH = 400; // Characters before collapsing
 
 // Component to render delete file blocks
 function DeleteBlock({ block }: { block: ParsedBlock }) {

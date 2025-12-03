@@ -24,6 +24,15 @@ export interface Attachment {
   file?: File;
 }
 
+// Tool call state during streaming
+export interface ToolCall {
+  id: string;
+  toolName: string;
+  args?: Record<string, unknown>;
+  state: 'pending' | 'running' | 'complete';
+  result?: unknown;
+}
+
 export interface Message {
   id: string;
   role: "user" | "assistant";
@@ -31,6 +40,7 @@ export interface Message {
   parsedBlocks?: ParsedBlock[];
   files?: FileData[];
   attachments?: Attachment[];
+  toolCalls?: ToolCall[];
   timestamp?: Date;
 }
 

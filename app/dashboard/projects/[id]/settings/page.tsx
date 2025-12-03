@@ -4,6 +4,7 @@ import ApiKeyDisplay from "@/components/ApiKeyDisplay";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { DeleteProjectButton } from "@/components/projects/DeleteProjectButton";
+import { EditProjectName } from "@/components/projects/EditProjectName";
 
 export default async function ProjectSettingsPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = await params;
@@ -23,7 +24,7 @@ export default async function ProjectSettingsPage({ params }: { params: Promise<
                     <ArrowLeft className="h-5 w-5" />
                 </Link>
                 <div>
-                    <h1 className="text-2xl font-semibold tracking-tight">{project.name}</h1>
+                    <EditProjectName projectId={id} initialName={project.name} />
                     <p className="text-sm text-gray-500 dark:text-gray-400">API Settings & Configuration</p>
                 </div>
             </div>
