@@ -30,6 +30,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { ShineBorder } from "@/components/ui/shine-border";
 
 // Template data
 const TEMPLATES = [
@@ -396,7 +397,12 @@ export default function DashboardClient() {
           </div>
         )}
 
-        <div className="relative rounded-xl border-2 bg-background shadow-sm focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20 transition-all">
+        <div className="relative rounded-2xl border bg-background shadow-lg overflow-hidden transition-all">
+          <ShineBorder 
+            shineColor={["#8B5CF6", "#EC4899", "#3B82F6"]} 
+            borderWidth={2}
+            duration={10}
+          />
           <Textarea
             ref={textareaRef}
             value={prompt}
@@ -444,7 +450,11 @@ export default function DashboardClient() {
               <span className={cn("text-xs tabular-nums", prompt.length > MAX_INPUT_LENGTH * 0.9 ? "text-destructive" : "text-muted-foreground")}>
                 {prompt.length}/{MAX_INPUT_LENGTH}
               </span>
-              <Button onClick={() => handleSubmit()} disabled={!prompt.trim() || isCreating} className="gap-2">
+              <Button 
+                onClick={() => handleSubmit()} 
+                disabled={!prompt.trim() || isCreating} 
+                className="rounded-full border gap-2  hover:from-violet-700 hover:via-pink-700 hover:to-blue-700 text-white shadow-lg shadow-violet-500/25 hover:shadow-violet-500/40 transition-all duration-300"
+              >
                 {isCreating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                 Build
               </Button>
