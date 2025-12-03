@@ -52,10 +52,21 @@ export default function SettingsPage() {
         const params = new URLSearchParams(window.location.search);
         if (params.get("vercel") === "connected") {
             toast.success("Vercel account connected successfully!");
-            // Clean up URL
+            
+            // Check if there's a return URL to redirect to (e.g., from deploy dialog)
+            const returnUrl = sessionStorage.getItem("vercel_return_url");
+            if (returnUrl) {
+                sessionStorage.removeItem("vercel_return_url");
+                window.location.href = returnUrl;
+                return;
+            }
+            
+            // Clean up URL if staying on settings page
             window.history.replaceState({}, "", "/dashboard/settings");
         } else if (params.get("error")) {
             toast.error("Failed to connect Vercel account");
+            // Clear the return URL on error too
+            sessionStorage.removeItem("vercel_return_url");
             window.history.replaceState({}, "", "/dashboard/settings");
         }
     }, []);
