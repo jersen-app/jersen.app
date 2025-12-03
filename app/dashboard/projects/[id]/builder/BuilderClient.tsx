@@ -32,6 +32,7 @@ export default function BuilderClient({
     const [mobilePanel, setMobilePanel] = useState<RightPanel | null>(null);
     const [saveStatus, setSaveStatus] = useState<SaveStatus>("saved");
     const [initialPrompt, setInitialPrompt] = useState<string | undefined>(undefined);
+    const [initialAttachments, setInitialAttachments] = useState<Array<{type: string; url?: string; base64?: string; name: string}> | undefined>(undefined);
     
     const isMobile = useIsMobile();
     
@@ -44,13 +45,24 @@ export default function BuilderClient({
     // Ref to prevent duplicate sync operations
     const isSyncingRef = useRef(false);
 
-    // Check for initial prompt from dashboard (stored in sessionStorage)
+    // Check for initial prompt and attachments from dashboard (stored in sessionStorage)
     useEffect(() => {
         const storedPrompt = sessionStorage.getItem(`project_initial_prompt_${projectId}`);
         if (storedPrompt) {
             setInitialPrompt(storedPrompt);
             // Clear it after reading so it doesn't re-trigger on refresh
             sessionStorage.removeItem(`project_initial_prompt_${projectId}`);
+        }
+        
+        const storedAttachments = sessionStorage.getItem(`project_initial_attachments_${projectId}`);
+        if (storedAttachments) {
+            try {
+                const parsed = JSON.parse(storedAttachments);
+                setInitialAttachments(parsed);
+            } catch (e) {
+                console.error("Failed to parse initial attachments:", e);
+            }
+            sessionStorage.removeItem(`project_initial_attachments_${projectId}`);
         }
     }, [projectId]);
 
@@ -344,6 +356,7 @@ export default function BuilderClient({
                         onStreamingFiles={handleStreamingFiles}
                         existingFiles={files}
                         initialPrompt={initialPrompt}
+                        initialAttachments={initialAttachments}
                     />
                 </div>
 

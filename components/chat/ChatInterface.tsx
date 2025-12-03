@@ -54,6 +54,7 @@ interface ChatInterfaceProps {
   existingFiles?: { path: string; content: string }[];
   onNewChat?: () => void;
   initialPrompt?: string;
+  initialAttachments?: Array<{type: string; url?: string; base64?: string; name: string}>;
 }
 
 export function ChatInterface({
@@ -63,6 +64,7 @@ export function ChatInterface({
   existingFiles = [],
   onNewChat,
   initialPrompt,
+  initialAttachments,
 }: ChatInterfaceProps) {
   // Keep a ref to existing files so we can apply diffs
   const filesRef = useRef<Map<string, string>>(new Map());
@@ -195,12 +197,54 @@ export function ChatInterface({
       messages.length === 0
     ) {
       initialPromptSentRef.current = true;
+      
+      // Convert initial attachments to Attachment format
+      const convertedAttachments: Attachment[] = [];
+      if (initialAttachments && initialAttachments.length > 0) {
+        initialAttachments.forEach((att, index) => {
+          if (att.type === "link" && att.url) {
+            // For links, we'll include them in the message content
+            // since the Attachment type expects a file
+          } else if (att.base64 && (att.type === "image" || att.type === "pdf")) {
+            // Convert base64 back to File
+            const byteString = atob(att.base64.split(",")[1] || att.base64);
+            const mimeType = att.type === "image" ? "image/png" : "application/pdf";
+            const ab = new ArrayBuffer(byteString.length);
+            const ia = new Uint8Array(ab);
+            for (let i = 0; i < byteString.length; i++) {
+              ia[i] = byteString.charCodeAt(i);
+            }
+            const blob = new Blob([ab], { type: mimeType });
+            const file = new File([blob], att.name, { type: mimeType });
+            
+            convertedAttachments.push({
+              id: generateId(),
+              type: att.type as "image" | "pdf",
+              name: att.name,
+              size: file.size,
+              url: URL.createObjectURL(blob),
+              file,
+            });
+          }
+        });
+      }
+      
+      // Build prompt with any link references
+      let finalPrompt = initialPrompt;
+      const linkAttachments = initialAttachments?.filter(att => att.type === "link") || [];
+      if (linkAttachments.length > 0) {
+        finalPrompt += "\n\nReference links:\n" + linkAttachments.map(att => `- ${att.url}`).join("\n");
+      }
+      
       // Use setTimeout to ensure the component is fully rendered
       setTimeout(() => {
-        sendMessage(undefined, initialPrompt);
+        sendMessage(
+          convertedAttachments.length > 0 ? convertedAttachments : undefined, 
+          finalPrompt
+        );
       }, 100);
     }
-  }, [initialPrompt, historyLoaded, messages.length]);
+  }, [initialPrompt, initialAttachments, historyLoaded, messages.length]);
 
   // Handle adding file to editor
   const handleAddFile = useCallback(
