@@ -8,7 +8,8 @@ import { EmptyState } from "./EmptyState";
 import { FileBlock } from "./FileBlock";
 import { CodeBlock } from "./CodeBlock";
 import { MarkdownContent } from "./MarkdownContent";
-import { Bot, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
+import Image from "next/image";
 
 interface MessageListProps {
   messages: Message[];
@@ -67,8 +68,8 @@ export function MessageList({
         {/* Streaming content */}
         {isLoading && streamingContent && streamingBlocks && (
           <div className="flex gap-3 py-3">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted">
-              <Bot className="h-4 w-4" />
+            <div className="flex h-12 w-12 shrink-0 select-none items-center justify-center">
+              <Image src="/logo.png" alt="Jersen AI" width={56} height={56} className="dark:invert" />
             </div>
             <div className="flex-1 min-w-0 space-y-1">
               <span className="text-xs font-medium text-muted-foreground">
