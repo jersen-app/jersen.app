@@ -540,39 +540,40 @@ export default function DashboardClient() {
             </div>
           </div>
 
-          {/* Link Input Popup */}
-          {showLinkInput && (
-            <div className="absolute bottom-16 left-3 right-3 p-3 rounded-lg border bg-background shadow-lg">
-              <div className="flex items-center gap-2">
-                <input
-                  type="url"
-                  value={linkUrl}
-                  onChange={(e) => setLinkUrl(e.target.value)}
-                  placeholder="Paste a reference URL (e.g., dribbble.com/shot/...)"
-                  className="flex-1 text-sm px-3 py-2 rounded-md border bg-muted/50 focus:outline-none focus:ring-2 focus:ring-primary"
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      handleAddLink();
-                    } else if (e.key === "Escape") {
-                      setShowLinkInput(false);
-                    }
-                  }}
-                  autoFocus
-                />
-                <Button size="sm" onClick={handleAddLink} disabled={!linkUrl.trim()}>
-                  Add
-                </Button>
-                <Button size="sm" variant="ghost" onClick={() => setShowLinkInput(false)}>
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-              <p className="text-xs text-muted-foreground mt-2">
-                Add design references like Dribbble, Behance, or any website URL
-              </p>
-            </div>
-          )}
         </div>
+
+        {/* Link Input Popup - positioned outside the chat box */}
+        {showLinkInput && (
+          <div className="mt-2 p-3 rounded-lg border bg-background shadow-lg">
+            <div className="flex items-center gap-2">
+              <input
+                type="url"
+                value={linkUrl}
+                onChange={(e) => setLinkUrl(e.target.value)}
+                placeholder="Paste a reference URL (e.g., dribbble.com/shot/...)"
+                className="flex-1 text-sm px-3 py-2 rounded-md border bg-muted/50 focus:outline-none focus:ring-2 focus:ring-primary"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleAddLink();
+                  } else if (e.key === "Escape") {
+                    setShowLinkInput(false);
+                  }
+                }}
+                autoFocus
+              />
+              <Button size="sm" onClick={handleAddLink} disabled={!linkUrl.trim()}>
+                Add
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setShowLinkInput(false)}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground mt-2">
+              Add design references like Dribbble, Behance, or any website URL
+            </p>
+          </div>
+        )}
 
         <p className="text-xs text-muted-foreground text-center mt-2">Press Enter to build • Shift+Enter for new line</p>
       </div>
