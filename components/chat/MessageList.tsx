@@ -1,13 +1,14 @@
 "use client";
 
 import { useRef, useEffect } from "react";
-import type { Message, ParsedBlock } from "./types";
+import type { Message, ParsedBlock, ToolCall } from "./types";
 import { MessageBubble } from "./MessageBubble";
 import { StreamingIndicator } from "./StreamingIndicator";
 import { EmptyState } from "./EmptyState";
 import { FileBlock } from "./FileBlock";
 import { CodeBlock } from "./CodeBlock";
 import { MarkdownContent } from "./MarkdownContent";
+import { ToolIndicator } from "./ToolIndicator";
 import { Trash2 } from "lucide-react";
 import Image from "next/image";
 
@@ -16,6 +17,7 @@ interface MessageListProps {
   isLoading: boolean;
   streamingContent: string;
   streamingBlocks: ParsedBlock[] | null;
+  activeToolCalls?: ToolCall[];
 }
 
 // Component to render delete file blocks
@@ -37,6 +39,7 @@ export function MessageList({
   isLoading,
   streamingContent,
   streamingBlocks,
+  activeToolCalls = [],
 }: MessageListProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -75,6 +78,12 @@ export function MessageList({
               <span className="text-xs font-medium text-muted-foreground">
                 Jersen AI
               </span>
+              
+              {/* Show active tool calls */}
+              {activeToolCalls.length > 0 && (
+                <ToolIndicator toolCalls={activeToolCalls} className="mb-2" />
+              )}
+              
               <div className="space-y-2">
                 {streamingBlocks.map((block, idx) => {
                   if (block.type === "delete") {
@@ -95,8 +104,27 @@ export function MessageList({
           </div>
         )}
 
-        {/* Loading indicator when no streaming content yet */}
-        {isLoading && !streamingContent && <StreamingIndicator />}
+        {/* Loading indicator when no streaming content yet - also show tool calls */}
+        {isLoading && !streamingContent && (
+          <div className="flex gap-3 py-3">
+            <div className="flex h-12 w-12 shrink-0 select-none items-center justify-center">
+              <Image src="/logo.png" alt="Jersen AI" width={56} height={56} className="dark:invert" />
+            </div>
+            <div className="flex-1 space-y-2">
+              <span className="text-xs font-medium text-muted-foreground">
+                Jersen AI
+              </span>
+              {activeToolCalls.length > 0 ? (
+                <ToolIndicator toolCalls={activeToolCalls} />
+              ) : (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                  <span>Thinking...</span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

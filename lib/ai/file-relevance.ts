@@ -5,6 +5,13 @@
  * This ensures the AI sees the most relevant files first within the token budget.
  */
 
+/**
+ * Escape special regex characters in a string
+ */
+function escapeRegex(str: string): string {
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 export interface ScoredFile {
     path: string;
     content: string;
@@ -120,7 +127,9 @@ export function calculateFileRelevance(
     // === Content-based scoring ===
     
     for (const keyword of keywords) {
-        const occurrences = (lowerContent.match(new RegExp(keyword, 'g')) || []).length;
+        // Escape regex special characters to prevent invalid regex errors
+        const escapedKeyword = escapeRegex(keyword);
+        const occurrences = (lowerContent.match(new RegExp(escapedKeyword, 'g')) || []).length;
         if (occurrences > 0) {
             // Diminishing returns for many occurrences
             const contentScore = Math.min(occurrences * 2, 10);

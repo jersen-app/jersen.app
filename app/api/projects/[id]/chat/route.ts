@@ -494,7 +494,8 @@ ${optimizedContext.fileContext}`;
         },
     });
 
-    return result.toTextStreamResponse();
+    // Use UI message stream to include tool call information for frontend visibility
+    return result.toUIMessageStreamResponse();
 }
 
 // GET chat history

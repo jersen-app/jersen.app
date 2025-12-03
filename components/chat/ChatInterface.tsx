@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { MessageSquarePlus, Trash2, Loader2, AlertCircle, Brain, Sparkles } from "lucide-react";
-import type { Message, FileData, ParsedBlock, Attachment } from "./types";
+import type { Message, FileData, ParsedBlock, Attachment, ToolCall } from "./types";
 import { generateId, parseAIResponse, containsRawDiffMarkers } from "./utils";
 import { applyDiffBlocks } from "@/lib/ai/diff";
 import { MessageList } from "./MessageList";
@@ -128,6 +128,7 @@ export function ChatInterface({
   const [streamingBlocks, setStreamingBlocks] = useState<ParsedBlock[] | null>(
     null
   );
+  const [activeToolCalls, setActiveToolCalls] = useState<ToolCall[]>([]);
   const [creditError, setCreditError] = useState<{
     message: string;
     remainingCredits?: number;
@@ -239,6 +240,7 @@ export function ChatInterface({
     setInput("");
     setStreamingContent("");
     setStreamingBlocks(null);
+    setActiveToolCalls([]);
     if (onNewChat) {
       onNewChat();
     }
@@ -314,6 +316,7 @@ export function ChatInterface({
 
       // Clear any previous credit error on success
       setCreditError(null);
+      setActiveToolCalls([]);
 
       const reader = response.body?.getReader();
       if (!reader) {
@@ -323,33 +326,103 @@ export function ChatInterface({
       const decoder = new TextDecoder();
       let fullContent = "";
       let lastStreamedFileCount = 0;
+      let buffer = "";
+      const toolCallsMap = new Map<string, ToolCall>();
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
 
         const chunk = decoder.decode(value, { stream: true });
-        fullContent += chunk;
-        setStreamingContent(fullContent);
-
-        // Parse streaming content for live preview
-        const { blocks, files } = parseAIResponse(fullContent);
-        setStreamingBlocks(blocks);
-
-        // Stream files to editor in real-time (only complete files)
-        // This updates the code editor without triggering sandbox sync
-        if (onStreamingFiles && files.length > lastStreamedFileCount) {
-          // Only send newly completed files (not still streaming)
-          const completeFiles = files.filter(f => !f.content.endsWith('\n...'));
-          if (completeFiles.length > lastStreamedFileCount) {
-            // Process files to apply diffs before sending to editor
-            const processedStreamFiles = processFiles(completeFiles);
-            // Filter out files that still have raw diff markers (failed to parse/apply)
-            const validFiles = processedStreamFiles.filter(f => !containsRawDiffMarkers(f.content));
-            if (validFiles.length > 0) {
-              onStreamingFiles(validFiles);
+        buffer += chunk;
+        
+        // Parse SSE events from the UI message stream
+        // Format: "data: {JSON}\n\n" or "data: [DONE]\n\n"
+        const events = buffer.split('\n\n');
+        buffer = events.pop() || ''; // Keep incomplete event in buffer
+        
+        for (const event of events) {
+          const lines = event.split('\n');
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            
+            const data = line.slice(6); // Remove "data: " prefix
+            if (data === '[DONE]') continue;
+            
+            try {
+              const parsed = JSON.parse(data);
+              const partType = parsed.type;
+              
+              if (partType === 'text-delta') {
+                // Text content delta
+                fullContent += parsed.delta || '';
+                setStreamingContent(fullContent);
+                
+                // Parse streaming content for live preview
+                const { blocks, files } = parseAIResponse(fullContent);
+                setStreamingBlocks(blocks);
+                
+                // Stream files to editor in real-time
+                if (onStreamingFiles && files.length > lastStreamedFileCount) {
+                  const completeFiles = files.filter(f => !f.content.endsWith('\n...'));
+                  if (completeFiles.length > lastStreamedFileCount) {
+                    const processedStreamFiles = processFiles(completeFiles);
+                    const validFiles = processedStreamFiles.filter(f => !containsRawDiffMarkers(f.content));
+                    if (validFiles.length > 0) {
+                      onStreamingFiles(validFiles);
+                    }
+                    lastStreamedFileCount = completeFiles.length;
+                  }
+                }
+              } else if (partType === 'tool-input-start') {
+                // Tool call started
+                const toolId = parsed.toolCallId || generateId();
+                toolCallsMap.set(toolId, {
+                  id: toolId,
+                  toolName: parsed.toolName || 'unknown',
+                  args: {},
+                  state: 'running',
+                });
+                setActiveToolCalls(Array.from(toolCallsMap.values()));
+              } else if (partType === 'tool-input-delta') {
+                // Tool call input delta (args being streamed)
+                const toolId = parsed.toolCallId;
+                if (toolId && toolCallsMap.has(toolId)) {
+                  const existing = toolCallsMap.get(toolId)!;
+                  // Delta contains partial JSON, we could accumulate but for display just keep state
+                  setActiveToolCalls(Array.from(toolCallsMap.values()));
+                }
+              } else if (partType === 'tool-input-end') {
+                // Tool call input complete
+                const toolId = parsed.toolCallId;
+                if (toolId && toolCallsMap.has(toolId)) {
+                  const existing = toolCallsMap.get(toolId)!;
+                  toolCallsMap.set(toolId, {
+                    ...existing,
+                    args: parsed.input || existing.args,
+                    state: 'running',
+                  });
+                  setActiveToolCalls(Array.from(toolCallsMap.values()));
+                }
+              } else if (partType === 'tool-result') {
+                // Tool result received
+                const toolId = parsed.toolCallId;
+                if (toolId && toolCallsMap.has(toolId)) {
+                  const existing = toolCallsMap.get(toolId)!;
+                  toolCallsMap.set(toolId, {
+                    ...existing,
+                    state: 'complete',
+                    result: parsed.output,
+                  });
+                  setActiveToolCalls(Array.from(toolCallsMap.values()));
+                }
+              } else if (partType === 'error') {
+                console.error('Stream error:', parsed.errorText);
+              }
+              // Ignore other types: text-start, text-end, reasoning-*, etc.
+            } catch {
+              // Ignore parse errors for malformed JSON
             }
-            lastStreamedFileCount = completeFiles.length;
           }
         }
       }
@@ -372,6 +445,7 @@ export function ChatInterface({
       setMessages((prev) => [...prev, assistantMessage]);
       setStreamingContent("");
       setStreamingBlocks(null);
+      setActiveToolCalls([]);
 
       // Final file notification with processed files (filter out any with raw diff markers)
       const validProcessedFiles = processedFiles.filter(f => !containsRawDiffMarkers(f.content));
@@ -520,6 +594,7 @@ export function ChatInterface({
         isLoading={isLoading}
         streamingContent={streamingContent}
         streamingBlocks={streamingBlocks}
+        activeToolCalls={activeToolCalls}
       />
       
       {/* Message limit reached */}
