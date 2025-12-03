@@ -5,6 +5,59 @@ import Project from "@/models/Project";
 import ChatMessage from "@/models/ChatMessage";
 import ProjectMemory from "@/models/ProjectMemory";
 
+// PATCH - Update project settings (e.g., name)
+export async function PATCH(
+    request: NextRequest,
+    { params }: { params: Promise<{ id: string }> }
+) {
+    try {
+        const { orgId, userId } = await auth();
+        const { id: projectId } = await params;
+
+        if (!orgId || !userId) {
+            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        }
+
+        const body = await request.json();
+        const { name } = body;
+
+        if (!name || typeof name !== "string" || name.trim().length === 0) {
+            return NextResponse.json({ error: "Name is required" }, { status: 400 });
+        }
+
+        if (name.length > 100) {
+            return NextResponse.json({ error: "Name must be less than 100 characters" }, { status: 400 });
+        }
+
+        await connectToDatabase();
+
+        // Find and update the project
+        const project = await Project.findOneAndUpdate(
+            { _id: projectId, orgId },
+            { name: name.trim() },
+            { new: true }
+        );
+
+        if (!project) {
+            return NextResponse.json({ error: "Project not found" }, { status: 404 });
+        }
+
+        return NextResponse.json({ 
+            success: true, 
+            project: { 
+                id: project._id, 
+                name: project.name 
+            } 
+        });
+    } catch (error) {
+        console.error("Update project error:", error);
+        return NextResponse.json(
+            { error: "Failed to update project" },
+            { status: 500 }
+        );
+    }
+}
+
 // DELETE - Delete a project
 export async function DELETE(
     request: NextRequest,
