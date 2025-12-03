@@ -30,10 +30,10 @@ import {
 } from "@/lib/ai/provider-docs";
 
 // Import new optimization modules
-import { optimizeContext, estimateTokens } from "@/lib/ai/context-optimizer";
+import { optimizeContext } from "@/lib/ai/context-optimizer";
 import { getRelevantFiles } from "@/lib/ai/file-relevance";
 import { getTemplatesContext } from "@/lib/ai/templates";
-import { applyDiffWithRecovery } from "@/lib/ai/diff-recovery";
+// Note: applyDiffBlocksWithRecovery is dynamically imported when needed
 
 export const maxDuration = 60;
 
@@ -152,9 +152,6 @@ export async function POST(
         }
     }
 
-    // Build context with file structure
-    const contextPrompt = buildContextPrompt(existingFiles);
-
     // Build memory context (summary of past conversations)
     const memoryContext = await buildMemoryContext(projectId);
 
@@ -198,14 +195,11 @@ export async function POST(
         }
     }
 
-    // === NEW: Use file relevance scoring to prioritize files ===
+    // === Use file relevance scoring to prioritize files ===
     const relevantFiles = getRelevantFiles(existingFiles, userContent, {
         maxFiles: 15, // Limit to most relevant files
         minScore: 5,   // Minimum relevance score
     });
-    
-    // Build optimized context with relevant files
-    const relevantContextPrompt = buildContextPrompt(relevantFiles);
     
     // Get template context (lightweight overview)
     const templatesContext = getTemplatesContext();
@@ -217,36 +211,40 @@ export async function POST(
         content: String(msg.content || ""),
     }));
 
-    // === NEW: Optimize context to fit within token budget ===
-    const rawSystemPrompt = `${SYSTEM_PROMPT}
+    // Prepare conversation history for optimizer
+    const historyForOptimizer = recentHistory.map((msg: any) => ({
+        role: msg.role as string,
+        content: String(msg.content || ""),
+    }));
 
-${memoryContext ? `\n${memoryContext}\n` : ''}
-
-${providerOverview}
-
-${relevantContextPrompt}
-${autoInjectedDocs}
-
-${templatesContext}`;
-
-    // Optimize context with token budget (reserve space for response)
+    // === Optimize context to fit within token budget ===
     const optimizedContext = optimizeContext({
         systemPrompt: SYSTEM_PROMPT,
-        memoryContext: memoryContext || '',
-        providerDocs: `${providerOverview}\n${autoInjectedDocs}`,
+        providerDocs: `${providerOverview}\n${autoInjectedDocs}\n\n${templatesContext}`,
+        memory: memoryContext || '',
         files: relevantFiles,
-        tokenBudget: 100000, // ~100k tokens budget for Gemini
-        reserveForResponse: 8000, // Reserve 8k tokens for response
+        conversationHistory: historyForOptimizer,
+        userMessage: userContent,
     });
 
-    // Use optimized system prompt
-    const fullSystemPrompt = optimizedContext.optimizedPrompt;
+    // Build final system prompt with optimized parts
+    const fullSystemPrompt = `${optimizedContext.systemPrompt}
+
+${optimizedContext.memory ? `## Project Memory\n${optimizedContext.memory}\n` : ''}
+
+${optimizedContext.providerDocs}
+
+## Current Files
+${optimizedContext.fileContext}`;
     
     // Log optimization stats in development
     if (process.env.NODE_ENV === 'development') {
-        console.log(`Context optimization: ${optimizedContext.stats.originalTokens} -> ${optimizedContext.stats.optimizedTokens} tokens (${Math.round((1 - optimizedContext.stats.optimizedTokens / optimizedContext.stats.originalTokens) * 100)}% reduction)`);
-        if (optimizedContext.stats.truncatedFiles > 0) {
-            console.log(`  - Truncated ${optimizedContext.stats.truncatedFiles} files, compressed ${optimizedContext.stats.compressedDocs} doc sections`);
+        console.log(`Context: ${optimizedContext.totalTokens} tokens${optimizedContext.wasCompressed ? ' (compressed)' : ''}`);
+        if (optimizedContext.compressionDetails) {
+            console.log(`  - Original: ${optimizedContext.compressionDetails.originalTokens} tokens`);
+            for (const detail of optimizedContext.compressionDetails.removedParts) {
+                console.log(`  - ${detail}`);
+            }
         }
     }
 
@@ -360,27 +358,20 @@ ${templatesContext}`;
                             finalContent = diffResult.content;
                             console.log(`Applied ${diffResult.appliedBlocks} diff blocks to ${file.path}`);
                         } else {
-                            // === NEW: Use advanced diff recovery ===
+                            // Use advanced diff recovery
                             console.warn(`Standard diff failed for ${file.path}, trying recovery strategies...`);
                             
-                            // Try recovery with multiple strategies
-                            let recovered = false;
-                            for (const block of file.diffBlocks) {
-                                const recoveryResult = applyDiffWithRecovery(
-                                    existingContent,
-                                    block.search,
-                                    block.replace
-                                );
-                                
-                                if (recoveryResult.success) {
-                                    finalContent = recoveryResult.content;
-                                    recovered = true;
-                                    console.log(`Recovered diff for ${file.path} using ${recoveryResult.strategy} strategy (confidence: ${Math.round(recoveryResult.confidence * 100)}%)`);
-                                    break;
-                                }
-                            }
+                            // Try recovery with multiple strategies using applyDiffBlocksWithRecovery
+                            const { applyDiffBlocksWithRecovery } = await import("@/lib/ai/diff-recovery");
+                            const recoveryResult = applyDiffBlocksWithRecovery(existingContent, file.diffBlocks);
                             
-                            if (!recovered) {
+                            if (recoveryResult.success || recoveryResult.appliedBlocks > 0) {
+                                finalContent = recoveryResult.content;
+                                console.log(`Recovered diff for ${file.path}: applied ${recoveryResult.appliedBlocks} blocks`);
+                                if (recoveryResult.warnings.length > 0) {
+                                    console.log(`  Warnings: ${recoveryResult.warnings.join(', ')}`);
+                                }
+                            } else {
                                 // Ultimate fallback - use the REPLACE content as the new file
                                 console.warn(`All recovery strategies failed for ${file.path}, using REPLACE content as full file`);
                                 finalContent = file.diffBlocks[file.diffBlocks.length - 1].replace;
