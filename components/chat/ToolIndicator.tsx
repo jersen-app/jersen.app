@@ -156,8 +156,27 @@ export function ToolIndicator({ toolCalls, className }: ToolIndicatorProps) {
   
   // Count completed tools
   const completedCount = toolCalls.filter(t => t.state === 'complete').length;
+  const allComplete = completedCount > 0 && !activeTool;
 
   if (!activeTool && completedCount === 0) return null;
+
+  // If all tools are complete, show completion state
+  if (allComplete) {
+    return (
+      <div className={cn(
+        "flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/50 border border-border/50",
+        className
+      )}>
+        <div className="flex items-center gap-2 text-green-500">
+          <CheckCircle2 className="h-4 w-4" />
+          <span className="text-sm font-medium">Ready</span>
+        </div>
+        <span className="text-xs text-muted-foreground ml-auto">
+          {completedCount} step{completedCount > 1 ? 's' : ''} completed
+        </span>
+      </div>
+    );
+  }
 
   const toolInfo = activeTool ? TOOL_INFO[activeTool.toolName] : null;
   const Icon = toolInfo?.icon || Loader2;
@@ -183,13 +202,13 @@ export function ToolIndicator({ toolCalls, className }: ToolIndicatorProps) {
       </span>
 
       {completedCount > 0 && (
-        <span className="text-xs text-muted-foreground ml-auto">
-          {completedCount} step{completedCount > 1 ? 's' : ''} done
+        <span className="text-xs text-muted-foreground ml-auto mr-2">
+          {completedCount} done
         </span>
       )}
 
       {activeTool?.state === 'running' && (
-        <Loader2 className="h-3 w-3 animate-spin text-muted-foreground ml-auto" />
+        <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
       )}
     </div>
   );

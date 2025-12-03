@@ -416,6 +416,30 @@ export function ChatInterface({
                   });
                   setActiveToolCalls(Array.from(toolCallsMap.values()));
                 }
+              } else if (partType === 'tool-call') {
+                // Alternative tool call event (some SDK versions)
+                const toolId = parsed.toolCallId || generateId();
+                if (!toolCallsMap.has(toolId)) {
+                  toolCallsMap.set(toolId, {
+                    id: toolId,
+                    toolName: parsed.toolName || 'unknown',
+                    args: parsed.args || parsed.input || {},
+                    state: 'running',
+                  });
+                  setActiveToolCalls(Array.from(toolCallsMap.values()));
+                }
+              } else if (partType === 'tool-output-available') {
+                // Tool output is ready (marks completion)
+                const toolId = parsed.toolCallId;
+                if (toolId && toolCallsMap.has(toolId)) {
+                  const existing = toolCallsMap.get(toolId)!;
+                  toolCallsMap.set(toolId, {
+                    ...existing,
+                    state: 'complete',
+                    result: parsed.output,
+                  });
+                  setActiveToolCalls(Array.from(toolCallsMap.values()));
+                }
               } else if (partType === 'error') {
                 console.error('Stream error:', parsed.errorText);
               }

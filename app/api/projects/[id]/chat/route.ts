@@ -311,13 +311,18 @@ ${optimizedContext.fileContext}`;
     });
 
     // Stream response from Gemini with tools
-    // stopWhen enables multi-step: after tool call, model generates text response
+    // stopWhen: stepCountIs(N) allows multi-step: AI calls tool -> gets result -> continues generating
     const result = streamText({
         model: google(modelId),
         messages: allMessages,
         tools: aiTools,
-        stopWhen: stepCountIs(3), // Allow up to 3 steps: tool call -> tool result -> text response
+        stopWhen: stepCountIs(5), // Allow up to 5 steps for tool calls
+        maxOutputTokens: 8192, // Ensure we have room for complete responses
         temperature: 0.7,
+        onStepFinish: async (step) => {
+            const hasToolCalls = step.toolCalls && step.toolCalls.length > 0;
+            console.log(`[AI Step] Finish reason: ${step.finishReason}, Tool calls: ${step.toolCalls?.length || 0}, Text length: ${step.text?.length || 0}${hasToolCalls ? `, Tools: ${step.toolCalls.map(t => t.toolName).join(', ')}` : ''}`);
+        },
         async onFinish({ text }) {
             // Save messages to DB
             try {

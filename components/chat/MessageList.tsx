@@ -42,13 +42,31 @@ export function MessageList({
   activeToolCalls = [],
 }: MessageListProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const userScrolledUp = useRef(false);
 
-  // Auto scroll to bottom
-  useEffect(() => {
+  // Track if user has scrolled up
+  const handleScroll = () => {
     if (scrollRef.current) {
+      const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
+      const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+      // Consider "near bottom" if within 100px
+      userScrolledUp.current = distanceFromBottom > 100;
+    }
+  };
+
+  // Auto scroll to bottom only if user hasn't scrolled up
+  useEffect(() => {
+    if (scrollRef.current && !userScrolledUp.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages, streamingContent]);
+
+  // Reset scroll tracking when new message starts
+  useEffect(() => {
+    if (isLoading && !streamingContent) {
+      userScrolledUp.current = false;
+    }
+  }, [isLoading, streamingContent]);
 
   if (messages.length === 0 && !isLoading) {
     return (
@@ -59,7 +77,7 @@ export function MessageList({
   }
 
   return (
-    <div ref={scrollRef} className="flex-1 overflow-y-auto px-4">
+    <div ref={scrollRef} onScroll={handleScroll} className="flex-1 overflow-y-auto px-4">
       <div className="py-4 space-y-2">
         {messages.map((message) => (
           <MessageBubble
