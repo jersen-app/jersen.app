@@ -8,11 +8,39 @@ export function generateId(): string {
 }
 
 /**
+ * Normalize diff content before parsing
+ * Fixes common AI malformations
+ */
+function normalizeDiffContent(content: string): string {
+  let result = content;
+  
+  // Fix: code on same line as <<<<<<< SEARCH
+  result = result.replace(/<<<<<<<?:?\s*SEARCH\s+(.+)/gi, '<<<<<<< SEARCH\n$1');
+  
+  // Fix: just "REPLACE" at end without >>>>>>>
+  result = result.replace(/\n\s*REPLACE\s*$/gim, '\n>>>>>>> REPLACE');
+  
+  // Fix: new format markers -> convert to old format
+  if (result.includes('[SEARCH_START]') && result.includes('[REPLACE_START]')) {
+    result = result
+      .replace(/\/\/\s*\[SEARCH_START\]/gi, '<<<<<<< SEARCH')
+      .replace(/\/\/\s*\[SEARCH_END\]/gi, '=======')
+      .replace(/\/\/\s*\[REPLACE_START\]/gi, '')
+      .replace(/\/\/\s*\[REPLACE_END\]/gi, '>>>>>>> REPLACE');
+  }
+  
+  return result;
+}
+
+/**
  * Parse SEARCH/REPLACE blocks from diff content
  * More flexible regex to handle variations in whitespace
  */
 function parseDiffBlocks(content: string): DiffBlock[] {
   let blocks: DiffBlock[] = [];
+  
+  // Normalize first
+  const normalizedContent = normalizeDiffContent(content);
   
   // Try multiple regex patterns to handle different AI output formats
   const patterns = [
@@ -30,7 +58,7 @@ function parseDiffBlocks(content: string): DiffBlock[] {
     // Reset lastIndex for each pattern
     pattern.lastIndex = 0;
     let match;
-    while ((match = pattern.exec(content)) !== null) {
+    while ((match = pattern.exec(normalizedContent)) !== null) {
       const search = match[1];
       const replace = match[2];
       // Validate we got both parts
@@ -42,19 +70,19 @@ function parseDiffBlocks(content: string): DiffBlock[] {
   }
   
   // If standard patterns failed, try malformed pattern parsing
-  if (blocks.length === 0 && isDiffContent(content)) {
+  if (blocks.length === 0 && isDiffContent(normalizedContent)) {
     console.warn('[parseDiffBlocks] Standard patterns failed, trying malformed parser...');
-    blocks = parseMalformedDiffBlocks(content);
+    blocks = parseMalformedDiffBlocks(normalizedContent);
     
     if (blocks.length > 0) {
       console.log('[parseDiffBlocks] Malformed parser found', blocks.length, 'blocks');
     } else {
       // Last resort: try aggressive parsing
-      blocks = parseAggressiveDiffBlocks(content);
+      blocks = parseAggressiveDiffBlocks(normalizedContent);
       if (blocks.length > 0) {
         console.log('[parseDiffBlocks] Aggressive parser found', blocks.length, 'blocks');
       } else {
-        console.warn('[parseDiffBlocks] All parsers failed. Content sample:', content.substring(0, 300));
+        console.warn('[parseDiffBlocks] All parsers failed. Content sample:', normalizedContent.substring(0, 300));
       }
     }
   }
@@ -193,8 +221,12 @@ function parseMalformedDiffBlocks(content: string): DiffBlock[] {
 function isDiffContent(content: string): boolean {
   // More flexible check for diff markers - handle various spacing
   const hasSearchMarker = /<{3,}\s*:?\s*SEARCH/i.test(content);
-  const hasReplaceMarker = />{3,}\s*:?\s*REPLACE/i.test(content);
-  return hasSearchMarker && hasReplaceMarker;
+  // Also accept just "REPLACE" at end of line (malformed output)
+  const hasReplaceMarker = />{3,}\s*:?\s*REPLACE/i.test(content) || /\n\s*REPLACE\s*$/im.test(content);
+  // Also check for new format markers
+  const hasNewSearchMarker = content.includes('[SEARCH_START]');
+  const hasNewReplaceMarker = content.includes('[REPLACE_END]');
+  return (hasSearchMarker && hasReplaceMarker) || (hasNewSearchMarker && hasNewReplaceMarker);
 }
 
 /**
@@ -347,9 +379,46 @@ export function parseAIResponse(content: string): {
   // Pre-process: Wrap raw diff blocks (filepath + SEARCH/REPLACE not in code fence) in ```diff
   // This handles cases where AI outputs diff content without proper code fence
   processedContent = processedContent.replace(
-    /(?:^|\n)(filepath:\s*[^\n]+)\n(<<<<<<<?:?\s*SEARCH[\s\S]*?>>>>>>>?:?\s*REPLACE)(?=\n|$)/gi,
+    /(?:^|\n)(filepath:\s*[^\n]+)\n(<<<<<<<?:?\s*SEARCH[\s\S]*?(?:>>>>>>>?:?\s*REPLACE|(?:\n|\s)REPLACE\s*$))/gim,
     (_, filepath, diffContent) => `\n\`\`\`diff\n${filepath}\n${diffContent}\n\`\`\``
   );
+  
+  // Pre-process: Handle malformed diff where AI puts code on same line as <<<<<<< SEARCH
+  // e.g., "<<<<<<< SEARCH import { X } from 'y';" -> split to separate lines
+  processedContent = processedContent.replace(
+    /<<<<<<<?:?\s*SEARCH\s+(.+)/gi,
+    '<<<<<<< SEARCH\n$1'
+  );
+  
+  // Pre-process: Add >>>>>>> REPLACE if just "REPLACE" appears at end
+  processedContent = processedContent.replace(
+    /\n\s*REPLACE\s*$/gim,
+    '\n>>>>>>> REPLACE'
+  );
+  
+  // Pre-process: Handle "diff\n\n<<<<<<< SEARCH" pattern (diff label without filepath)
+  // This happens when AI doesn't include the filepath line
+  processedContent = processedContent.replace(
+    /\bdiff\s*\n+\s*(<<<<<<<?:?\s*SEARCH)/gi,
+    '```diff\nfilepath: unknown\n$1'
+  );
+  
+  // Pre-process: If we see raw diff content that starts with <<<<<<< SEARCH but isn't in a code fence,
+  // try to wrap it. This catches orphan diff blocks.
+  if (processedContent.includes('<<<<<<< SEARCH') && !processedContent.match(/```(?:diff)?\s*\n[^`]*<<<<<<< SEARCH/)) {
+    // Find raw diff blocks and wrap them (handle both >>>>>>> REPLACE and just REPLACE)
+    processedContent = processedContent.replace(
+      /(?:^|\n)(?!```)([^\n]*?)(<<<<<<<?:?\s*SEARCH[\s\S]*?(?:>>>>>>>?:?\s*REPLACE|(?:\n|\s)REPLACE\s*))/gim,
+      (match, prefix, diffContent) => {
+        const trimmedPrefix = prefix.trim();
+        // If prefix looks like a filepath
+        if (trimmedPrefix.match(/^[\w\-\/\.]+\.(tsx?|jsx?|css|json|md)$/i)) {
+          return `\n\`\`\`diff\nfilepath: ${trimmedPrefix}\n${diffContent}\n\`\`\``;
+        }
+        return `\n\`\`\`diff\nfilepath: unknown\n${diffContent}\n\`\`\``;
+      }
+    );
+  }
 
   // Match all COMPLETE code blocks with their language
   const codeBlockRegex = /```(\w+)?\n([\s\S]*?)```/g;
@@ -606,6 +675,39 @@ export function parseAIResponse(content: string): {
   
   const deduplicatedBlocks = blocks.filter((_, index) => !indicesToRemove.has(index));
   
+  // Post-process: Convert text blocks that contain raw diff markers into diff blocks
+  // This catches cases where the pre-processing didn't wrap diffs properly
+  const postProcessedBlocks: ParsedBlock[] = [];
+  for (const block of deduplicatedBlocks) {
+    if (block.type === "text" && isDiffContent(block.content)) {
+      // This text block contains raw diff - try to parse it
+      console.warn('[parseAIResponse] Text block contains raw diff markers, attempting to parse...');
+      const normalizedContent = normalizeDiffContent(block.content);
+      const diffBlocks = parseDiffBlocks(normalizedContent);
+      
+      if (diffBlocks.length > 0) {
+        // Successfully parsed - push as diff block with unknown filepath
+        postProcessedBlocks.push({
+          type: "diff",
+          content: block.content,
+          language: "diff",
+          filename: "unknown",
+          diffBlocks,
+          isFullFile: false,
+        });
+      } else {
+        // Still couldn't parse - keep as text but format nicely
+        postProcessedBlocks.push({
+          type: "code",
+          content: block.content,
+          language: "diff",
+        });
+      }
+    } else {
+      postProcessedBlocks.push(block);
+    }
+  }
+
   // Also deduplicate files array
   const uniqueFiles = new Map<string, FileData>();
   for (const file of files) {
@@ -631,7 +733,7 @@ export function parseAIResponse(content: string): {
   );
   
   // Also filter blocks
-  const filteredBlocks = deduplicatedBlocks.filter(block => {
+  const filteredBlocks = postProcessedBlocks.filter(block => {
     if ((block.type === "file" || block.type === "diff") && block.filename) {
       return !configFilesToIgnore.has(block.filename);
     }
