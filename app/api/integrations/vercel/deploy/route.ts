@@ -189,16 +189,25 @@ export async function POST(request: NextRequest) {
         // Ensure essential files exist and inject dependencies
         const packageJsonIndex = files.findIndex((f: { file: string }) => f.file === "package.json");
         
+        // Default dependencies that should always be included (matches E2B sandbox)
+        const defaultDeps: Record<string, string> = {
+            "lucide-react": "^0.468.0",
+            "tailwindcss": "^4",
+            "@tailwindcss/postcss": "^4",
+            "tw-animate-css": "^1.2.5",
+        };
+        
         if (packageJsonIndex !== -1) {
             // Parse existing package.json and merge dependencies
             try {
                 const existingPkg = JSON.parse(files[packageJsonIndex].data);
                 existingPkg.dependencies = {
                     ...existingPkg.dependencies,
+                    ...defaultDeps,
                     ...additionalDeps,
                 };
                 files[packageJsonIndex].data = JSON.stringify(existingPkg, null, 2);
-                console.log(`Merged ${Object.keys(additionalDeps).length} dependencies into existing package.json`);
+                console.log(`Merged ${Object.keys(additionalDeps).length} project dependencies + defaults into existing package.json`);
             } catch (e) {
                 console.error('Failed to parse existing package.json:', e);
             }
@@ -218,14 +227,15 @@ export async function POST(request: NextRequest) {
                             lint: "next lint",
                         },
                         dependencies: {
-                            next: "15.0.3",
-                            react: "^19.0.0",
-                            "react-dom": "^19.0.0",
+                            next: "^15",
+                            react: "^19",
+                            "react-dom": "^19",
+                            ...defaultDeps,
                             ...additionalDeps,
                         },
                         devDependencies: {
                             typescript: "^5",
-                            "@types/node": "^20",
+                            "@types/node": "^22",
                             "@types/react": "^19",
                             "@types/react-dom": "^19",
                         },
@@ -234,7 +244,60 @@ export async function POST(request: NextRequest) {
                     2
                 ),
             });
-            console.log(`Created default package.json with ${Object.keys(additionalDeps).length} additional dependencies`);
+            console.log(`Created default package.json with ${Object.keys(additionalDeps).length} additional dependencies + defaults`);
+        }
+        
+        // Add globals.css if missing (Tailwind v4 syntax)
+        const hasGlobalsCss = files.some((f: { file: string }) => 
+            f.file === "app/globals.css" || f.file === "styles/globals.css"
+        );
+        if (!hasGlobalsCss) {
+            files.push({
+                file: "app/globals.css",
+                data: `@import "tailwindcss";
+@import "tw-animate-css";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: system-ui, -apple-system, sans-serif;
+}
+`,
+            });
+            console.log('Added default globals.css with Tailwind v4 imports');
+        }
+        
+        // Add postcss.config.mjs if missing (required for Tailwind v4)
+        const hasPostcssConfig = files.some((f: { file: string }) => 
+            f.file === "postcss.config.js" || 
+            f.file === "postcss.config.mjs" || 
+            f.file === "postcss.config.cjs"
+        );
+        if (!hasPostcssConfig) {
+            files.push({
+                file: "postcss.config.mjs",
+                data: `const config = {
+  plugins: {
+    "@tailwindcss/postcss": {},
+  },
+};
+
+export default config;
+`,
+            });
+            console.log('Added postcss.config.mjs for Tailwind v4');
         }
 
         // Add next.config if missing
