@@ -76,13 +76,16 @@ export default function AuthCallbackPage() {
   useEffect(() => {
     if (handled.current) return;
     handled.current = true;
+    // Change '/dashboard' to your protected page path (e.g., '/profile', '/app')
     router.replace(handleAuthCallback() ? '/dashboard' : '/?error=auth_failed');
   }, [router]);
   return <div className="min-h-screen flex items-center justify-center"><div className="animate-spin h-8 w-8 border-b-2 border-violet-600 rounded-full"></div></div>;
 }
 \`\`\`
 
-**⚠️ NEVER call login() in useEffect - causes redirect loops! Only call from button onClick.**
+**⚠️ IMPORTANT:**
+- NEVER call login() in useEffect - causes redirect loops! Only call from button onClick.
+- Update the redirect path ('/dashboard') to match your app's protected page.
 `;
 }
 

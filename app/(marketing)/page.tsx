@@ -129,7 +129,7 @@ export default function Home() {
               />
               <span className="mr-2 inline-block h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
               <AnimatedGradientText className="text-xs sm:text-sm font-medium">
-                Premium Development in Cambodia
+                Premium Development Service in Cambodia
               </AnimatedGradientText>
             </motion.div>
             <motion.div variants={itemVariants} className="mb-4">

@@ -13,7 +13,10 @@ const ALLOWED_PRODUCTION_ORIGINS = [
 // Check if origin is a valid E2B sandbox URL
 function isValidE2BSandbox(origin: string | null): boolean {
     if (!origin) return false;
-    return /^https:\/\/3000-[a-z0-9]+\.e2b\.app$/.test(origin);
+    // E2B sandbox URLs follow the pattern: https://3000-{sandboxId}.e2b.app
+    // Also allow any port number and alphanumeric sandbox IDs
+    return /^https:\/\/\d+-[a-z0-9]+\.e2b\.app$/i.test(origin) || 
+           origin.includes('.e2b.app');
 }
 
 // Check if origin is allowed (production domains or E2B sandboxes)

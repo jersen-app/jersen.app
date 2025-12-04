@@ -296,7 +296,7 @@ ${optimizedContext.fileContext}`;
         model: google(modelId),
         messages: allMessages,
         tools: aiTools,
-        stopWhen: stepCountIs(10), // Allow up to 5 steps for tool calls
+        stopWhen: stepCountIs(5), // Allow up to 5 steps for tool calls
         maxOutputTokens: 16384, // Increased to handle larger multi-file responses
         temperature: 1, // 0.7 before
         onStepFinish: async (step) => {

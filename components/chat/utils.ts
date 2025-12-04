@@ -12,7 +12,7 @@ export function generateId(): string {
  * More flexible regex to handle variations in whitespace
  */
 function parseDiffBlocks(content: string): DiffBlock[] {
-  const blocks: DiffBlock[] = [];
+  let blocks: DiffBlock[] = [];
   
   // Try multiple regex patterns to handle different AI output formats
   const patterns = [
@@ -41,17 +41,22 @@ function parseDiffBlocks(content: string): DiffBlock[] {
     if (blocks.length > 0) break; // Use first pattern that works
   }
   
-  // Debug: log if markers detected but no blocks parsed
+  // If standard patterns failed, try malformed pattern parsing
   if (blocks.length === 0 && isDiffContent(content)) {
-    console.warn('[parseDiffBlocks] Markers detected but no blocks parsed.');
-    console.warn('[parseDiffBlocks] Content sample:', content.substring(0, 300));
-    // Try to identify what's different about the markers
-    const searchMatch = content.match(/<+\s*:?\s*SEARCH/i);
-    const replaceMatch = content.match(/>+\s*:?\s*REPLACE/i);
-    console.warn('[parseDiffBlocks] Found markers:', { 
-      search: searchMatch?.[0], 
-      replace: replaceMatch?.[0] 
-    });
+    console.warn('[parseDiffBlocks] Standard patterns failed, trying malformed parser...');
+    blocks = parseMalformedDiffBlocks(content);
+    
+    if (blocks.length > 0) {
+      console.log('[parseDiffBlocks] Malformed parser found', blocks.length, 'blocks');
+    } else {
+      // Last resort: try aggressive parsing
+      blocks = parseAggressiveDiffBlocks(content);
+      if (blocks.length > 0) {
+        console.log('[parseDiffBlocks] Aggressive parser found', blocks.length, 'blocks');
+      } else {
+        console.warn('[parseDiffBlocks] All parsers failed. Content sample:', content.substring(0, 300));
+      }
+    }
   }
   
   return blocks;
@@ -72,7 +77,26 @@ function parseAggressiveDiffBlocks(content: string): DiffBlock[] {
     const part = searchSplit[i];
     // Find the ======= separator
     const eqIndex = part.indexOf('=======');
-    if (eqIndex === -1) continue;
+    if (eqIndex === -1) {
+      // Try parsing without ======= (malformed output)
+      // Format: <<<<<<< SEARCH code...\nreplacement\nREPLACE
+      const replaceOnlyMatch = part.match(/^([\s\S]*?)\n([\s\S]*?)>*\s*REPLACE/i);
+      if (replaceOnlyMatch) {
+        // The first capture is the search, second is replace
+        // But this format is ambiguous, so we try to be smart
+        const fullMatch = replaceOnlyMatch[0];
+        const lines = fullMatch.split('\n');
+        if (lines.length >= 2) {
+          // Assume first line(s) are search, rest is replace
+          const search = lines[0].trim();
+          const replace = lines.slice(1).join('\n').replace(/>*\s*REPLACE\s*$/i, '').trim();
+          if (search) {
+            blocks.push({ search, replace });
+          }
+        }
+      }
+      continue;
+    }
     
     const searchPart = part.substring(0, eqIndex);
     const afterEq = part.substring(eqIndex + 7); // Skip "======="
@@ -91,6 +115,78 @@ function parseAggressiveDiffBlocks(content: string): DiffBlock[] {
   return blocks;
 }
 
+/**
+ * Parse malformed diff blocks where content is on same line as marker
+ * Handles various broken formats from AI output:
+ * 1. "<<<<<<< SEARCH code...\nmore code\nREPLACE" (no ======= separator)
+ * 2. "<<<<<<< SEARCH code on same line\nreplacement\nREPLACE"
+ */
+function parseMalformedDiffBlocks(content: string): DiffBlock[] {
+  const blocks: DiffBlock[] = [];
+  
+  // Try to find all sections between <<<<<<< SEARCH and REPLACE
+  const sectionPattern = /<<<+\s*SEARCH\s*([\s\S]*?)\n\s*REPLACE/gi;
+  
+  let match;
+  while ((match = sectionPattern.exec(content)) !== null) {
+    const fullContent = match[1];
+    
+    if (!fullContent || !fullContent.trim()) continue;
+    
+    // Check if there's an ======= separator we missed
+    const eqIndex = fullContent.indexOf('=======');
+    if (eqIndex !== -1) {
+      // Found separator - parse properly
+      const search = fullContent.substring(0, eqIndex).trim();
+      const replace = fullContent.substring(eqIndex + 7).replace(/^>+\s*/, '').trim();
+      if (search) {
+        blocks.push({ search, replace });
+      }
+      continue;
+    }
+    
+    // No separator found - try heuristics
+    const lines = fullContent.split('\n');
+    
+    // Heuristic 1: If first line looks like it has code on same line as SEARCH
+    // and is different from the rest, treat first line as search
+    if (lines.length >= 2) {
+      const firstLine = lines[0].trim();
+      const rest = lines.slice(1).join('\n').trim();
+      
+      // If first line looks like actual code and rest exists
+      if (firstLine && rest && !firstLine.startsWith('//') && !firstLine.startsWith('/*')) {
+        blocks.push({ search: firstLine, replace: rest });
+        continue;
+      }
+    }
+    
+    // Heuristic 2: Try to find a logical split point
+    // Look for imports, function declarations, etc. that might indicate a boundary
+    const importMatch = fullContent.match(/([\s\S]*?import[^;]*;[\s\S]*?)\n\n([\s\S]+)/);
+    if (importMatch) {
+      blocks.push({ search: importMatch[1].trim(), replace: importMatch[2].trim() });
+      continue;
+    }
+    
+    // Heuristic 3: Split roughly in half if nothing else works
+    if (lines.length >= 4) {
+      const midpoint = Math.floor(lines.length / 2);
+      const search = lines.slice(0, midpoint).join('\n').trim();
+      const replace = lines.slice(midpoint).join('\n').trim();
+      if (search && replace) {
+        blocks.push({ search, replace });
+        continue;
+      }
+    }
+    
+    // Last resort: treat entire content as search with empty replace (deletion)
+    console.warn('[parseMalformedDiffBlocks] Could not determine search/replace boundary');
+    blocks.push({ search: fullContent.trim(), replace: '' });
+  }
+  
+  return blocks;
+}
 /**
  * Check if content contains diff markers
  */

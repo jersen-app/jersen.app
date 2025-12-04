@@ -193,11 +193,7 @@ export function createPlanningTool(context: {
 }) {
     return {
         planFeature: tool({
-            description: `Plan a complex multi-file feature before implementing. Use this when:
-- Creating a new feature that touches 3+ files
-- Major refactoring across multiple files
-- Adding a new page with components, API routes, and hooks
-This helps ensure proper file dependencies and implementation order.`,
+            description: `Plan a complex multi-file feature before implementing. After planning, you MUST immediately generate ALL files in the plan - do not stop between files. Generate everything in one response.`,
             inputSchema: FeaturePlanSchema,
             execute: async (plan: FeaturePlan) => {
                 // Validate the plan
@@ -226,7 +222,7 @@ This helps ensure proper file dependencies and implementation order.`,
                         totalFiles: plan.filesToCreate.length + plan.filesToModify.length,
                         order: plan.order,
                     },
-                    nextStep: `Start implementing by creating/modifying files in this order: ${plan.order.join(' → ')}`,
+                    instruction: `⚠️ CRITICAL: Now generate ALL ${plan.order.length} files in ONE response. Do NOT stop after each file. Generate: ${plan.order.join(', ')}`,
                 };
             },
         }),
@@ -249,7 +245,7 @@ This helps ensure proper file dependencies and implementation order.`,
         }),
         
         markPlanComplete: tool({
-            description: "Mark a file in the plan as completed.",
+            description: "Mark a file in the plan as completed. Call this ONLY after generating a file, then IMMEDIATELY continue generating the next file. Do NOT stop after calling this - always continue until ALL files are generated.",
             inputSchema: z.object({
                 path: z.string().describe("Path of the completed file"),
             }),
@@ -268,12 +264,24 @@ This helps ensure proper file dependencies and implementation order.`,
                 const completed = plan.order.slice(0, index + 1);
                 const remaining = plan.order.slice(index + 1);
                 
+                if (remaining.length > 0) {
+                    return {
+                        success: true as const,
+                        completed,
+                        remaining,
+                        nextFile: remaining[0],
+                        isComplete: false,
+                        instruction: `⚠️ DO NOT STOP! Immediately generate: ${remaining[0]}. ${remaining.length} file(s) remaining: ${remaining.join(', ')}`,
+                    };
+                }
+                
                 return {
                     success: true as const,
                     completed,
-                    remaining,
-                    nextFile: remaining[0] || null,
-                    isComplete: remaining.length === 0,
+                    remaining: [],
+                    nextFile: null,
+                    isComplete: true,
+                    instruction: "All files generated successfully!",
                 };
             },
         }),
