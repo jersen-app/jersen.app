@@ -382,14 +382,11 @@ Use this to check generated code for:
         }),
         
         validateMultiple: tool({
-            description: "Validate multiple code files at once.",
+            description: "Validate multiple code files at once. Pass files as a JSON array string.",
             inputSchema: z.object({
-                files: z.array(z.object({
-                    path: z.string(),
-                    content: z.string(),
-                })).describe("Array of files to validate"),
+                filesJson: z.string().describe('JSON array of files, e.g. [{"path": "app/page.tsx", "content": "..."}]'),
             }),
-            execute: async ({ files }: { files: Array<{ path: string; content: string }> }): Promise<{
+            execute: async ({ filesJson }: { filesJson: string }): Promise<{
                 allValid: boolean;
                 results: Array<{
                     path: string;
@@ -398,6 +395,7 @@ Use this to check generated code for:
                     warningCount: number;
                 }>;
             }> => {
+                const files = JSON.parse(filesJson) as Array<{ path: string; content: string }>;
                 const results = await validateFiles(files);
                 
                 const resultArray = Array.from(results.entries()).map(([path, result]) => ({

@@ -284,14 +284,15 @@ export function createTemplateTool() {
     }),
     
     useTemplate: tool({
-      description: 'Generate files from a template with the provided variables',
+      description: 'Generate files from a template with the provided variables. Pass variables as a JSON string like {"name": "value"}',
       inputSchema: z.object({
         templateId: z.string().describe('ID of the template to use'),
-        variables: z.record(z.union([z.string(), z.array(z.string())]))
-          .describe('Variables to apply to the template'),
+        variablesJson: z.string()
+          .describe('Variables as a JSON string, e.g. {"modelName": "User", "fields": ["id", "name"]}'),
       }),
-      execute: async ({ templateId, variables }) => {
+      execute: async ({ templateId, variablesJson }) => {
         try {
+          const variables = JSON.parse(variablesJson) as Record<string, string | string[]>;
           const result = generateFromTemplate(templateId, variables);
           return {
             success: true,

@@ -143,14 +143,21 @@ Generate ALL of these in ONE response (do NOT stop between files):
 ✅ Keep generating until entire feature is complete
 ✅ Only stop when you've output ALL necessary code
 
-## JERSEN PLATFORM
+## JERSEN PLATFORM - CRITICAL RULES!
 
 This project runs on Jersen, which provides backend services as wrapped providers:
 - **Auth**: OAuth social logins (Google, GitHub, Facebook, TikTok) via Jersen's hosted login page
 - **Storage**: File uploads and downloads - built on Cloudflare R2
 - **Database**: MongoDB database operations - project-isolated database
 
-**IMPORTANT**: Provider documentation is AUTOMATICALLY included below when needed. Just use the code patterns shown in the "Provider Implementation Docs" section at the bottom of this prompt.
+### ⚠️ ABSOLUTE RULES FOR PROVIDERS:
+1. **NEVER create /api/providers/* routes** - Jersen provides these EXTERNALLY at __JERSEN_URL__
+2. **NEVER create /api/auth/* routes** - Use the Jersen auth flow (redirect to Jersen's OAuth)
+3. **NEVER use process.env** - Use literal strings: \`'__JERSEN_API_KEY__'\` and \`'__JERSEN_URL__'\`
+4. **COPY the EXACT code patterns** from the "Provider Docs" section below
+5. All API calls go to: \`__JERSEN_URL__/api/providers/{auth|database|storage}\`
+
+**IMPORTANT**: Provider documentation with EXACT code to copy is included at the end of this prompt. Follow it precisely!
 
 ## JERSEN AUTH - SIMPLE REDIRECT FLOW (CLIENT-ONLY)
 

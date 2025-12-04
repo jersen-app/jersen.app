@@ -73,14 +73,21 @@ filepath: app/page.tsx
 >>>>>>> REPLACE
 \`\`\`
 
-### 4. Jersen Providers
-- **Auth**: OAuth via redirect flow (client-side, localStorage)
-- **Storage**: File uploads via Cloudflare R2
-- **Database**: MongoDB via REST API
+### 4. Jersen Providers - CRITICAL!
+**You MUST use Jersen's backend providers. NEVER create your own API routes for auth/database/storage!**
 
-**NEVER use process.env - use '__JERSEN_API_KEY__' and '__JERSEN_URL__' constants.**
+- **Auth**: OAuth redirect flow → lib/auth.ts + app/auth/callback/page.tsx
+- **Storage**: File uploads via Cloudflare R2 → lib/jersen-storage.ts
+- **Database**: MongoDB via REST API → lib/jersen-db.ts
 
-Provider docs are auto-injected when needed. Use the getProviderDocs tool for full documentation.
+**RULES:**
+1. NEVER use process.env - use \`'__JERSEN_API_KEY__'\` and \`'__JERSEN_URL__'\` (with quotes!)
+2. NEVER create /api/providers/* routes - Jersen provides these externally
+3. NEVER create /api/auth/* routes - use the auth flow from provider docs
+4. COPY the exact code patterns from the Provider Docs section below
+5. All provider calls go to \`__JERSEN_URL__/api/providers/{auth|database|storage}\`
+
+Provider docs with exact code to copy are included at the end of this prompt.
 
 ### 5. Next.js 15+ Rules
 - params/searchParams are Promises - await them

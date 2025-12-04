@@ -159,9 +159,11 @@ export function createAiTools(context: ToolContext) {
         }),
         
         // === NEW TOOLS ===
+        // Note: Some complex tools disabled temporarily for Gemini compatibility
         
         // Planning tools for multi-file changes
-        ...planningTools,
+        // Disabled: Complex nested schema causes Gemini errors
+        // ...planningTools,
         
         // Validation tool for TypeScript code
         ...validationTools,

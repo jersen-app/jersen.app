@@ -171,9 +171,11 @@ export async function POST(
     // Get provider overview (lightweight, always included)
     // This tells AI what's available and to use getProviderDocs tool for details
     const providerOverview = getProviderOverview(projectConfig);
-
-    // NO auto-injection of docs - AI should use getProviderDocs tool when needed
-    // This saves significant context space
+    
+    // Auto-inject condensed provider docs when providers are enabled
+    // This ensures the AI has the exact code patterns to use
+    const { getCondensedProviderDocs } = await import('@/lib/ai/provider-docs-condensed');
+    const condensedProviderDocs = getCondensedProviderDocs(projectConfig);
 
     // === Use file relevance scoring to prioritize files ===
     const relevantFiles = getRelevantFiles(existingFiles, userContent, {
@@ -200,7 +202,7 @@ export async function POST(
     // === Optimize context to fit within token budget ===
     const optimizedContext = optimizeContext({
         systemPrompt: SYSTEM_PROMPT,
-        providerDocs: `${providerOverview}\n\n${templatesContext}`,
+        providerDocs: `${providerOverview}\n\n${condensedProviderDocs}\n\n${templatesContext}`,
         memory: memoryContext || '',
         files: relevantFiles,
         conversationHistory: historyForOptimizer,
@@ -302,14 +304,23 @@ ${optimizedContext.fileContext}`;
         onStepFinish: async (step) => {
             const hasToolCalls = step.toolCalls && step.toolCalls.length > 0;
             console.log(`[AI Step] Finish reason: ${step.finishReason}, Tool calls: ${step.toolCalls?.length || 0}, Text length: ${step.text?.length || 0}${hasToolCalls ? `, Tools: ${step.toolCalls.map(t => t.toolName).join(', ')}` : ''}`);
+            
+            // Log error details if available
+            if (step.finishReason === 'error') {
+                console.error('[AI Step Error]', JSON.stringify(step, null, 2));
+            }
         },
-        async onFinish({ text, finishReason }) {
+        async onFinish({ text, finishReason, response }) {
             // Log finish info for debugging
             console.log(`[AI Finish] Reason: ${finishReason}, Text length: ${text?.length || 0}`);
             
             // Handle abnormal finish reasons
             if (finishReason === 'error' || finishReason === 'unknown') {
                 console.error(`[AI Finish] Abnormal finish reason: ${finishReason}`);
+                // Try to log more details
+                if (response) {
+                    console.error('[AI Finish] Response details:', JSON.stringify(response, null, 2).slice(0, 1000));
+                }
             }
             
             // Save messages to DB
