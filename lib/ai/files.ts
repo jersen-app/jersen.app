@@ -227,7 +227,7 @@ export function parseGeneratedFiles(aiResponse: string): ParsedFile[] {
         '.eslintrc.json',
         '.eslintrc.js',
         'eslint.config.mjs',
-        'app/globals.css',
+        // 'app/globals.css',
         // NOTE: app/layout.tsx is allowed - needed for AuthProvider and other context providers
     ];
     
