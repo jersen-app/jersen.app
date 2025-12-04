@@ -199,9 +199,14 @@ function isDiffContent(content: string): boolean {
 
 /**
  * Check if content still contains raw diff markers (for debugging/safety)
+ * Checks both old format (<<<<<<< SEARCH) and new format (// [SEARCH_START])
  */
 export function containsRawDiffMarkers(content: string): boolean {
-  return /<{3,}\s*(SEARCH|search)/i.test(content) || />{3,}\s*(REPLACE|replace)/i.test(content);
+  // Old format
+  const hasOldFormat = /<{3,}\s*(SEARCH|search)/i.test(content) || />{3,}\s*(REPLACE|replace)/i.test(content);
+  // New format
+  const hasNewFormat = content.includes('[SEARCH_START]') && content.includes('[REPLACE_END]');
+  return hasOldFormat || hasNewFormat;
 }
 
 /**

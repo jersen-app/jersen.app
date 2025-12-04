@@ -23,6 +23,77 @@ export interface DiffResult {
 }
 
 /**
+ * Normalize malformed diff output from AI
+ * Handles cases where AI puts markers and code on same line,
+ * or uses incomplete marker syntax
+ */
+function normalizeMalformedDiff(content: string): string {
+    let result = content;
+    
+    // NEW FORMAT: Convert // [SEARCH_START] format to old format for parsing
+    // This format is less likely to be mangled by AI training data
+    if (result.includes('[SEARCH_START]') && result.includes('[REPLACE_START]')) {
+        result = result
+            .replace(/\/\/\s*\[SEARCH_START\]/gi, '<<<<<<< SEARCH')
+            .replace(/\/\/\s*\[SEARCH_END\]/gi, '=======')
+            .replace(/\/\/\s*\[REPLACE_START\]/gi, '') // Remove this, ======= marks start of replace
+            .replace(/\/\/\s*\[REPLACE_END\]/gi, '>>>>>>> REPLACE');
+    }
+    
+    // Pattern 1: "<<<<<<< SEARCH code here" -> split to separate lines
+    result = result.replace(/<<<<<<<?:?\s*SEARCH\s+(.+)/gi, '<<<<<<< SEARCH\n$1');
+    
+    // Pattern 2: "code here >>>>>>> REPLACE" -> split to separate lines  
+    result = result.replace(/(.+?)\s*>>>>>>>?:?\s*REPLACE/gi, '$1\n>>>>>>> REPLACE');
+    
+    // Pattern 3: Just "REPLACE" on its own line (missing >>>>>>>) -> add marker
+    result = result.replace(/\n\s*REPLACE\s*$/gim, '\n>>>>>>> REPLACE');
+    
+    // Pattern 4: Check if we need to add ======= separator
+    const hasSearch = /<<<<<<<?:?\s*SEARCH/i.test(result);
+    const hasReplace = />>>>>>>?:?\s*REPLACE/i.test(result);
+    const hasSeparator = result.includes('=======');
+    
+    if (hasSearch && hasReplace && !hasSeparator) {
+        // Try to infer separator position
+        const searchMatch = result.match(/(<<<<<<<?:?\s*SEARCH\s*\n)([\s\S]*?)(>>>>>>>?:?\s*REPLACE)/i);
+        if (searchMatch) {
+            const [, searchMarker, middleContent, replaceMarker] = searchMatch;
+            const middleLines = middleContent.split('\n').filter(l => l.trim() !== '');
+            
+            // Heuristic: if there's a blank line in the original, split there
+            const blankLineIdx = middleContent.split('\n').findIndex((line, idx) => 
+                idx > 0 && line.trim() === ''
+            );
+            
+            if (blankLineIdx > 0) {
+                const allLines = middleContent.split('\n');
+                const oldPart = allLines.slice(0, blankLineIdx).join('\n');
+                const newPart = allLines.slice(blankLineIdx + 1).join('\n');
+                result = result.replace(
+                    searchMatch[0],
+                    `${searchMarker}${oldPart}\n=======\n${newPart}\n${replaceMarker}`
+                );
+            } else if (middleLines.length === 2) {
+                // Exactly 2 non-empty lines - assume first is old, second is new
+                result = result.replace(
+                    searchMatch[0],
+                    `${searchMarker}${middleLines[0]}\n=======\n${middleLines[1]}\n${replaceMarker}`
+                );
+            } else if (middleLines.length === 1) {
+                // Only 1 line - this is a deletion (replace with nothing)
+                result = result.replace(
+                    searchMatch[0],
+                    `${searchMarker}${middleLines[0]}\n=======\n${replaceMarker}`
+                );
+            }
+        }
+    }
+    
+    return result;
+}
+
+/**
  * Parse a diff block from AI output
  * Supports format:
  * ```diff
@@ -46,7 +117,17 @@ export function parseDiffBlocks(content: string): FileDiff | null {
     }
     
     const path = filepathMatch[1].trim();
-    const restContent = lines.slice(1).join('\n');
+    let restContent = lines.slice(1).join('\n');
+    
+    // Try to fix common malformed diff patterns from AI
+    const originalContent = restContent;
+    restContent = normalizeMalformedDiff(restContent);
+    
+    if (restContent !== originalContent) {
+        console.log('[diff.ts] Normalized malformed diff for', path);
+        console.log('[diff.ts] Original:', originalContent.substring(0, 200));
+        console.log('[diff.ts] Normalized:', restContent.substring(0, 200));
+    }
     
     // Check if this contains SEARCH/REPLACE blocks (flexible check)
     const hasDiffMarkers = (restContent.includes('<<<<<<< SEARCH') || restContent.includes('<<<<<<<SEARCH') || restContent.includes('<<<<<<< search') || restContent.includes('<<<<<<<:')) 

@@ -41,16 +41,34 @@ function removeDuplicateImports(content: string): string {
 }
 
 /**
+ * Normalize diff content - convert new format to old format for parsing
+ */
+function normalizeDiffContent(content: string): string {
+    if (content.includes('[SEARCH_START]') && content.includes('[REPLACE_START]')) {
+        return content
+            .replace(/\/\/\s*\[SEARCH_START\]/gi, '<<<<<<< SEARCH')
+            .replace(/\/\/\s*\[SEARCH_END\]/gi, '=======')
+            .replace(/\/\/\s*\[REPLACE_START\]/gi, '') // Remove, ======= marks start
+            .replace(/\/\/\s*\[REPLACE_END\]/gi, '>>>>>>> REPLACE');
+    }
+    return content;
+}
+
+/**
  * Parse SEARCH/REPLACE blocks from content
  * Uses flexible regex to handle variations in whitespace
  */
 function extractDiffBlocks(content: string): DiffBlock[] {
     const blocks: DiffBlock[] = [];
+    
+    // First normalize to old format
+    const normalizedContent = normalizeDiffContent(content);
+    
     // More flexible regex - handle optional whitespace and different line endings
     const blockRegex = /<<<<<<<?:?\s*SEARCH\s*\n([\s\S]*?)\n?=======\n?([\s\S]*?)\n?>>>>>>>?:?\s*REPLACE/gi;
     
     let match;
-    while ((match = blockRegex.exec(content)) !== null) {
+    while ((match = blockRegex.exec(normalizedContent)) !== null) {
         blocks.push({
             search: match[1],
             replace: match[2],
@@ -61,11 +79,17 @@ function extractDiffBlocks(content: string): DiffBlock[] {
 }
 
 /**
- * Check if content contains raw diff markers
+ * Check if content contains raw diff markers (old or new format)
  */
 function containsDiffMarkers(content: string): boolean {
-    return (content.includes('<<<<<<< SEARCH') || content.includes('<<<<<<<SEARCH') || content.includes('<<<<<<< search') || content.includes('<<<<<<<:')) 
+    // Old format: <<<<<<< SEARCH ... >>>>>>> REPLACE
+    const hasOldFormat = (content.includes('<<<<<<< SEARCH') || content.includes('<<<<<<<SEARCH') || content.includes('<<<<<<< search') || content.includes('<<<<<<<:')) 
         && (content.includes('>>>>>>> REPLACE') || content.includes('>>>>>>>REPLACE') || content.includes('>>>>>>> replace') || content.includes('>>>>>>>:'));
+    
+    // New format: // [SEARCH_START] ... // [REPLACE_END]
+    const hasNewFormat = content.includes('[SEARCH_START]') && content.includes('[REPLACE_END]');
+    
+    return hasOldFormat || hasNewFormat;
 }
 
 /**

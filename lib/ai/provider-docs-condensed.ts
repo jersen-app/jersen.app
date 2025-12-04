@@ -17,7 +17,7 @@ export function getCondensedAuthDocs(config: ProjectConfig): string {
 
     return `## Jersen Auth (Condensed)
 
-Uses redirect-based OAuth. All auth code is CLIENT-SIDE.
+Uses popup-based OAuth (works in iframes/preview). All auth code is CLIENT-SIDE.
 
 ### Key Files to Generate:
 
@@ -29,15 +29,50 @@ const SESSION_KEY = 'jersen_session';
 
 export interface User { id: string; email: string; name: string; avatarUrl?: string; provider: string; }
 
+// Popup-based login (works in iframes/preview)
 export function login() {
   const callbackUrl = encodeURIComponent(window.location.origin + '/auth/callback');
-  window.location.href = \`\${JERSEN_URL}/auth/oauth?api_key=\${API_KEY}&redirect_uri=\${callbackUrl}\`;
+  const authUrl = \`\${JERSEN_URL}/auth/oauth?api_key=\${API_KEY}&redirect_uri=\${callbackUrl}\`;
+  
+  // Try popup first (works better in iframes), fallback to redirect
+  const width = 500, height = 600;
+  const left = window.screenX + (window.outerWidth - width) / 2;
+  const top = window.screenY + (window.outerHeight - height) / 2;
+  const popup = window.open(authUrl, 'jersen_auth', \`width=\${width},height=\${height},left=\${left},top=\${top}\`);
+  
+  if (!popup || popup.closed) {
+    // Popup blocked, fallback to redirect
+    window.location.href = authUrl;
+  }
 }
 
+// Called by callback page to complete auth
 export function handleAuthCallback(): boolean {
   const token = new URLSearchParams(window.location.search).get('session_token');
-  if (token) { localStorage.setItem(SESSION_KEY, token); window.history.replaceState({}, '', '/auth/callback'); return true; }
+  if (token) { 
+    localStorage.setItem(SESSION_KEY, token); 
+    window.history.replaceState({}, '', '/auth/callback');
+    // If in popup, close it and notify opener
+    if (window.opener) {
+      window.opener.postMessage({ type: 'jersen_auth_success', token }, '*');
+      window.close();
+    }
+    return true; 
+  }
   return false;
+}
+
+// Listen for auth success from popup
+export function onAuthSuccess(callback: () => void) {
+  const handler = (event: MessageEvent) => {
+    if (event.data?.type === 'jersen_auth_success' && event.data?.token) {
+      localStorage.setItem(SESSION_KEY, event.data.token);
+      window.removeEventListener('message', handler);
+      callback();
+    }
+  };
+  window.addEventListener('message', handler);
+  return () => window.removeEventListener('message', handler);
 }
 
 export function getToken(): string | null { return typeof window !== 'undefined' ? localStorage.getItem(SESSION_KEY) : null; }
@@ -52,14 +87,6 @@ export async function getUser(): Promise<User | null> {
   });
   if (!res.ok) { localStorage.removeItem(SESSION_KEY); return null; }
   return (await res.json()).user;
-}
-
-export async function getUserFromToken(token: string): Promise<User | null> {
-  if (!token) return null;
-  const res = await fetch(\`\${JERSEN_URL}/api/providers/auth/session\`, {
-    headers: { 'Authorization': \`Bearer \${token}\`, 'x-jersen-api-key': API_KEY },
-  });
-  return res.ok ? (await res.json()).user : null;
 }
 \`\`\`
 
@@ -76,15 +103,50 @@ export default function AuthCallbackPage() {
   useEffect(() => {
     if (handled.current) return;
     handled.current = true;
-    // Change '/dashboard' to your protected page path (e.g., '/profile', '/app')
-    router.replace(handleAuthCallback() ? '/dashboard' : '/?error=auth_failed');
+    const success = handleAuthCallback();
+    // If not in popup (window.opener is null), redirect to dashboard
+    if (!window.opener) {
+      router.replace(success ? '/dashboard' : '/?error=auth_failed');
+    }
+    // If in popup, handleAuthCallback already closed it
   }, [router]);
   return <div className="min-h-screen flex items-center justify-center"><div className="animate-spin h-8 w-8 border-b-2 border-violet-600 rounded-full"></div></div>;
 }
 \`\`\`
 
+**hooks/useAuth.ts** - React hook for auth state:
+\`\`\`tsx
+"use client";
+import { useState, useEffect } from 'react';
+import { getUser, login, logout, isLoggedIn, onAuthSuccess, type User } from '@/lib/auth';
+
+export function useAuth() {
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const checkAuth = async () => {
+    setLoading(true);
+    const userData = await getUser();
+    setUser(userData);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    checkAuth();
+    // Listen for popup auth success
+    const cleanup = onAuthSuccess(() => {
+      checkAuth();
+    });
+    return cleanup;
+  }, []);
+
+  return { user, loading, isLoggedIn: !!user, login, logout, refetch: checkAuth };
+}
+\`\`\`
+
 **⚠️ IMPORTANT:**
 - NEVER call login() in useEffect - causes redirect loops! Only call from button onClick.
+- The popup flow works in iframes/preview. Falls back to redirect if popup blocked.
 - Update the redirect path ('/dashboard') to match your app's protected page.
 `;
 }
