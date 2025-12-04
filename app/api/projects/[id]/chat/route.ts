@@ -298,7 +298,7 @@ ${optimizedContext.fileContext}`;
         tools: aiTools,
         stopWhen: stepCountIs(5), // Allow up to 5 steps for tool calls
         maxOutputTokens: 16384, // Increased to handle larger multi-file responses
-        temperature: 1, // 0.7 before
+        temperature: 0.7, // 0.7 before
         onStepFinish: async (step) => {
             const hasToolCalls = step.toolCalls && step.toolCalls.length > 0;
             console.log(`[AI Step] Finish reason: ${step.finishReason}, Tool calls: ${step.toolCalls?.length || 0}, Text length: ${step.text?.length || 0}${hasToolCalls ? `, Tools: ${step.toolCalls.map(t => t.toolName).join(', ')}` : ''}`);
