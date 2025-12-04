@@ -231,13 +231,18 @@ You are building code for a **pre-configured Next.js project** that already has:
 - lucide-react icons (already installed)
 - React 19
 
+**TAILWIND CSS RULES:**
+- Only use DEFAULT Tailwind colors: slate, gray, zinc, neutral, stone, red, orange, amber, yellow, lime, green, emerald, teal, cyan, sky, blue, indigo, violet, purple, fuchsia, pink, rose
+- DO NOT use custom colors like "cream", "gold", "navy" - they don't exist!
+- Use arbitrary values for custom colors: \`bg-[#F5F5DC]\` instead of \`bg-cream-50\`
+
 **DO NOT generate these config files (they already exist and work):**
 - tailwind.config.ts/js
 - postcss.config.js/mjs
 - next.config.ts/js/mjs
 - tsconfig.json
 - package.json
-- app/globals.css
+- app/globals.css (use inline Tailwind classes instead)
 
 ## DEPENDENCIES - TWO WAYS TO INSTALL
 
@@ -247,6 +252,7 @@ Just write the import - system detects and installs automatically:
 import { create } from 'zustand';
 import { motion } from 'framer-motion';
 \`\`\`
+
 
 **Already installed:** react, next, lucide-react, tailwindcss
 
