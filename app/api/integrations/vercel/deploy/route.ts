@@ -118,21 +118,9 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-        // Run build check in sandbox (unless skipped)
-        if (!skipBuildCheck) {
-            const buildResult = await runBuildCheck(project.files);
-            if (!buildResult.success) {
-                return NextResponse.json(
-                    {
-                        error: "Build failed",
-                        code: "BUILD_ERROR",
-                        buildErrors: buildResult.errors,
-                        buildOutput: buildResult.output,
-                    },
-                    { status: 400 }
-                );
-            }
-        }
+        // Skip build check - let Vercel handle the build
+        // Vercel will show build errors in the deployment logs
+        // Previously we ran build check in E2B sandbox but it often timed out
 
         // Prepare files for Vercel deployment
         // Vercel expects files as an array of { file: string, data: string }
@@ -236,7 +224,7 @@ export default nextConfig;
             files,
             projectSettings: {
                 framework: detectFramework(project.files),
-                installCommand: "npm install",
+                installCommand: "npm install --force",
                 buildCommand: "npm run build",
                 outputDirectory: ".next",
             },

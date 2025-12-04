@@ -10,7 +10,6 @@ import {
     DialogTitle,
     DialogTrigger,
 } from "@/components/ui/dialog";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import {
     Rocket,
@@ -20,9 +19,6 @@ import {
     AlertCircle,
     Link2,
     TriangleIcon,
-    Hammer,
-    XCircle,
-    AlertTriangle,
 } from "lucide-react";
 
 interface DeployDialogProps {
@@ -42,10 +38,8 @@ interface DeploymentResult {
 type DeployState = 
     | "idle" 
     | "checking" 
-    | "building" 
     | "deploying" 
     | "success" 
-    | "build-error" 
     | "error";
 
 export function DeployDialog({ projectId, projectName, hasFiles }: DeployDialogProps) {
@@ -54,8 +48,6 @@ export function DeployDialog({ projectId, projectName, hasFiles }: DeployDialogP
     const [deployState, setDeployState] = useState<DeployState>("idle");
     const [deployment, setDeployment] = useState<DeploymentResult | null>(null);
     const [error, setError] = useState<string | null>(null);
-    const [buildErrors, setBuildErrors] = useState<string[]>([]);
-    const [buildOutput, setBuildOutput] = useState<string | null>(null);
 
     // Check Vercel connection when dialog opens
     useEffect(() => {
@@ -83,11 +75,9 @@ export function DeployDialog({ projectId, projectName, hasFiles }: DeployDialogP
         window.location.href = "/api/integrations/vercel";
     };
 
-    const handleDeploy = async (skipBuildCheck = false) => {
-        setDeployState(skipBuildCheck ? "deploying" : "building");
+    const handleDeploy = async () => {
+        setDeployState("deploying");
         setError(null);
-        setBuildErrors([]);
-        setBuildOutput(null);
 
         try {
             const res = await fetch("/api/integrations/vercel/deploy", {
@@ -96,7 +86,6 @@ export function DeployDialog({ projectId, projectName, hasFiles }: DeployDialogP
                 body: JSON.stringify({
                     projectId,
                     projectName: projectName.toLowerCase().replace(/[^a-z0-9]/g, "-"),
-                    skipBuildCheck,
                 }),
             });
 
@@ -106,13 +95,6 @@ export function DeployDialog({ projectId, projectName, hasFiles }: DeployDialogP
                 if (data.code === "NOT_CONNECTED") {
                     setVercelConnected(false);
                     setDeployState("idle");
-                    return;
-                }
-                
-                if (data.code === "BUILD_ERROR") {
-                    setBuildErrors(data.buildErrors || []);
-                    setBuildOutput(data.buildOutput || null);
-                    setDeployState("build-error");
                     return;
                 }
                 
@@ -138,8 +120,6 @@ export function DeployDialog({ projectId, projectName, hasFiles }: DeployDialogP
         setDeployState("idle");
         setDeployment(null);
         setError(null);
-        setBuildErrors([]);
-        setBuildOutput(null);
     };
 
     return (
@@ -215,31 +195,10 @@ export function DeployDialog({ projectId, projectName, hasFiles }: DeployDialogP
                                     </div>
                                 </div>
                             </div>
-                            <div className="flex items-center gap-2 px-2 py-1 rounded-md bg-blue-500/10 border border-blue-500/20">
-                                <Hammer className="h-4 w-4 text-blue-500 shrink-0" />
-                                <p className="text-xs text-blue-500">
-                                    A build check will run before deployment to catch any errors.
-                                </p>
-                            </div>
-                            <Button onClick={() => handleDeploy(false)} className="w-full">
+                            <Button onClick={() => handleDeploy()} className="w-full">
                                 <Rocket className="mr-2 h-4 w-4" />
-                                Build & Deploy
+                                Deploy to Vercel
                             </Button>
-                        </div>
-                    )}
-
-                    {/* Building */}
-                    {deployState === "building" && (
-                        <div className="flex flex-col items-center justify-center py-8 space-y-4">
-                            <div className="relative">
-                                <Hammer className="h-8 w-8 text-primary animate-bounce" />
-                            </div>
-                            <div className="text-center">
-                                <p className="font-medium">Checking build...</p>
-                                <p className="text-sm text-muted-foreground">
-                                    Running build check to catch errors before deployment.
-                                </p>
-                            </div>
                         </div>
                     )}
 
@@ -250,55 +209,8 @@ export function DeployDialog({ projectId, projectName, hasFiles }: DeployDialogP
                             <div className="text-center">
                                 <p className="font-medium">Deploying to Vercel...</p>
                                 <p className="text-sm text-muted-foreground">
-                                    This may take a few seconds.
+                                    This may take a moment.
                                 </p>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Build Error */}
-                    {deployState === "build-error" && (
-                        <div className="space-y-4">
-                            <div className="flex flex-col items-center justify-center py-4 space-y-3">
-                                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/30">
-                                    <AlertTriangle className="h-6 w-6 text-amber-600 dark:text-amber-400" />
-                                </div>
-                                <div className="text-center">
-                                    <p className="font-medium">Build Check Failed</p>
-                                    <p className="text-sm text-muted-foreground">
-                                        Fix these errors before deploying.
-                                    </p>
-                                </div>
-                            </div>
-
-                            {/* Error list */}
-                            <ScrollArea className="h-40 rounded-md border bg-muted/30 p-3">
-                                <div className="space-y-2 font-mono text-xs">
-                                    {buildErrors.map((err, i) => (
-                                        <div key={i} className="flex gap-2 text-red-500">
-                                            <XCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                                            <span className="break-all">{err}</span>
-                                        </div>
-                                    ))}
-                                    {buildErrors.length === 0 && buildOutput && (
-                                        <pre className="whitespace-pre-wrap text-muted-foreground">
-                                            {buildOutput}
-                                        </pre>
-                                    )}
-                                </div>
-                            </ScrollArea>
-
-                            <div className="flex gap-2">
-                                <Button variant="outline" onClick={resetState} className="flex-1">
-                                    Cancel
-                                </Button>
-                                <Button
-                                    variant="destructive"
-                                    onClick={() => handleDeploy(true)}
-                                    className="flex-1"
-                                >
-                                    Deploy Anyway
-                                </Button>
                             </div>
                         </div>
                     )}
