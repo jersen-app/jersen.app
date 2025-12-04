@@ -234,31 +234,83 @@ function isDiffContent(content: string): boolean {
  */
 function inferFilenameFromContent(content: string): string {
   // Check for common patterns in the diff content
-  const lowerContent = content.toLowerCase();
   
   // CSS file patterns
   if (content.includes('@import "tailwindcss"') || content.includes('@import "tw-animate-css"') || 
-      content.includes(':root {') || content.includes('--background:')) {
+      content.includes(':root {') || content.includes('--background:') || content.includes('--foreground:')) {
     return 'app/globals.css';
   }
   
-  // Layout patterns
-  if (content.includes('RootLayout') || (content.includes('<html') && content.includes('<body'))) {
+  // Layout patterns - check for Toaster, html/body tags, RootLayout
+  if (content.includes('RootLayout') || (content.includes('<html') && content.includes('<body')) ||
+      (content.includes('<Toaster') && content.includes('<body'))) {
     return 'app/layout.tsx';
   }
   
   // Page patterns  
-  if (content.includes('export default function Home') || content.includes('export default function Page')) {
+  if (content.includes('export default function Home') || content.includes('export default function Page') ||
+      content.includes('function HomePage') || content.includes('function Home(')) {
     return 'app/page.tsx';
   }
   
-  // Component patterns - try to extract component name
-  const componentMatch = content.match(/(?:function|const)\s+(\w+)(?:Page|Component|Form|List|Item|Card|Button|Modal|Dialog|Toast)?\s*[:(=]/);
-  if (componentMatch) {
-    const name = componentMatch[1];
-    // Check if it looks like a component (PascalCase)
-    if (name[0] === name[0].toUpperCase()) {
+  // Detect toast import/usage - likely modifying a component that uses toast
+  // Look for what component is being modified by checking function definitions
+  if (content.includes('toast.success') || content.includes('toast.error') || content.includes("from 'react-hot-toast'")) {
+    // Check what component this might be in
+    const componentMatch = content.match(/(?:export\s+)?(?:default\s+)?function\s+([A-Z][a-zA-Z]+)/);
+    if (componentMatch) {
+      const name = componentMatch[1];
+      if (name === 'RootLayout' || name === 'Layout') {
+        return 'app/layout.tsx';
+      }
       return `components/${name}.tsx`;
+    }
+    // Look for setTodos pattern (common in TodoList)
+    if (content.includes('setTodos') || content.includes('todos.map') || content.includes('addTodo') || content.includes('deleteTodo')) {
+      return 'components/TodoList.tsx';
+    }
+  }
+  
+  // Component definition patterns - look for "function ComponentName" or "const ComponentName"
+  const componentDefMatch = content.match(/(?:export\s+)?(?:default\s+)?(?:function|const)\s+([A-Z][a-zA-Z]+)\s*[:(=<]/);
+  if (componentDefMatch) {
+    const name = componentDefMatch[1];
+    // Skip common page names
+    if (name === 'Home' || name === 'HomePage' || name === 'Page') {
+      return 'app/page.tsx';
+    }
+    if (name === 'RootLayout' || name === 'Layout') {
+      return 'app/layout.tsx';
+    }
+    return `components/${name}.tsx`;
+  }
+  
+  // Common state patterns - infer component from state variable names
+  if (content.includes('setTodos') || content.includes('[todos,') || content.includes('todos.filter') || content.includes('todos.map')) {
+    return 'components/TodoList.tsx';
+  }
+  
+  // Component usage patterns - look for <ComponentName in JSX
+  // This helps when the diff only contains component usage, not definition
+  const jsxComponentMatch = content.match(/<([A-Z][a-zA-Z]+)[\s\n>]/);
+  if (jsxComponentMatch) {
+    const usedComponent = jsxComponentMatch[1];
+    // If the content is modifying how a component is used (like adding props),
+    // the file is likely the PARENT component, not the used one
+    // Look for other clues
+    
+    // Check if we're mapping over something to render this component
+    const mapMatch = content.match(/(\w+)\.map\([^)]*\)\s*=>\s*[^<]*<([A-Z][a-zA-Z]+)/);
+    if (mapMatch) {
+      // This is a list component - the parent is likely "ComponentList" or similar
+      const childComponent = mapMatch[2];
+      // Common patterns: TodoItem -> TodoList, ArticleCard -> ArticleList
+      if (childComponent.endsWith('Item')) {
+        return `components/${childComponent.replace('Item', 'List')}.tsx`;
+      }
+      if (childComponent.endsWith('Card')) {
+        return `components/${childComponent.replace('Card', 'List')}.tsx`;
+      }
     }
   }
   
@@ -268,6 +320,12 @@ function inferFilenameFromContent(content: string): string {
     if (hookMatch) {
       return `hooks/${hookMatch[1]}.ts`;
     }
+  }
+  
+  // Hook usage patterns - if using a custom hook, might give hints
+  const useHookMatch = content.match(/const\s+\{[^}]+\}\s*=\s*(use\w+)/);
+  if (useHookMatch) {
+    // Content uses a hook but doesn't define it - likely a component
   }
   
   // API route patterns
@@ -747,6 +805,16 @@ export function parseAIResponse(content: string): {
           diffBlocks,
           isFullFile: false,
         });
+        
+        // Also add to files array for syncing (if valid filename)
+        if (inferredFilename !== 'unknown') {
+          files.push({
+            path: inferredFilename,
+            content: block.content,
+            isEdit: true,
+            diffBlocks,
+          });
+        }
       } else {
         // Still couldn't parse - keep as text but format nicely
         postProcessedBlocks.push({
@@ -762,15 +830,37 @@ export function parseAIResponse(content: string): {
         ...block,
         filename: inferredFilename,
       });
+      
+      // Update files array too if we found a better filename
+      if (inferredFilename !== 'unknown' && block.diffBlocks) {
+        files.push({
+          path: inferredFilename,
+          content: block.content,
+          isEdit: true,
+          diffBlocks: block.diffBlocks,
+        });
+      }
     } else {
       postProcessedBlocks.push(block);
     }
   }
 
-  // Also deduplicate files array
+  // Deduplicate files array - merge diff blocks for same file
   const uniqueFiles = new Map<string, FileData>();
   for (const file of files) {
-    uniqueFiles.set(file.path, file); // Later files overwrite earlier ones
+    const existing = uniqueFiles.get(file.path);
+    if (existing) {
+      // If both are edits with diff blocks, merge them
+      if (existing.isEdit && file.isEdit && existing.diffBlocks && file.diffBlocks) {
+        existing.diffBlocks = [...existing.diffBlocks, ...file.diffBlocks];
+        existing.content = existing.content + '\n' + file.content;
+      } else {
+        // Otherwise newer file overwrites
+        uniqueFiles.set(file.path, file);
+      }
+    } else {
+      uniqueFiles.set(file.path, file);
+    }
   }
   
   // Filter out config files that shouldn't be generated

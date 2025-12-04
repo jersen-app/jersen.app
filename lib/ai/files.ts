@@ -218,10 +218,23 @@ export function parseGeneratedFiles(aiResponse: string): ParsedFile[] {
         }
     }
     
-    // Deduplicate - keep last occurrence of each file
+    // Deduplicate - merge diff blocks for same file, keep last full file
     const fileMap = new Map<string, ParsedFile>();
     for (const file of files) {
-        fileMap.set(file.path, file);
+        const existing = fileMap.get(file.path);
+        if (existing) {
+            // If both are diffs, merge the diff blocks
+            if (existing.isEdit && file.isEdit && existing.diffBlocks && file.diffBlocks) {
+                existing.diffBlocks = [...existing.diffBlocks, ...file.diffBlocks];
+                existing.content = existing.content + '\n' + file.content;
+                console.log(`[parseGeneratedFiles] Merged ${file.diffBlocks.length} diff blocks into ${file.path}, total: ${existing.diffBlocks.length}`);
+            } else {
+                // Otherwise, newer file overwrites (full file or mixed)
+                fileMap.set(file.path, file);
+            }
+        } else {
+            fileMap.set(file.path, file);
+        }
     }
     
     // Post-process: Remove duplicate imports from generated files

@@ -51,6 +51,7 @@ interface ChatInterfaceProps {
   projectId: string;
   onFilesGenerated?: (files: FileData[]) => void;
   onStreamingFiles?: (files: FileData[]) => void; // Real-time file updates (no sandbox sync)
+  onStreamComplete?: () => void; // Called when streaming finishes (for refetching files from backend)
   existingFiles?: { path: string; content: string }[];
   onNewChat?: () => void;
   initialPrompt?: string;
@@ -61,6 +62,7 @@ export function ChatInterface({
   projectId,
   onFilesGenerated,
   onStreamingFiles,
+  onStreamComplete,
   existingFiles = [],
   onNewChat,
   initialPrompt,
@@ -422,7 +424,9 @@ export function ChatInterface({
                 if (onStreamingFiles && files.length > lastStreamedFileCount) {
                   const completeFiles = files.filter(f => 
                     !f.content.endsWith('\n...') && 
-                    !isIncompleteFile(f.content)
+                    !isIncompleteFile(f.content) &&
+                    f.path !== 'unknown' && // Skip files with unknown paths
+                    f.path !== 'unknown.tsx'
                   );
                   if (completeFiles.length > lastStreamedFileCount) {
                     const processedStreamFiles = processFiles(completeFiles);
@@ -541,6 +545,11 @@ export function ChatInterface({
 
       // Final file notification with processed files (filter out any with raw diff markers or incomplete)
       const validProcessedFiles = processedFiles.filter(f => {
+        // Skip files with unknown/invalid paths
+        if (!f.path || f.path === 'unknown' || f.path === 'unknown.tsx') {
+          console.warn(`[ChatInterface] Skipping file with unknown path`);
+          return false;
+        }
         if (containsRawDiffMarkers(f.content)) {
           console.warn(`[ChatInterface] Skipping ${f.path} - contains raw diff markers`);
           return false;
@@ -551,9 +560,21 @@ export function ChatInterface({
         }
         return true;
       });
+      
+      console.log(`[ChatInterface] Parsed ${files.length} files, processed ${processedFiles.length}, valid for sync: ${validProcessedFiles.length}`);
+      
       if (validProcessedFiles.length > 0 && onFilesGenerated) {
         console.log(`[ChatInterface] Calling onFilesGenerated with ${validProcessedFiles.length} files:`, validProcessedFiles.map(f => f.path));
         onFilesGenerated(validProcessedFiles);
+      }
+      
+      // Notify parent that streaming is complete - parent can refetch files from backend
+      // to get the authoritative file state (backend parsing is more robust)
+      if (onStreamComplete) {
+        // Small delay to ensure backend onFinish has saved files
+        setTimeout(() => {
+          onStreamComplete();
+        }, 800);
       }
     } catch (error) {
       console.error("Failed to send message:", error);

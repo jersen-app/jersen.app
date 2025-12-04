@@ -35,6 +35,7 @@ export default function BuilderClient({
     const [showRightPanel, setShowRightPanel] = useState(true);
     const [mobilePanel, setMobilePanel] = useState<RightPanel | null>(null);
     const [saveStatus, setSaveStatus] = useState<SaveStatus>("saved");
+    const [needsSync, setNeedsSync] = useState(false);
     const [initialPrompt, setInitialPrompt] = useState<string | undefined>(undefined);
     const [initialAttachments, setInitialAttachments] = useState<Array<{type: string; url?: string; base64?: string; name: string}> | undefined>(undefined);
     
@@ -80,6 +81,54 @@ export default function BuilderClient({
             {} as Record<string, string>
         );
     }, [files]);
+
+    // Track if a refetch is pending (to avoid race conditions)
+    const refetchPendingRef = useRef(false);
+
+    // Refetch files from backend (used after AI streaming completes to get authoritative file state)
+    const refetchFiles = useCallback(async () => {
+        // Skip if already syncing (handleFilesGenerated is running)
+        if (isSyncingRef.current) {
+            console.log(`[BuilderClient] Skipping refetch - sync in progress`);
+            refetchPendingRef.current = true;
+            return;
+        }
+
+        try {
+            console.log(`[BuilderClient] Refetching files from backend...`);
+            const response = await fetch(`/api/projects/${projectId}/files`);
+            if (!response.ok) {
+                console.error(`[BuilderClient] Failed to refetch files: ${response.status}`);
+                return;
+            }
+            const data = await response.json();
+            const fetchedFiles = data.files || [];
+            console.log(`[BuilderClient] Fetched ${fetchedFiles.length} files from backend:`, fetchedFiles.map((f: {path: string}) => f.path));
+            
+            if (fetchedFiles.length > 0) {
+                setFiles(fetchedFiles);
+                lastSavedFilesRef.current = JSON.stringify(fetchedFiles);
+                setNeedsSync(false); // Backend state is authoritative, mark as synced
+                
+                // Auto-sync to sandbox if running
+                if (sandbox.status === "running" && sandbox.autoPreviewEnabled) {
+                    isSyncingRef.current = true;
+                    try {
+                        const filesObj = fetchedFiles.reduce((acc: Record<string, string>, f: {path: string; content: string}) => {
+                            acc[f.path] = f.content;
+                            return acc;
+                        }, {} as Record<string, string>);
+                        await sandbox.update(filesObj);
+                        console.log(`[BuilderClient] Synced refetched files to sandbox`);
+                    } finally {
+                        isSyncingRef.current = false;
+                    }
+                }
+            }
+        } catch (error) {
+            console.error("[BuilderClient] Failed to refetch files:", error);
+        }
+    }, [projectId, sandbox]);
 
     // Save files to database
     const saveFiles = useCallback(async (filesToSave: { path: string; content: string }[]) => {
@@ -236,6 +285,11 @@ export default function BuilderClient({
                     setNeedsSync(true);
                 } finally {
                     isSyncingRef.current = false;
+                    // If a refetch was pending, do it now
+                    if (refetchPendingRef.current) {
+                        refetchPendingRef.current = false;
+                        setTimeout(() => refetchFiles(), 100);
+                    }
                 }
             } else {
                 // Auto-preview disabled, just mark as needing sync if sandbox is running
@@ -244,11 +298,8 @@ export default function BuilderClient({
                 }
             }
         },
-        [files, sandbox]
+        [files, sandbox, refetchFiles]
     );
-
-    // Track if we need to sync files to sandbox
-    const [needsSync, setNeedsSync] = useState(false);
 
     // Mark files as needing sync when they change
     useEffect(() => {
@@ -360,6 +411,7 @@ export default function BuilderClient({
                         projectId={projectId}
                         onFilesGenerated={handleFilesGenerated}
                         onStreamingFiles={handleStreamingFiles}
+                        onStreamComplete={refetchFiles}
                         existingFiles={files}
                         initialPrompt={initialPrompt}
                         initialAttachments={initialAttachments}
