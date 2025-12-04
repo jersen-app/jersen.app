@@ -16,6 +16,8 @@ interface BuilderClientProps {
     projectId: string;
     projectName: string;
     initialFiles: { path: string; content: string }[];
+    vercelDeploymentUrl?: string;
+    lastDeployedAt?: string;
 }
 
 type RightPanel = "code" | "preview";
@@ -25,6 +27,8 @@ export default function BuilderClient({
     projectId,
     projectName,
     initialFiles,
+    vercelDeploymentUrl,
+    lastDeployedAt,
 }: BuilderClientProps) {
     const [files, setFiles] = useState(initialFiles);
     const [rightPanel, setRightPanel] = useState<RightPanel>("code");
@@ -338,6 +342,8 @@ export default function BuilderClient({
                             projectId={projectId} 
                             projectName={projectName} 
                             hasFiles={files.length > 0}
+                            vercelDeploymentUrl={vercelDeploymentUrl}
+                            lastDeployedAt={lastDeployedAt}
                         />
                         <Link
                             href={`/dashboard/projects/${projectId}/settings`}

@@ -19,6 +19,10 @@ export interface IProject {
     sandboxUrl?: string;
     // Array of allowed origins for CORS (deployed URLs, custom domains, etc.)
     allowedOrigins?: string[];
+    // Vercel deployment info
+    vercelProjectId?: string;
+    vercelDeploymentUrl?: string;
+    lastDeployedAt?: Date;
     // Store project files directly in the document
     files: IProjectFile[];
     // NPM dependencies to install in sandbox
@@ -97,6 +101,15 @@ const ProjectSchema = new Schema<IProject>(
         allowedOrigins: {
             type: [String],
             default: [],
+        },
+        vercelProjectId: {
+            type: String,
+        },
+        vercelDeploymentUrl: {
+            type: String,
+        },
+        lastDeployedAt: {
+            type: Date,
         },
         files: {
             type: [ProjectFileSchema],

@@ -291,6 +291,13 @@ export default nextConfig;
 
         // Create deployment
         const deploymentName = projectName || project.name.toLowerCase().replace(/[^a-z0-9]/g, "-");
+        const teamId = integration.vercelTeamId;
+        
+        // Check if this is a redeployment (project already has a Vercel project)
+        const existingVercelProjectId = (project as any).vercelProjectId;
+        const isRedeploy = !!existingVercelProjectId;
+        
+        console.log(`Deployment type: ${isRedeploy ? 'REDEPLOY' : 'NEW'}, Vercel Project ID: ${existingVercelProjectId || 'none'}`);
 
         const deployPayload: Record<string, unknown> = {
             name: deploymentName,
@@ -302,9 +309,11 @@ export default nextConfig;
                 outputDirectory: ".next",
             },
         };
-
-        // Add team if available
-        const teamId = integration.vercelTeamId;
+        
+        // If redeploying, target the same Vercel project for consistent URLs
+        if (isRedeploy && existingVercelProjectId) {
+            deployPayload.project = existingVercelProjectId;
+        }
 
         const deployUrl = teamId
             ? `https://api.vercel.com/v13/deployments?teamId=${teamId}`
@@ -335,16 +344,27 @@ export default nextConfig;
         
         // Add the deployed URL to the project's allowedOrigins for CORS
         const deployedUrl = `https://${deployment.url}`;
+        
+        // Update project with Vercel deployment info
         await Project.updateOne(
             { _id: projectId },
-            { $addToSet: { allowedOrigins: deployedUrl } }
+            { 
+                $addToSet: { allowedOrigins: deployedUrl },
+                $set: {
+                    vercelProjectId: deployment.projectId,
+                    vercelDeploymentUrl: deployedUrl,
+                    lastDeployedAt: new Date(),
+                }
+            }
         );
-        console.log(`Added deployed URL to allowedOrigins: ${deployedUrl}`);
+        console.log(`Updated project with Vercel info: projectId=${deployment.projectId}, url=${deployedUrl}`);
 
         return NextResponse.json({
             success: true,
+            isRedeploy,
             deployment: {
                 id: deployment.id,
+                projectId: deployment.projectId,
                 url: deployedUrl,
                 inspectorUrl: deployment.inspectorUrl,
                 state: deployment.readyState,

@@ -24,6 +24,8 @@ export default async function BuilderPage({ params }: { params: Promise<{ id: st
             projectId={id}
             projectName={project.name}
             initialFiles={initialFiles}
+            vercelDeploymentUrl={project.vercelDeploymentUrl}
+            lastDeployedAt={project.lastDeployedAt?.toISOString()}
         />
     );
 }

@@ -25,10 +25,13 @@ interface DeployDialogProps {
     projectId: string;
     projectName: string;
     hasFiles: boolean;
+    vercelDeploymentUrl?: string;
+    lastDeployedAt?: string;
 }
 
 interface DeploymentResult {
     id: string;
+    projectId?: string;
     url: string;
     inspectorUrl?: string;
     state: string;
@@ -42,7 +45,14 @@ type DeployState =
     | "success" 
     | "error";
 
-export function DeployDialog({ projectId, projectName, hasFiles }: DeployDialogProps) {
+export function DeployDialog({ 
+    projectId, 
+    projectName, 
+    hasFiles,
+    vercelDeploymentUrl,
+    lastDeployedAt,
+}: DeployDialogProps) {
+    const isAlreadyDeployed = !!vercelDeploymentUrl;
     const [open, setOpen] = useState(false);
     const [vercelConnected, setVercelConnected] = useState<boolean | null>(null);
     const [deployState, setDeployState] = useState<DeployState>("idle");
@@ -135,7 +145,7 @@ export function DeployDialog({ projectId, projectName, hasFiles }: DeployDialogP
                     className="gap-1.5"
                 >
                     <Rocket className="h-3.5 w-3.5" />
-                    Deploy
+                    {isAlreadyDeployed ? "Redeploy" : "Deploy"}
                 </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-md">
@@ -181,6 +191,32 @@ export function DeployDialog({ projectId, projectName, hasFiles }: DeployDialogP
                     {/* Connected - ready to deploy */}
                     {deployState === "idle" && vercelConnected === true && (
                         <div className="space-y-4">
+                            {/* Show existing deployment info */}
+                            {isAlreadyDeployed && (
+                                <div className="rounded-lg border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20 p-4">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
+                                        <span className="font-medium text-green-700 dark:text-green-300">Currently Deployed</span>
+                                    </div>
+                                    <div className="grid gap-1 text-sm">
+                                        <a
+                                            href={vercelDeploymentUrl}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="flex items-center gap-1 text-primary hover:underline"
+                                        >
+                                            {new URL(vercelDeploymentUrl!).hostname}
+                                            <ExternalLink className="h-3 w-3" />
+                                        </a>
+                                        {lastDeployedAt && (
+                                            <span className="text-muted-foreground text-xs">
+                                                Last deployed: {new Date(lastDeployedAt).toLocaleDateString()} at {new Date(lastDeployedAt).toLocaleTimeString()}
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                            
                             <div className="rounded-lg border bg-muted/50 p-4">
                                 <div className="grid gap-2 text-sm">
                                     <div className="flex justify-between">
@@ -188,16 +224,19 @@ export function DeployDialog({ projectId, projectName, hasFiles }: DeployDialogP
                                         <span className="font-medium">{projectName}</span>
                                     </div>
                                     <div className="flex justify-between">
-                                        <span className="text-muted-foreground">Deploy URL</span>
+                                        <span className="text-muted-foreground">{isAlreadyDeployed ? "Action" : "Deploy URL"}</span>
                                         <span className="font-mono text-xs">
-                                            {projectName.toLowerCase().replace(/[^a-z0-9]/g, "-")}.vercel.app
+                                            {isAlreadyDeployed 
+                                                ? "Update existing deployment" 
+                                                : `${projectName.toLowerCase().replace(/[^a-z0-9]/g, "-")}.vercel.app`
+                                            }
                                         </span>
                                     </div>
                                 </div>
                             </div>
                             <Button onClick={() => handleDeploy()} className="w-full">
                                 <Rocket className="mr-2 h-4 w-4" />
-                                Deploy to Vercel
+                                {isAlreadyDeployed ? "Redeploy to Vercel" : "Deploy to Vercel"}
                             </Button>
                         </div>
                     )}
