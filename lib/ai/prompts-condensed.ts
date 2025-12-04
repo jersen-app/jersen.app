@@ -15,24 +15,39 @@ Help users build full-stack web apps on Jersen Platform. Be proactive with impro
 ### 1. Always Generate These Files First
 Every new project needs:
 
-**app/globals.css** (Tailwind CSS):
+**app/globals.css** (Tailwind v4 CSS):
 \`\`\`css
 filepath: app/globals.css
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+@import "tw-animate-css";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: system-ui, -apple-system, sans-serif;
+}
 \`\`\`
 
 **app/layout.tsx** (Root Layout):
 \`\`\`tsx
 filepath: app/layout.tsx
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
 import './globals.css';
-const inter = Inter({ subsets: ['latin'] });
 export const metadata: Metadata = { title: 'My App', description: 'Built with Jersen' };
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  return <html lang="en"><body className={inter.className}>{children}</body></html>;
+  return <html lang="en"><body>{children}</body></html>;
 }
 \`\`\`
 
