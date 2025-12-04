@@ -230,6 +230,55 @@ function isDiffContent(content: string): boolean {
 }
 
 /**
+ * Try to infer filename from diff content based on code patterns
+ */
+function inferFilenameFromContent(content: string): string {
+  // Check for common patterns in the diff content
+  const lowerContent = content.toLowerCase();
+  
+  // CSS file patterns
+  if (content.includes('@import "tailwindcss"') || content.includes('@import "tw-animate-css"') || 
+      content.includes(':root {') || content.includes('--background:')) {
+    return 'app/globals.css';
+  }
+  
+  // Layout patterns
+  if (content.includes('RootLayout') || (content.includes('<html') && content.includes('<body'))) {
+    return 'app/layout.tsx';
+  }
+  
+  // Page patterns  
+  if (content.includes('export default function Home') || content.includes('export default function Page')) {
+    return 'app/page.tsx';
+  }
+  
+  // Component patterns - try to extract component name
+  const componentMatch = content.match(/(?:function|const)\s+(\w+)(?:Page|Component|Form|List|Item|Card|Button|Modal|Dialog|Toast)?\s*[:(=]/);
+  if (componentMatch) {
+    const name = componentMatch[1];
+    // Check if it looks like a component (PascalCase)
+    if (name[0] === name[0].toUpperCase()) {
+      return `components/${name}.tsx`;
+    }
+  }
+  
+  // Hook patterns
+  if (content.includes('export function use') || content.includes('export const use')) {
+    const hookMatch = content.match(/export\s+(?:function|const)\s+(use\w+)/);
+    if (hookMatch) {
+      return `hooks/${hookMatch[1]}.ts`;
+    }
+  }
+  
+  // API route patterns
+  if (content.includes('NextRequest') || content.includes('NextResponse')) {
+    return 'app/api/route.ts';
+  }
+  
+  return 'unknown';
+}
+
+/**
  * Check if content still contains raw diff markers (for debugging/safety)
  * Checks both old format (<<<<<<< SEARCH) and new format (// [SEARCH_START])
  */
@@ -686,12 +735,15 @@ export function parseAIResponse(content: string): {
       const diffBlocks = parseDiffBlocks(normalizedContent);
       
       if (diffBlocks.length > 0) {
-        // Successfully parsed - push as diff block with unknown filepath
+        // Try to infer filename from the diff content
+        const inferredFilename = inferFilenameFromContent(block.content);
+        
+        // Successfully parsed - push as diff block
         postProcessedBlocks.push({
           type: "diff",
           content: block.content,
           language: "diff",
-          filename: "unknown",
+          filename: inferredFilename,
           diffBlocks,
           isFullFile: false,
         });
@@ -703,6 +755,13 @@ export function parseAIResponse(content: string): {
           language: "diff",
         });
       }
+    } else if ((block.type === "diff" || block.type === "file") && block.filename === "unknown") {
+      // Try to infer filename for blocks that couldn't determine it earlier
+      const inferredFilename = inferFilenameFromContent(block.content);
+      postProcessedBlocks.push({
+        ...block,
+        filename: inferredFilename,
+      });
     } else {
       postProcessedBlocks.push(block);
     }
