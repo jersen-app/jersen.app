@@ -13,14 +13,14 @@ import {
   FileText,
   ChevronLeft,
   ChevronRight,
-  Layout,
-  ShoppingBag,
-  FileCode,
-  Briefcase,
-  GraduationCap,
-  Utensils,
-  Heart,
-  Camera,
+  CheckSquare,
+  Music,
+  MessageCircle,
+  Users,
+  Calendar,
+  BookOpen,
+  ShoppingCart,
+  Kanban,
   Link2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -33,79 +33,71 @@ import {
 } from "@/components/ui/tooltip";
 import { ShineBorder } from "@/components/ui/shine-border";
 
-// Template data
+// Template data - Full-stack MVP templates showcasing Jersen AI's power
 const TEMPLATES = [
   {
-    id: "landing",
-    name: "Landing Page",
-    description: "Hero, features, and CTA",
-    icon: Layout,
+    id: "todo-app",
+    name: "Todo App",
+    description: "Full-stack with auth & database",
+    icon: CheckSquare,
     color: "bg-blue-500",
-    prompt: "Create a modern landing page with a hero section featuring a headline and CTA button, a features section with 3 feature cards, a testimonials section, and a footer. Use a clean, professional design.",
+    prompt: "Build a full-stack Todo List app with user authentication. Users can sign up, log in, create/edit/delete tasks, mark them as complete, and organize them by categories. Use the database to store todos and user data. Include a clean dashboard showing today's tasks and upcoming deadlines.",
   },
   {
-    id: "ecommerce",
-    name: "E-Commerce",
-    description: "Products and checkout",
-    icon: ShoppingBag,
-    color: "bg-emerald-500",
-    prompt: "Build an e-commerce product page with a product image gallery, product details, size/variant selectors, add to cart button, and related products section. Include a clean header with cart icon.",
+    id: "spotify-clone",
+    name: "Spotify Clone",
+    description: "Music player with playlists",
+    icon: Music,
+    color: "bg-green-500",
+    prompt: "Build a Spotify-like music streaming app with user authentication. Features: browse music library, create and manage playlists, like songs, search for tracks/artists, and a persistent audio player at the bottom. Use the database to store user playlists and liked songs. Use storage for album artwork.",
   },
   {
-    id: "portfolio",
-    name: "Portfolio",
-    description: "Showcase your work",
-    icon: Briefcase,
+    id: "twitter-clone",
+    name: "Twitter Clone",
+    description: "Social media with posts",
+    icon: MessageCircle,
+    color: "bg-sky-500",
+    prompt: "Build a Twitter/X clone with user authentication. Features: post tweets, like and retweet, follow/unfollow users, user profiles with bio and avatar, home feed showing posts from followed users, and trending topics. Use the database for posts, follows, and likes. Use storage for profile pictures and media uploads.",
+  },
+  {
+    id: "team-chat",
+    name: "Team Chat",
+    description: "Real-time messaging app",
+    icon: Users,
     color: "bg-violet-500",
-    prompt: "Create a personal portfolio website with an about section, skills showcase, project gallery with hover effects, and a contact form. Use elegant typography and smooth animations.",
+    prompt: "Build a Slack-like team chat application with user authentication. Features: create channels, direct messages, send and receive messages in real-time, share files, user presence indicators, and message reactions. Use the database for messages and channels. Use storage for file attachments.",
   },
   {
-    id: "dashboard",
-    name: "Dashboard",
-    description: "Charts and tables",
-    icon: FileCode,
+    id: "event-booking",
+    name: "Event Booking",
+    description: "Calendar & reservations",
+    icon: Calendar,
     color: "bg-orange-500",
-    prompt: "Build an admin dashboard with a sidebar navigation, header with search and user menu, stats cards at the top, a line chart showing analytics, and a data table with pagination.",
+    prompt: "Build an event booking platform with user authentication. Features: browse events by category/date, book tickets, manage bookings, event calendar view, and user dashboard showing upcoming events. Organizers can create events and manage attendees. Use the database for events and bookings.",
   },
   {
-    id: "blog",
-    name: "Blog",
-    description: "Articles and posts",
-    icon: FileCode,
+    id: "blog-platform",
+    name: "Blog Platform",
+    description: "Write & publish articles",
+    icon: BookOpen,
     color: "bg-pink-500",
-    prompt: "Create a blog homepage with a featured article at the top, article grid below with thumbnails and excerpts, sidebar with categories and newsletter signup.",
+    prompt: "Build a Medium-like blogging platform with user authentication. Features: write articles with rich text editor, publish/draft posts, follow authors, clap/like articles, comments, reading list, and personalized feed. Use the database for articles and user data. Use storage for article cover images.",
   },
   {
-    id: "education",
-    name: "Education",
-    description: "Courses and learning",
-    icon: GraduationCap,
-    color: "bg-cyan-500",
-    prompt: "Build an online course platform homepage with course cards showing progress, category filters, search bar, and a hero section promoting featured courses.",
+    id: "ecommerce-store",
+    name: "E-Commerce Store",
+    description: "Products, cart & checkout",
+    icon: ShoppingCart,
+    color: "bg-emerald-500",
+    prompt: "Build a full e-commerce store with user authentication. Features: product catalog with categories and search, product detail pages, shopping cart, wishlist, checkout flow, order history, and admin dashboard for managing products. Use the database for products, orders, and inventory. Use storage for product images.",
   },
   {
-    id: "restaurant",
-    name: "Restaurant",
-    description: "Menu and reservations",
-    icon: Utensils,
-    color: "bg-amber-500",
-    prompt: "Create a restaurant website with a hero image, menu section with categories and food items with prices, reservation form, location map, and contact info.",
-  },
-  {
-    id: "healthcare",
-    name: "Healthcare",
-    description: "Medical services",
-    icon: Heart,
-    color: "bg-red-500",
-    prompt: "Build a healthcare clinic website with services section, doctor profiles, appointment booking form, testimonials, and emergency contact information.",
-  },
-  {
-    id: "photography",
-    name: "Photography",
-    description: "Photo gallery",
-    icon: Camera,
-    color: "bg-slate-600",
-    prompt: "Create a photography portfolio with a masonry gallery layout, lightbox for full-size images, about section, pricing packages, and booking contact form.",
+    id: "project-board",
+    name: "Project Board",
+    description: "Kanban task management",
+    icon: Kanban,
+    color: "bg-indigo-500",
+    prompt: "Build a Trello-like project management board with user authentication. Features: create boards and lists, drag-and-drop cards between lists, add labels and due dates, assign team members, card comments, and board sharing. Use the database for boards, lists, and cards. Support team collaboration.",
   },
 ];
 
@@ -184,16 +176,20 @@ export default function DashboardClient() {
       const generateProjectName = (text: string): string => {
         const lowerText = text.toLowerCase();
         
-        // Check for common project types and generate appropriate names
+        // Check for full-stack MVP project types
+        if (lowerText.includes("todo") || lowerText.includes("task")) return "Todo App";
+        if (lowerText.includes("spotify") || lowerText.includes("music") || lowerText.includes("streaming")) return "Music App";
+        if (lowerText.includes("twitter") || lowerText.includes("tweet") || lowerText.includes("social media")) return "Social App";
+        if (lowerText.includes("chat") || lowerText.includes("messaging") || lowerText.includes("slack")) return "Chat App";
+        if (lowerText.includes("event") || lowerText.includes("booking") || lowerText.includes("ticket")) return "Event Booking";
+        if (lowerText.includes("blog") || lowerText.includes("article") || lowerText.includes("medium")) return "Blog Platform";
+        if (lowerText.includes("ecommerce") || lowerText.includes("e-commerce") || lowerText.includes("store") || lowerText.includes("shop")) return "E-Commerce Store";
+        if (lowerText.includes("kanban") || lowerText.includes("trello") || lowerText.includes("project board")) return "Project Board";
+        
+        // Check for other common project types
         if (lowerText.includes("landing page")) return "Landing Page";
-        if (lowerText.includes("e-commerce") || lowerText.includes("ecommerce") || lowerText.includes("product page")) return "E-Commerce Site";
         if (lowerText.includes("portfolio")) return "Portfolio";
         if (lowerText.includes("dashboard") || lowerText.includes("admin")) return "Dashboard";
-        if (lowerText.includes("blog")) return "Blog";
-        if (lowerText.includes("restaurant") || lowerText.includes("menu")) return "Restaurant Site";
-        if (lowerText.includes("healthcare") || lowerText.includes("clinic") || lowerText.includes("medical")) return "Healthcare Site";
-        if (lowerText.includes("education") || lowerText.includes("course") || lowerText.includes("learning")) return "Education Platform";
-        if (lowerText.includes("photography") || lowerText.includes("gallery")) return "Photography Portfolio";
         if (lowerText.includes("saas") || lowerText.includes("startup")) return "SaaS Landing";
         if (lowerText.includes("contact") || lowerText.includes("form")) return "Contact Page";
         if (lowerText.includes("pricing")) return "Pricing Page";
