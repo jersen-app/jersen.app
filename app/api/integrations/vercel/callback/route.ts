@@ -2,21 +2,26 @@ import { NextRequest, NextResponse } from "next/server";
 import connectToDatabase from "@/lib/db";
 import VercelIntegration from "@/models/VercelIntegration";
 
+// State is valid for 30 minutes (same as Vercel's code validity)
+const STATE_VALIDITY_MS = 30 * 60 * 1000;
+
 export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const code = searchParams.get("code");
     const state = searchParams.get("state");
     const error = searchParams.get("error");
+    const errorDescription = searchParams.get("error_description");
 
     // Handle user cancellation or errors
     if (error) {
-        console.error("Vercel OAuth error:", error);
+        console.error("Vercel OAuth error:", error, errorDescription);
         return NextResponse.redirect(
-            `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/settings?error=vercel_auth_failed`
+            `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/settings?error=vercel_auth_failed&message=${encodeURIComponent(errorDescription || error)}`
         );
     }
 
     if (!code || !state) {
+        console.error("Missing code or state in Vercel callback");
         return NextResponse.redirect(
             `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/settings?error=missing_params`
         );
@@ -24,12 +29,30 @@ export async function GET(request: NextRequest) {
 
     try {
         // Decode state to get user info
-        const { userId, orgId } = JSON.parse(
-            Buffer.from(state, "base64").toString("utf-8")
-        );
+        let userId: string;
+        let orgId: string | null;
+        let timestamp: number | undefined;
+
+        try {
+            const stateData = JSON.parse(
+                Buffer.from(state, "base64").toString("utf-8")
+            );
+            userId = stateData.userId;
+            orgId = stateData.orgId;
+            timestamp = stateData.timestamp;
+        } catch (parseError) {
+            console.error("Failed to parse state:", parseError);
+            throw new Error("Invalid state format");
+        }
 
         if (!userId) {
             throw new Error("Invalid state: missing userId");
+        }
+
+        // Validate state timestamp if present (for security)
+        if (timestamp && Date.now() - timestamp > STATE_VALIDITY_MS) {
+            console.error("State expired:", { timestamp, now: Date.now() });
+            throw new Error("OAuth session expired. Please try again.");
         }
 
         // Exchange code for access token
@@ -53,8 +76,8 @@ export async function GET(request: NextRequest) {
 
         if (!tokenResponse.ok) {
             const errorData = await tokenResponse.text();
-            console.error("Token exchange failed:", errorData);
-            throw new Error("Failed to exchange code for token");
+            console.error("Token exchange failed:", tokenResponse.status, errorData);
+            throw new Error(`Failed to exchange code for token: ${tokenResponse.status}`);
         }
 
         const tokenData = await tokenResponse.json();
@@ -63,6 +86,11 @@ export async function GET(request: NextRequest) {
             user_id: vercelUserId,
             team_id: vercelTeamId,
         } = tokenData;
+
+        if (!access_token) {
+            console.error("No access token in response:", tokenData);
+            throw new Error("No access token received from Vercel");
+        }
 
         // Get Vercel user/team info for display
         let vercelTeamSlug: string | undefined;
@@ -102,14 +130,17 @@ export async function GET(request: NextRequest) {
             { upsert: true, new: true }
         );
 
+        console.log("Vercel integration connected successfully for user:", userId);
+
         // Redirect back to settings with success
         return NextResponse.redirect(
             `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/settings?vercel=connected`
         );
     } catch (error) {
         console.error("Vercel callback error:", error);
+        const message = error instanceof Error ? error.message : "Unknown error";
         return NextResponse.redirect(
-            `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/settings?error=vercel_callback_failed`
+            `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/settings?error=vercel_callback_failed&message=${encodeURIComponent(message)}`
         );
     }
 }

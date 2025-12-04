@@ -104,8 +104,10 @@ UPSTASH_REDIS_REST_URL=https://xxxxx.upstash.io
 UPSTASH_REDIS_REST_TOKEN=xxxxx
 
 # Vercel Integration (for one-click deploy)
-VCEL_CLIENT_ID=cl_xxxxx
+# Create your integration at https://vercel.com/dashboard/integrations/console
+VCEL_CLIENT_ID=oac_xxxxx
 VCEL_CLIENT_SECRET=xxxxx
+VCEL_INTEGRATION_SLUG=your-integration-slug  # The URL slug of your Vercel integration
 VCEL_REDIRECT_URI=https://your-domain.com/api/integrations/vercel/callback
 
 # Admin

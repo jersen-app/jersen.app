@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
+import connectToDatabase from "@/lib/db";
 
 // Redirect user to Vercel OAuth
 export async function GET(request: NextRequest) {
@@ -9,7 +10,11 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Ensure DB connection
+    await connectToDatabase();
+
     const clientId = process.env.VCEL_CLIENT_ID;
+    const integrationSlug = process.env.VCEL_INTEGRATION_SLUG || "jersen";
     const redirectUri = process.env.VCEL_REDIRECT_URI || `${process.env.NEXT_PUBLIC_APP_URL}/api/integrations/vercel/callback`;
 
     if (!clientId) {
@@ -20,19 +25,22 @@ export async function GET(request: NextRequest) {
     }
 
     // State contains user info to link back after OAuth
+    // Include timestamp for validation (state is valid for 30 minutes like the code)
     const state = Buffer.from(
-        JSON.stringify({ userId, orgId: orgId || null })
+        JSON.stringify({ 
+            userId, 
+            orgId: orgId || null,
+            timestamp: Date.now()
+        })
     ).toString("base64");
 
-    // Vercel OAuth URL
-    // Scopes: https://vercel.com/docs/rest-api#introduction/api-basics/oauth2
-    const vercelAuthUrl = new URL("https://vercel.com/oauth/authorize");
-    vercelAuthUrl.searchParams.set("client_id", clientId);
-    vercelAuthUrl.searchParams.set("redirect_uri", redirectUri);
-    vercelAuthUrl.searchParams.set("response_type", "code");
+    // Vercel Integration OAuth URL
+    // For Vercel Integrations, use the integration installation URL
+    // The integration must be created in Vercel's Integration Console first
+    // Scopes are configured in the Integration Console, not in the URL
+    // See: https://vercel.com/docs/integrations/create-integration
+    const vercelAuthUrl = new URL(`https://vercel.com/integrations/${integrationSlug}/new`);
     vercelAuthUrl.searchParams.set("state", state);
-    // Request scope for deployments
-    vercelAuthUrl.searchParams.set("scope", "user:read deployments:write projects:write");
 
     return NextResponse.redirect(vercelAuthUrl.toString());
 }
