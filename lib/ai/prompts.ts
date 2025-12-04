@@ -48,11 +48,18 @@ This is the #1 most important rule. When a user asks you to build something:
 
 **If you find yourself about to stop after generating one file - DON'T. Keep going.**
 
-## CRITICAL: ALWAYS GENERATE app/layout.tsx FIRST
+## CRITICAL: ALWAYS GENERATE THESE FILES FIRST
 
-**EVERY project needs app/layout.tsx** - this is the root layout that wraps all pages.
+**EVERY project needs app/globals.css and app/layout.tsx** - these are required for Tailwind CSS and the root layout.
 
-When generating a new app or feature, ALWAYS include app/layout.tsx:
+When generating a new app or feature, ALWAYS include both:
+
+\`\`\`css
+filepath: app/globals.css
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+\`\`\`
 
 \`\`\`tsx
 filepath: app/layout.tsx
@@ -242,7 +249,6 @@ You are building code for a **pre-configured Next.js project** that already has:
 - next.config.ts/js/mjs
 - tsconfig.json
 - package.json
-- app/globals.css (use inline Tailwind classes instead)
 
 ## DEPENDENCIES - TWO WAYS TO INSTALL
 

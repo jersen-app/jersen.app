@@ -159,10 +159,51 @@ export async function POST(request: NextRequest) {
         // Replace placeholders with actual credentials (same as sandbox)
         files = injectCredentials(files, apiKey, jersenUrl);
 
-        // Ensure essential files exist
-        const hasPackageJson = files.some((f: { file: string }) => f.file === "package.json");
-        if (!hasPackageJson) {
-            // Add default package.json if missing
+        // Get stored project dependencies (e.g., mongodb, framer-motion, zustand)
+        const projectDeps: string[] = (project as any).dependencies || [];
+        console.log(`Project dependencies to inject: [${projectDeps.join(', ')}]`);
+
+        // Convert dependencies array to object format for package.json
+        // e.g., ["mongodb", "framer-motion@^10.0.0"] -> { mongodb: "latest", "framer-motion": "^10.0.0" }
+        const additionalDeps: Record<string, string> = {};
+        for (const dep of projectDeps) {
+            if (dep.includes('@') && !dep.startsWith('@')) {
+                // Has version specified like "framer-motion@^10.0.0"
+                const [name, version] = dep.split('@');
+                additionalDeps[name] = version;
+            } else if (dep.startsWith('@')) {
+                // Scoped package like "@clerk/nextjs" or "@clerk/nextjs@^5.0.0"
+                const parts = dep.split('@').filter(Boolean);
+                if (parts.length >= 2 && parts[1].includes('.')) {
+                    // Has version: @clerk/nextjs@^5.0.0
+                    additionalDeps['@' + parts[0]] = parts[1];
+                } else {
+                    // No version: @clerk/nextjs
+                    additionalDeps['@' + parts[0]] = 'latest';
+                }
+            } else {
+                additionalDeps[dep] = 'latest';
+            }
+        }
+
+        // Ensure essential files exist and inject dependencies
+        const packageJsonIndex = files.findIndex((f: { file: string }) => f.file === "package.json");
+        
+        if (packageJsonIndex !== -1) {
+            // Parse existing package.json and merge dependencies
+            try {
+                const existingPkg = JSON.parse(files[packageJsonIndex].data);
+                existingPkg.dependencies = {
+                    ...existingPkg.dependencies,
+                    ...additionalDeps,
+                };
+                files[packageJsonIndex].data = JSON.stringify(existingPkg, null, 2);
+                console.log(`Merged ${Object.keys(additionalDeps).length} dependencies into existing package.json`);
+            } catch (e) {
+                console.error('Failed to parse existing package.json:', e);
+            }
+        } else {
+            // Add default package.json with injected dependencies
             files.push({
                 file: "package.json",
                 data: JSON.stringify(
@@ -180,6 +221,7 @@ export async function POST(request: NextRequest) {
                             next: "15.0.3",
                             react: "^19.0.0",
                             "react-dom": "^19.0.0",
+                            ...additionalDeps,
                         },
                         devDependencies: {
                             typescript: "^5",
@@ -192,6 +234,7 @@ export async function POST(request: NextRequest) {
                     2
                 ),
             });
+            console.log(`Created default package.json with ${Object.keys(additionalDeps).length} additional dependencies`);
         }
 
         // Add next.config if missing
