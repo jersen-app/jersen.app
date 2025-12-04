@@ -13,20 +13,45 @@ export function generateId(): string {
  */
 function parseDiffBlocks(content: string): DiffBlock[] {
   const blocks: DiffBlock[] = [];
-  // More flexible regex - handle optional whitespace and different line endings
-  const blockRegex = /<<<<<<<?:?\s*SEARCH\s*\n([\s\S]*?)\n?=======\n?([\s\S]*?)\n?>>>>>>>?:?\s*REPLACE/gi;
   
-  let match;
-  while ((match = blockRegex.exec(content)) !== null) {
-    blocks.push({
-      search: match[1],
-      replace: match[2],
-    });
+  // Try multiple regex patterns to handle different AI output formats
+  const patterns = [
+    // Standard format: <<<<<<< SEARCH\n...\n=======\n...\n>>>>>>> REPLACE
+    /<{7}\s*SEARCH\s*\n([\s\S]*?)\n={7}\n([\s\S]*?)\n>{7}\s*REPLACE/gi,
+    // With optional colon
+    /<{7}:?\s*SEARCH\s*\n([\s\S]*?)\n={7}\n([\s\S]*?)\n>{7}:?\s*REPLACE/gi,
+    // More lenient whitespace
+    /<{7}\s*SEARCH\s*\n([\s\S]*?)={7}\n?([\s\S]*?)>{7}\s*REPLACE/gi,
+    // Handle possible extra < or > characters
+    /<{3,}\s*:?\s*SEARCH\s*\n([\s\S]*?)={3,}\n?([\s\S]*?)>{3,}\s*:?\s*REPLACE/gi,
+  ];
+  
+  for (const pattern of patterns) {
+    // Reset lastIndex for each pattern
+    pattern.lastIndex = 0;
+    let match;
+    while ((match = pattern.exec(content)) !== null) {
+      const search = match[1];
+      const replace = match[2];
+      // Validate we got both parts
+      if (search !== undefined && replace !== undefined) {
+        blocks.push({ search, replace });
+      }
+    }
+    if (blocks.length > 0) break; // Use first pattern that works
   }
   
   // Debug: log if markers detected but no blocks parsed
-  if (blocks.length === 0 && content.includes('SEARCH') && content.includes('REPLACE')) {
-    console.warn('[parseDiffBlocks] Markers detected but no blocks parsed. Content preview:', content.substring(0, 300));
+  if (blocks.length === 0 && isDiffContent(content)) {
+    console.warn('[parseDiffBlocks] Markers detected but no blocks parsed.');
+    console.warn('[parseDiffBlocks] Content sample:', content.substring(0, 300));
+    // Try to identify what's different about the markers
+    const searchMatch = content.match(/<+\s*:?\s*SEARCH/i);
+    const replaceMatch = content.match(/>+\s*:?\s*REPLACE/i);
+    console.warn('[parseDiffBlocks] Found markers:', { 
+      search: searchMatch?.[0], 
+      replace: replaceMatch?.[0] 
+    });
   }
   
   return blocks;
@@ -39,26 +64,28 @@ function parseDiffBlocks(content: string): DiffBlock[] {
 function parseAggressiveDiffBlocks(content: string): DiffBlock[] {
   const blocks: DiffBlock[] = [];
   
-  // Try multiple patterns
-  const patterns = [
-    // Standard with various spacing
-    /<{7,}\s*SEARCH\s*\n([\s\S]*?)=======\n?([\s\S]*?)>{7,}\s*REPLACE/gi,
-    // Without newlines around equals
-    /<{7,}\s*SEARCH\s*([\s\S]*?)\s*=======\s*([\s\S]*?)\s*>{7,}\s*REPLACE/gi,
-    // With colons
-    /<{7,}:\s*SEARCH\s*\n([\s\S]*?)=======\n?([\s\S]*?)>{7,}:\s*REPLACE/gi,
-  ];
+  // Try to manually find and extract blocks
+  // Split by the SEARCH marker first
+  const searchSplit = content.split(/<<<+\s*:?\s*SEARCH\s*/i);
   
-  for (const pattern of patterns) {
-    let match;
-    while ((match = pattern.exec(content)) !== null) {
-      const search = match[1]?.trim();
-      const replace = match[2]?.trim();
-      if (search !== undefined && replace !== undefined) {
+  for (let i = 1; i < searchSplit.length; i++) {
+    const part = searchSplit[i];
+    // Find the ======= separator
+    const eqIndex = part.indexOf('=======');
+    if (eqIndex === -1) continue;
+    
+    const searchPart = part.substring(0, eqIndex);
+    const afterEq = part.substring(eqIndex + 7); // Skip "======="
+    
+    // Find the REPLACE marker
+    const replaceMatch = afterEq.match(/^([\s\S]*?)>+\s*:?\s*REPLACE/i);
+    if (replaceMatch) {
+      const search = searchPart.trim();
+      const replace = replaceMatch[1].trim();
+      if (search || replace !== undefined) { // Allow empty replace (deletion)
         blocks.push({ search, replace });
       }
     }
-    if (blocks.length > 0) break;
   }
   
   return blocks;
@@ -68,9 +95,10 @@ function parseAggressiveDiffBlocks(content: string): DiffBlock[] {
  * Check if content contains diff markers
  */
 function isDiffContent(content: string): boolean {
-  // More flexible check for diff markers
-  return (content.includes('<<<<<<< SEARCH') || content.includes('<<<<<<<SEARCH') || content.includes('<<<<<<< search') || content.includes('<<<<<<<:')) 
-    && (content.includes('>>>>>>> REPLACE') || content.includes('>>>>>>>REPLACE') || content.includes('>>>>>>> replace') || content.includes('>>>>>>>:'));
+  // More flexible check for diff markers - handle various spacing
+  const hasSearchMarker = /<{3,}\s*:?\s*SEARCH/i.test(content);
+  const hasReplaceMarker = />{3,}\s*:?\s*REPLACE/i.test(content);
+  return hasSearchMarker && hasReplaceMarker;
 }
 
 /**
@@ -141,6 +169,13 @@ export function parseAIResponse(content: string): {
   processedContent = processedContent.replace(
     /filepath:\s*([^\n]+)\n```(\w+)?/gi,
     (_, filepath, lang) => `\`\`\`${lang || 'tsx'}\nfilepath: ${filepath.trim()}`
+  );
+
+  // Pre-process: Wrap raw diff blocks (filepath + SEARCH/REPLACE not in code fence) in ```diff
+  // This handles cases where AI outputs diff content without proper code fence
+  processedContent = processedContent.replace(
+    /(?:^|\n)(filepath:\s*[^\n]+)\n(<<<<<<<?:?\s*SEARCH[\s\S]*?>>>>>>>?:?\s*REPLACE)(?=\n|$)/gi,
+    (_, filepath, diffContent) => `\n\`\`\`diff\n${filepath}\n${diffContent}\n\`\`\``
   );
 
   // Match all COMPLETE code blocks with their language

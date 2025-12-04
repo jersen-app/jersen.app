@@ -60,13 +60,14 @@ export function createAiTools(context: ToolContext) {
     const templateTools = createTemplateTool();
     
     return {
-        // Tool: Get provider documentation
+        // Tool: Get provider documentation (uses condensed docs to save context)
         getProviderDocs: tool({
-            description: "Get detailed implementation documentation for Jersen providers (auth, storage, database). Use this when implementing features that require authentication, file uploads, or database operations.",
+            description: "Get implementation documentation for Jersen providers (auth, storage, database). Use this when implementing features that require authentication, file uploads, or database operations.",
             inputSchema: z.object({
                 provider: z.enum(["auth", "storage", "database", "all"]).describe("Which provider docs to retrieve."),
             }),
             execute: async ({ provider }) => {
+                // Use executeGetProviderDocs from memory.ts which returns condensed docs
                 const result = executeGetProviderDocs(context.projectConfig, provider);
                 return {
                     provider: result.provider,

@@ -4,13 +4,13 @@ import connectToDatabase from "@/lib/db";
 import ProjectMemory, { IProjectMemory } from "@/models/ProjectMemory";
 import ChatMessage from "@/models/ChatMessage";
 import Project from "@/models/Project";
+import { type ProjectConfig } from "./provider-docs";
 import {
-    getAuthDocs,
-    getStorageDocs,
-    getDatabaseDocs,
-    getAllProviderDocs,
-    type ProjectConfig,
-} from "./provider-docs";
+    getCondensedAuthDocs,
+    getCondensedStorageDocs,
+    getCondensedDatabaseDocs,
+    getCondensedProviderDocs,
+} from "./provider-docs-condensed";
 
 const SUMMARY_THRESHOLD = 10; // Re-summarize every 10 messages
 
@@ -323,6 +323,7 @@ export function executeFindRelated(
 
 /**
  * Execute getProviderDocs tool - returns implementation docs for a provider
+ * Uses condensed docs to save context space
  */
 export function executeGetProviderDocs(
     projectConfig: ProjectConfig,
@@ -333,16 +334,16 @@ export function executeGetProviderDocs(
     
     switch (provider) {
         case 'auth':
-            docs = getAuthDocs(projectConfig);
+            docs = getCondensedAuthDocs(projectConfig);
             break;
         case 'storage':
-            docs = getStorageDocs(projectConfig);
+            docs = getCondensedStorageDocs(projectConfig);
             break;
         case 'database':
-            docs = getDatabaseDocs(projectConfig);
+            docs = getCondensedDatabaseDocs(projectConfig);
             break;
         case 'all':
-            docs = getAllProviderDocs(projectConfig);
+            docs = getCondensedProviderDocs(projectConfig);
             break;
         default:
             docs = `Unknown provider: ${provider}`;

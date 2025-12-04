@@ -372,10 +372,22 @@ export function ChatInterface({
       let lastStreamedFileCount = 0;
       let buffer = "";
       const toolCallsMap = new Map<string, ToolCall>();
+      
+      // Add timeout to prevent infinite hangs
+      let lastChunkTime = Date.now();
+      const STREAM_TIMEOUT_MS = 60000; // 60 seconds without data = timeout
 
       while (true) {
+        // Check for timeout
+        if (Date.now() - lastChunkTime > STREAM_TIMEOUT_MS) {
+          console.warn('Stream timeout - no data received for 60 seconds');
+          break;
+        }
+        
         const { done, value } = await reader.read();
         if (done) break;
+        
+        lastChunkTime = Date.now(); // Reset timeout on each chunk
 
         const chunk = decoder.decode(value, { stream: true });
         buffer += chunk;
@@ -485,11 +497,20 @@ export function ChatInterface({
                   setActiveToolCalls(Array.from(toolCallsMap.values()));
                 }
               } else if (partType === 'error') {
-                console.error('Stream error:', parsed.errorText);
+                console.error('Stream error:', parsed.errorText || parsed.error || parsed.message);
+              } else if (partType === 'finish') {
+                // Stream finished - clear tool calls
+                setActiveToolCalls([]);
+              } else if (partType && !['text-start', 'text-end', 'reasoning', 'step-start', 'step-finish', 'finish-message', 'finish-step', 'message-annotations'].includes(partType)) {
+                // Log unknown event types for debugging (but not common ones)
+                console.debug('[Stream] Unknown event type:', partType, parsed);
               }
-              // Ignore other types: text-start, text-end, reasoning-*, etc.
-            } catch {
-              // Ignore parse errors for malformed JSON
+              // Ignore other types: text-start, text-end, reasoning-*, step-*, etc.
+            } catch (e) {
+              // Log parse errors for debugging (but don't spam console)
+              if (data.length > 0 && data !== '[DONE]') {
+                console.debug('[Stream] Failed to parse:', data.substring(0, 100));
+              }
             }
           }
         }

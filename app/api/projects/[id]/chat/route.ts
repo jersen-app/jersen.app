@@ -22,10 +22,6 @@ import {
 } from "@/lib/ai/memory";
 import {
     getProviderOverview,
-    getAuthDocs,
-    getStorageDocs,
-    getDatabaseDocs,
-    detectNeededProviders,
     type ProjectConfig,
 } from "@/lib/ai/provider-docs";
 
@@ -173,27 +169,11 @@ export async function POST(
     };
 
     // Get provider overview (lightweight, always included)
+    // This tells AI what's available and to use getProviderDocs tool for details
     const providerOverview = getProviderOverview(projectConfig);
 
-    // Detect if user message likely needs provider docs (auto-inject)
-    const neededProviders = detectNeededProviders(userContent);
-    let autoInjectedDocs = '';
-    
-    if (neededProviders.length > 0) {
-        const docParts: string[] = [];
-        for (const provider of neededProviders) {
-            if (provider === 'auth' && projectConfig.providers.auth.enabled) {
-                docParts.push(getAuthDocs(projectConfig));
-            } else if (provider === 'storage' && projectConfig.providers.storage.enabled) {
-                docParts.push(getStorageDocs(projectConfig));
-            } else if (provider === 'database' && projectConfig.providers.database.enabled) {
-                docParts.push(getDatabaseDocs(projectConfig));
-            }
-        }
-        if (docParts.length > 0) {
-            autoInjectedDocs = `\n\n---\n## Provider Implementation Docs (Auto-detected)\n${docParts.join('\n\n---\n\n')}`;
-        }
-    }
+    // NO auto-injection of docs - AI should use getProviderDocs tool when needed
+    // This saves significant context space
 
     // === Use file relevance scoring to prioritize files ===
     const relevantFiles = getRelevantFiles(existingFiles, userContent, {
@@ -220,7 +200,7 @@ export async function POST(
     // === Optimize context to fit within token budget ===
     const optimizedContext = optimizeContext({
         systemPrompt: SYSTEM_PROMPT,
-        providerDocs: `${providerOverview}\n${autoInjectedDocs}\n\n${templatesContext}`,
+        providerDocs: `${providerOverview}\n\n${templatesContext}`,
         memory: memoryContext || '',
         files: relevantFiles,
         conversationHistory: historyForOptimizer,
@@ -323,7 +303,15 @@ ${optimizedContext.fileContext}`;
             const hasToolCalls = step.toolCalls && step.toolCalls.length > 0;
             console.log(`[AI Step] Finish reason: ${step.finishReason}, Tool calls: ${step.toolCalls?.length || 0}, Text length: ${step.text?.length || 0}${hasToolCalls ? `, Tools: ${step.toolCalls.map(t => t.toolName).join(', ')}` : ''}`);
         },
-        async onFinish({ text }) {
+        async onFinish({ text, finishReason }) {
+            // Log finish info for debugging
+            console.log(`[AI Finish] Reason: ${finishReason}, Text length: ${text?.length || 0}`);
+            
+            // Handle abnormal finish reasons
+            if (finishReason === 'error' || finishReason === 'unknown') {
+                console.error(`[AI Finish] Abnormal finish reason: ${finishReason}`);
+            }
+            
             // Save messages to DB
             try {
                 await connectToDatabase();
@@ -333,7 +321,7 @@ ${optimizedContext.fileContext}`;
                     projectId,
                     role: "user",
                     content: userContent || "[Image attached]",
-                    metadata: attachments.length > 0 ? { 
+                    metadata: attachments.length > 0 ? {
                         hasAttachments: true, 
                         attachmentCount: attachments.length,
                         attachmentTypes: attachments.map(a => a.type),

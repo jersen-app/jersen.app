@@ -1494,49 +1494,38 @@ This project uses Jersen platform providers. API Key: \`${config.apiKey.slice(0,
 
 /**
  * Get brief provider overview (for always-on context)
+ * Instructs AI to use getProviderDocs tool for implementation details
  */
 export function getProviderOverview(config: ProjectConfig): string {
     const enabled: string[] = [];
+    const details: string[] = [];
     
-    if (config.providers.auth.enabled) enabled.push('Auth');
-    if (config.providers.storage.enabled) enabled.push('Storage');
-    if (config.providers.database.enabled) enabled.push('Database');
+    if (config.providers.auth.enabled) {
+        enabled.push('Auth');
+        details.push('- **Auth**: OAuth login via redirect flow. Key: `lib/auth.ts`, `app/auth/callback/page.tsx`');
+    }
+    if (config.providers.storage.enabled) {
+        enabled.push('Storage');
+        details.push('- **Storage**: File uploads to R2. Key: `lib/jersen-storage.ts`');
+    }
+    if (config.providers.database.enabled) {
+        enabled.push('Database');
+        details.push('- **Database**: MongoDB via REST. Key: `lib/jersen-db.ts`. ONE endpoint: `/api/providers/database`');
+    }
     
     if (enabled.length === 0) {
         return '';
     }
     
-    return `## Jersen Providers Available
-This project has these Jersen providers enabled: **${enabled.join(', ')}**
+    return `## Jersen Providers Available: ${enabled.join(', ')}
 
-Provider documentation is automatically included below when features like login, file upload, or database operations are detected. Just follow the code patterns shown.
+${details.join('\n')}
+
+**IMPORTANT**: Use the \`getProviderDocs\` tool to get implementation code when you need to implement auth, storage, or database features. The tool will return the exact code patterns to use.
+
+**CRITICAL RULES** (always apply):
+- Use \`'__JERSEN_API_KEY__'\` and \`'__JERSEN_URL__'\` - NEVER \`process.env\`
+- Database: ONE endpoint \`/api/providers/database\` - collection in body/params, NOT in URL path
+- Auth: Client-side only with localStorage - never call login() in useEffect
 `;
-}
-
-/**
- * Detect which providers are likely needed based on user message
- */
-export function detectNeededProviders(message: string): ('auth' | 'storage' | 'database')[] {
-    const needed: ('auth' | 'storage' | 'database')[] = [];
-    const lowerMessage = message.toLowerCase();
-    
-    // Auth keywords
-    const authKeywords = ['login', 'signup', 'sign up', 'sign in', 'signin', 'auth', 'authentication', 'user', 'logout', 'session', 'password', 'register', 'account'];
-    if (authKeywords.some(k => lowerMessage.includes(k))) {
-        needed.push('auth');
-    }
-    
-    // Storage keywords
-    const storageKeywords = ['upload', 'file', 'image', 'photo', 'avatar', 'attachment', 'download', 'storage', 'media', 'asset'];
-    if (storageKeywords.some(k => lowerMessage.includes(k))) {
-        needed.push('storage');
-    }
-    
-    // Database keywords
-    const dbKeywords = ['database', 'db', 'save', 'store', 'crud', 'collection', 'document', 'insert', 'query', 'fetch data', 'persist', 'mongodb', 'data'];
-    if (dbKeywords.some(k => lowerMessage.includes(k))) {
-        needed.push('database');
-    }
-    
-    return needed;
 }

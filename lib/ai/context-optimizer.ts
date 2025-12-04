@@ -5,18 +5,21 @@
  * Prioritizes content by importance and compresses when needed.
  */
 
+import { CONDENSED_SYSTEM_PROMPT } from "./prompts-condensed";
+
 // Rough token estimation (1 token ≈ 4 characters for English text)
 const CHARS_PER_TOKEN = 4;
 
-// Token budget allocation (for ~128K context window, using 100K safely)
+// Token budget allocation (for ~128K context window, using 80K safely to leave room for output)
+// NOTE: Gemini 2.5 has 1M context but output can be affected by long context
 const TOKEN_BUDGETS = {
-    systemPrompt: 8000,      // Core instructions (fixed)
-    providerDocs: 12000,     // Provider documentation (can compress)
-    memory: 2000,            // Project memory/summary
-    fileContext: 25000,      // Existing files
-    conversationHistory: 15000, // Chat history
+    systemPrompt: 6000,      // Core instructions (fixed) - reduced
+    providerDocs: 8000,      // Provider documentation (can compress) - reduced
+    memory: 1500,            // Project memory/summary - reduced
+    fileContext: 20000,      // Existing files - reduced
+    conversationHistory: 10000, // Chat history - reduced
     userMessage: 5000,       // Current user message + attachments
-    buffer: 3000,            // Safety buffer
+    buffer: 5000,            // Safety buffer - increased
 } as const;
 
 const TOTAL_BUDGET = Object.values(TOKEN_BUDGETS).reduce((a, b) => a + b, 0);
@@ -311,20 +314,32 @@ export function optimizeContext(options: {
     
     const totalCurrent = Object.values(sizes).reduce((a, b) => a + b, 0);
     
+    // If significantly over budget, use condensed system prompt
+    let finalSystemPrompt = systemPrompt;
+    if (totalCurrent > TOTAL_BUDGET * 1.2) {
+        // Context is way over budget - use condensed system prompt
+        finalSystemPrompt = CONDENSED_SYSTEM_PROMPT;
+        console.log(`[Context Optimizer] Using condensed system prompt (${estimateTokens(CONDENSED_SYSTEM_PROMPT)} vs ${sizes.systemPrompt} tokens)`);
+    }
+    
+    // Recalculate with potentially new system prompt
+    sizes.systemPrompt = estimateTokens(finalSystemPrompt);
+    const recalculatedTotal = Object.values(sizes).reduce((a, b) => a + b, 0);
+    
     // If we're under budget, return as-is
-    if (totalCurrent <= TOTAL_BUDGET - TOKEN_BUDGETS.buffer) {
+    if (recalculatedTotal <= TOTAL_BUDGET - TOKEN_BUDGETS.buffer) {
         const fileContext = files.length > 0 
             ? files.map(f => `### ${f.path}\n\`\`\`\n${f.content}\n\`\`\``).join('\n\n')
             : '';
             
         return {
-            systemPrompt,
+            systemPrompt: finalSystemPrompt,
             providerDocs,
             memory,
             fileContext,
             conversationHistory: conversationHistory.map(m => m.content).join('\n\n---\n\n'),
-            totalTokens: totalCurrent,
-            wasCompressed: false,
+            totalTokens: recalculatedTotal,
+            wasCompressed: finalSystemPrompt !== systemPrompt,
         };
     }
     
@@ -362,8 +377,24 @@ export function optimizeContext(options: {
         removedParts.push(`Truncated memory from ${sizes.memory} to ${estimateTokens(compressedMemory)} tokens`);
     }
     
+    // 5. Use condensed system prompt if still over budget
+    const afterCompressionTotal = 
+        estimateTokens(finalSystemPrompt) +
+        estimateTokens(compressedProviderDocs) +
+        estimateTokens(compressedMemory) +
+        estimateTokens(compressedFileContext) +
+        estimateTokens(historyText) +
+        estimateTokens(userMessage);
+    
+    let usedSystemPrompt = finalSystemPrompt;
+    if (afterCompressionTotal > TOTAL_BUDGET) {
+        // Still over budget - use condensed system prompt
+        usedSystemPrompt = CONDENSED_SYSTEM_PROMPT;
+        removedParts.push(`Switched to condensed system prompt to save ${estimateTokens(finalSystemPrompt) - estimateTokens(CONDENSED_SYSTEM_PROMPT)} tokens`);
+    }
+    
     const finalTotal = 
-        estimateTokens(systemPrompt) +
+        estimateTokens(usedSystemPrompt) +
         estimateTokens(compressedProviderDocs) +
         estimateTokens(compressedMemory) +
         estimateTokens(compressedFileContext) +
@@ -371,7 +402,7 @@ export function optimizeContext(options: {
         estimateTokens(userMessage);
     
     return {
-        systemPrompt,
+        systemPrompt: usedSystemPrompt,
         providerDocs: compressedProviderDocs,
         memory: compressedMemory,
         fileContext: compressedFileContext,
