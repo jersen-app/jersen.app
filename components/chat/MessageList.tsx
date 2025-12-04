@@ -12,6 +12,8 @@ import { ToolIndicator } from "./ToolIndicator";
 import { Trash2 } from "lucide-react";
 import Image from "next/image";
 
+import { InstallBlock } from "./InstallBlock";
+
 interface MessageListProps {
   messages: Message[];
   isLoading: boolean;
@@ -106,6 +108,9 @@ export function MessageList({
                 {streamingBlocks.map((block, idx) => {
                   if (block.type === "delete") {
                     return <DeleteBlock key={idx} block={block} />;
+                  }
+                  if (block.type === "install") {
+                    return <InstallBlock key={idx} block={block} />;
                   }
                   if (block.type === "file" || block.type === "diff") {
                     return (

@@ -15,6 +15,7 @@ export { StreamingIndicator } from "./StreamingIndicator";
 export { EmptyState } from "./EmptyState";
 export { DiffPreview } from "./DiffPreview";
 export { ToolIndicator, ToolIndicatorCompact } from "./ToolIndicator";
+export { InstallBlock } from "./InstallBlock";
 
 // Utils
-export { generateId, parseAIResponse } from "./utils";
+export { generateId, parseAIResponse, containsRawDiffMarkers, isIncompleteFile } from "./utils";

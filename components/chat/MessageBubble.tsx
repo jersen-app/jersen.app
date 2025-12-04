@@ -16,6 +16,8 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 
+import { InstallBlock } from "./InstallBlock";
+
 const MAX_CONTENT_LENGTH = 400; // Characters before collapsing
 
 // Component to render delete file blocks
@@ -90,6 +92,9 @@ export function MessageBubble({ message }: MessageBubbleProps) {
       return message.parsedBlocks.map((block, idx) => {
         if (block.type === "delete") {
           return <DeleteBlock key={idx} block={block} />;
+        }
+        if (block.type === "install") {
+          return <InstallBlock key={idx} block={block} />;
         }
         if (block.type === "file" || block.type === "diff") {
           // File blocks are collapsed by default

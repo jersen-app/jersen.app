@@ -109,6 +109,44 @@ export function containsRawDiffMarkers(content: string): boolean {
 }
 
 /**
+ * Check if a file's content appears to be incomplete/truncated
+ * This catches cases where the AI response was cut off mid-file
+ */
+export function isIncompleteFile(content: string): boolean {
+  // Check for obvious truncation indicators
+  if (content.endsWith('\n...') || content.endsWith('...')) return true;
+  
+  // Check for unclosed brackets/braces (simple heuristic)
+  const openBraces = (content.match(/\{/g) || []).length;
+  const closeBraces = (content.match(/\}/g) || []).length;
+  const openParens = (content.match(/\(/g) || []).length;
+  const closeParens = (content.match(/\)/g) || []).length;
+  
+  // If significantly more opens than closes, likely truncated
+  if (openBraces - closeBraces > 3 || openParens - closeParens > 3) {
+    return true;
+  }
+  
+  // Check for truncated JSX (ends with incomplete tag or attribute)
+  if (/<[a-zA-Z][^>]*$/.test(content.trim())) return true;
+  if (/className="[^"]*$/.test(content.trim())) return true;
+  if (/class="[^"]*$/.test(content.trim())) return true;
+  
+  // Check if ends mid-string
+  const lastLine = content.trim().split('\n').pop() || '';
+  const quoteCount = (lastLine.match(/"/g) || []).length;
+  const singleQuoteCount = (lastLine.match(/'/g) || []).length;
+  const backtickCount = (lastLine.match(/`/g) || []).length;
+  
+  // Odd number of quotes suggests unclosed string
+  if (quoteCount % 2 !== 0 || singleQuoteCount % 2 !== 0 || backtickCount % 2 !== 0) {
+    return true;
+  }
+  
+  return false;
+}
+
+/**
  * Extract file deletion commands from content
  * Format: <jersen_delete>path/to/file.tsx</jersen_delete>
  */
@@ -131,6 +169,28 @@ function extractFileDeletions(content: string): { deletedFiles: string[], cleane
 }
 
 /**
+ * Extract install commands from content
+ * Format: <jersen_install>package-name</jersen_install>
+ */
+function extractInstallCommands(content: string): { packages: string[], cleanedContent: string } {
+  const packages: string[] = [];
+  const installRegex = /<jersen_install>([^<]+)<\/jersen_install>/gi;
+  
+  let match;
+  while ((match = installRegex.exec(content)) !== null) {
+    const pkg = match[1].trim();
+    if (pkg) {
+      packages.push(pkg);
+    }
+  }
+  
+  // Remove the install tags from content for display
+  const cleanedContent = content.replace(installRegex, '').trim();
+  
+  return { packages, cleanedContent };
+}
+
+/**
  * Parse AI response into blocks (text, code, files, diffs)
  */
 export function parseAIResponse(content: string): {
@@ -141,7 +201,19 @@ export function parseAIResponse(content: string): {
   const files: FileData[] = [];
 
   // First, extract file deletions
-  const { deletedFiles, cleanedContent } = extractFileDeletions(content);
+  const { deletedFiles, cleanedContent: afterDeletions } = extractFileDeletions(content);
+  
+  // Then extract install commands
+  const { packages: installPackages, cleanedContent } = extractInstallCommands(afterDeletions);
+  
+  // Add install blocks for each package (or group them)
+  if (installPackages.length > 0) {
+    blocks.push({
+      type: "install",
+      content: `Installing: ${installPackages.join(', ')}`,
+      packages: installPackages,
+    });
+  }
   
   // Add delete blocks and file entries for deletions
   for (const filepath of deletedFiles) {

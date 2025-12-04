@@ -4,7 +4,7 @@ export interface DiffBlock {
 }
 
 export interface ParsedBlock {
-  type: "text" | "code" | "file" | "diff" | "delete";
+  type: "text" | "code" | "file" | "diff" | "delete" | "install";
   content: string;
   language?: string;
   filename?: string;
@@ -13,6 +13,8 @@ export interface ParsedBlock {
   isFullFile?: boolean;
   // For delete blocks
   isDelete?: boolean;
+  // For install blocks
+  packages?: string[];
 }
 
 export interface Attachment {

@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { MessageSquarePlus, Trash2, Loader2, AlertCircle, Brain, Sparkles } from "lucide-react";
 import type { Message, FileData, ParsedBlock, Attachment, ToolCall } from "./types";
-import { generateId, parseAIResponse, containsRawDiffMarkers } from "./utils";
+import { generateId, parseAIResponse, containsRawDiffMarkers, isIncompleteFile } from "./utils";
 import { applyDiffBlocks } from "@/lib/ai/diff";
 import { MessageList } from "./MessageList";
 import { ChatInput } from "./ChatInput";
@@ -420,7 +420,10 @@ export function ChatInterface({
                 
                 // Stream files to editor in real-time
                 if (onStreamingFiles && files.length > lastStreamedFileCount) {
-                  const completeFiles = files.filter(f => !f.content.endsWith('\n...'));
+                  const completeFiles = files.filter(f => 
+                    !f.content.endsWith('\n...') && 
+                    !isIncompleteFile(f.content)
+                  );
                   if (completeFiles.length > lastStreamedFileCount) {
                     const processedStreamFiles = processFiles(completeFiles);
                     const validFiles = processedStreamFiles.filter(f => !containsRawDiffMarkers(f.content));
@@ -536,8 +539,18 @@ export function ChatInterface({
       setStreamingBlocks(null);
       setActiveToolCalls([]);
 
-      // Final file notification with processed files (filter out any with raw diff markers)
-      const validProcessedFiles = processedFiles.filter(f => !containsRawDiffMarkers(f.content));
+      // Final file notification with processed files (filter out any with raw diff markers or incomplete)
+      const validProcessedFiles = processedFiles.filter(f => {
+        if (containsRawDiffMarkers(f.content)) {
+          console.warn(`[ChatInterface] Skipping ${f.path} - contains raw diff markers`);
+          return false;
+        }
+        if (isIncompleteFile(f.content)) {
+          console.warn(`[ChatInterface] Skipping ${f.path} - appears to be incomplete/truncated`);
+          return false;
+        }
+        return true;
+      });
       if (validProcessedFiles.length > 0 && onFilesGenerated) {
         console.log(`[ChatInterface] Calling onFilesGenerated with ${validProcessedFiles.length} files:`, validProcessedFiles.map(f => f.path));
         onFilesGenerated(validProcessedFiles);
