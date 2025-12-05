@@ -4,6 +4,7 @@ import connectToDatabase from "@/lib/db";
 import Project from "@/models/Project";
 import ChatMessage from "@/models/ChatMessage";
 import ProjectMemory from "@/models/ProjectMemory";
+import { deleteProjectFiles } from "@/lib/storage/r2";
 
 // PATCH - Update project settings (e.g., name)
 export async function PATCH(
@@ -86,6 +87,8 @@ export async function DELETE(
             ChatMessage.deleteMany({ projectId }),
             // Delete project memory
             ProjectMemory.deleteOne({ projectId }),
+            // Delete project files from R2
+            deleteProjectFiles(projectId),
         ]);
 
         // Delete the project

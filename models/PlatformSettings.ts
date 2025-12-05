@@ -46,6 +46,10 @@ export interface IPlatformSettings {
     maxOrgsPerUser: number; // Max orgs a user can create (default: 1), can join unlimited
     // Security settings
     disableDevTools: boolean; // If true, attempts to open DevTools will refresh the page
+    // Storage settings
+    storageMaxImageSizeMB: number; // Max size for image uploads in MB
+    storageMaxVideoSizeMB: number; // Max size for video uploads in MB
+    storageDefaultProjectQuotaMB: number; // Default storage quota per project in MB
     createdAt: Date;
     updatedAt: Date;
 }
@@ -112,6 +116,19 @@ const PlatformSettingsSchema = new Schema<IPlatformSettings>(
         disableDevTools: {
             type: Boolean,
             default: false, // Disabled by default
+        },
+        // Storage settings
+        storageMaxImageSizeMB: {
+            type: Number,
+            default: 5,
+        },
+        storageMaxVideoSizeMB: {
+            type: Number,
+            default: 20,
+        },
+        storageDefaultProjectQuotaMB: {
+            type: Number,
+            default: 100,
         },
     },
     {

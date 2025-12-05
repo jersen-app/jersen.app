@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { validateApiKey } from "@/lib/middleware/validateApiKey";
-import { uploadFile, getDownloadUrl, deleteFile } from "@/lib/storage/r2";
+import { uploadFile, getDownloadUrl, deleteFile, getFileMetadata } from "@/lib/storage/r2";
+import { getPlatformSettings } from "@/models/PlatformSettings";
+import Project from "@/models/Project";
 
 // Production domains that are always allowed
 const ALLOWED_PRODUCTION_ORIGINS = [
@@ -118,6 +120,43 @@ export async function POST(request: NextRequest) {
             );
         }
 
+        // Get platform settings for limits
+        const settings = await getPlatformSettings();
+        const maxImageSize = settings.storageMaxImageSizeMB || 5;
+        const maxVideoSize = settings.storageMaxVideoSizeMB || 20;
+        const defaultQuota = settings.storageDefaultProjectQuotaMB || 100;
+
+        const fileSizeMB = file.size / (1024 * 1024);
+
+        // Check file size limits
+        if (file.type.startsWith("image/")) {
+            if (fileSizeMB > maxImageSize) {
+                return NextResponse.json(
+                    { error: `Image size exceeds limit of ${maxImageSize}MB` },
+                    { status: 413, headers: corsHeaders }
+                );
+            }
+        } else if (file.type.startsWith("video/")) {
+            if (fileSizeMB > maxVideoSize) {
+                return NextResponse.json(
+                    { error: `Video size exceeds limit of ${maxVideoSize}MB` },
+                    { status: 413, headers: corsHeaders }
+                );
+            }
+        }
+
+        // Check project quota
+        const currentUsage = project.providers.storage.usage || 0;
+        const quota = project.providers.storage.quota || defaultQuota;
+        const quotaBytes = quota * 1024 * 1024;
+
+        if (currentUsage + file.size > quotaBytes) {
+            return NextResponse.json(
+                { error: `Storage quota exceeded. Limit: ${quota}MB` },
+                { status: 413, headers: corsHeaders }
+            );
+        }
+
         // Convert file to buffer
         const arrayBuffer = await file.arrayBuffer();
         const buffer = Buffer.from(arrayBuffer);
@@ -129,6 +168,12 @@ export async function POST(request: NextRequest) {
             body: buffer,
             contentType: file.type,
         });
+
+        // Update usage
+        await Project.updateOne(
+            { _id: project._id },
+            { $inc: { "providers.storage.usage": file.size } }
+        );
 
         return NextResponse.json({
             success: true,
@@ -226,10 +271,24 @@ export async function DELETE(request: NextRequest) {
             return NextResponse.json({ error: "Missing key parameter" }, { status: 400, headers: corsHeaders });
         }
 
+        // Get file size before deleting to update usage
+        const metadata = await getFileMetadata({
+            projectId: project._id.toString(),
+            key,
+        });
+
         await deleteFile({
             projectId: project._id.toString(),
             key,
         });
+
+        // Update usage (decrement)
+        if (metadata.size > 0) {
+            await Project.updateOne(
+                { _id: project._id },
+                { $inc: { "providers.storage.usage": -metadata.size } }
+            );
+        }
 
         return NextResponse.json({ success: true }, { headers: corsHeaders });
     } catch (error: any) {

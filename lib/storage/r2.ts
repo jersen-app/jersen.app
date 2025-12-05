@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, HeadObjectCommand, ListObjectsV2Command, DeleteObjectsCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 const R2_ACCOUNT_ID = process.env.R2_ACCOUNT_ID;
@@ -100,6 +100,28 @@ export function getDownloadUrl(options: DownloadOptions): string {
 }
 
 /**
+ * Get file metadata (size, type) from R2
+ */
+export async function getFileMetadata(options: DownloadOptions): Promise<{ size: number; contentType: string | undefined }> {
+    const fullKey = getProjectKey(options.projectId, options.key);
+
+    try {
+        const response = await r2Client.send(
+            new HeadObjectCommand({
+                Bucket: R2_BUCKET_NAME,
+                Key: fullKey,
+            })
+        );
+        return {
+            size: response.ContentLength || 0,
+            contentType: response.ContentType,
+        };
+    } catch (error) {
+        return { size: 0, contentType: undefined };
+    }
+}
+
+/**
  * Delete a file from R2
  */
 export async function deleteFile(options: DeleteOptions): Promise<void> {
@@ -111,4 +133,36 @@ export async function deleteFile(options: DeleteOptions): Promise<void> {
             Key: fullKey,
         })
     );
+}
+
+/**
+ * Delete all files for a project
+ */
+export async function deleteProjectFiles(projectId: string): Promise<void> {
+    const prefix = `projects/${projectId}/`;
+    
+    let continuationToken: string | undefined;
+    
+    do {
+        const listCommand = new ListObjectsV2Command({
+            Bucket: R2_BUCKET_NAME,
+            Prefix: prefix,
+            ContinuationToken: continuationToken,
+        });
+        
+        const listResponse = await r2Client.send(listCommand);
+        
+        if (listResponse.Contents && listResponse.Contents.length > 0) {
+            const objectsToDelete = listResponse.Contents.map(obj => ({ Key: obj.Key }));
+            
+            await r2Client.send(
+                new DeleteObjectsCommand({
+                    Bucket: R2_BUCKET_NAME,
+                    Delete: { Objects: objectsToDelete },
+                })
+            );
+        }
+        
+        continuationToken = listResponse.NextContinuationToken;
+    } while (continuationToken);
 }

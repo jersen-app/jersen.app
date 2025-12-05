@@ -34,6 +34,7 @@ export interface IProject {
         storage: {
             enabled: boolean;
             quota: number; // in MB
+            usage: number; // in bytes
         };
         database: {
             enabled: boolean;
@@ -126,7 +127,8 @@ const ProjectSchema = new Schema<IProject>(
                 },
                 storage: {
                     enabled: { type: Boolean, default: true },
-                    quota: { type: Number, default: 1024 }, // 1GB default
+                    quota: { type: Number, default: 100 }, // 100MB default
+                    usage: { type: Number, default: 0 }, // in bytes
                 },
                 database: {
                     enabled: { type: Boolean, default: true },
@@ -139,7 +141,7 @@ const ProjectSchema = new Schema<IProject>(
             },
             default: {
                 auth: { enabled: true },
-                storage: { enabled: true, quota: 1024 },
+                storage: { enabled: true, quota: 100, usage: 0 },
                 database: { enabled: true },
             },
         },

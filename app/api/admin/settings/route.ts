@@ -45,12 +45,37 @@ export async function PATCH(request: NextRequest) {
             requireOrgApproval,
             maxOrgsPerUser,
             disableDevTools,
+            storageMaxImageSizeMB,
+            storageMaxVideoSizeMB,
+            storageDefaultProjectQuotaMB,
         } = body;
 
         // Validate model
         if (aiModel && !AI_MODELS.some(m => m.id === aiModel)) {
             return NextResponse.json(
                 { error: "Invalid AI model" },
+                { status: 400 }
+            );
+        }
+
+        // Validate storage settings
+        if (storageMaxImageSizeMB !== undefined && storageMaxImageSizeMB < 1) {
+            return NextResponse.json(
+                { error: "Max image size must be at least 1MB" },
+                { status: 400 }
+            );
+        }
+
+        if (storageMaxVideoSizeMB !== undefined && storageMaxVideoSizeMB < 1) {
+            return NextResponse.json(
+                { error: "Max video size must be at least 1MB" },
+                { status: 400 }
+            );
+        }
+
+        if (storageDefaultProjectQuotaMB !== undefined && storageDefaultProjectQuotaMB < 1) {
+            return NextResponse.json(
+                { error: "Default project quota must be at least 1MB" },
                 { status: 400 }
             );
         }
@@ -107,9 +132,12 @@ export async function PATCH(request: NextRequest) {
         if (requireOrgApproval !== undefined) updateData.requireOrgApproval = requireOrgApproval;
         if (maxOrgsPerUser !== undefined) updateData.maxOrgsPerUser = maxOrgsPerUser;
         if (disableDevTools !== undefined) updateData.disableDevTools = disableDevTools;
+        if (storageMaxImageSizeMB !== undefined) updateData.storageMaxImageSizeMB = storageMaxImageSizeMB;
+        if (storageMaxVideoSizeMB !== undefined) updateData.storageMaxVideoSizeMB = storageMaxVideoSizeMB;
+        if (storageDefaultProjectQuotaMB !== undefined) updateData.storageDefaultProjectQuotaMB = storageDefaultProjectQuotaMB;
 
-        const settings = await PlatformSettings.findByIdAndUpdate(
-            "platform_settings",
+        const settings = await PlatformSettings.findOneAndUpdate(
+            { _id: "platform_settings" },
             { $set: updateData },
             { new: true, upsert: true }
         );

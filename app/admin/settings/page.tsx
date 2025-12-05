@@ -34,6 +34,9 @@ interface PlatformSettings {
     requireOrgApproval: boolean;
     maxOrgsPerUser: number;
     disableDevTools: boolean;
+    storageMaxImageSizeMB: number;
+    storageMaxVideoSizeMB: number;
+    storageDefaultProjectQuotaMB: number;
 }
 
 export default function AdminSettingsPage() {
@@ -55,6 +58,9 @@ export default function AdminSettingsPage() {
     const [requireOrgApproval, setRequireOrgApproval] = useState<boolean>(true);
     const [maxOrgsPerUser, setMaxOrgsPerUser] = useState<number>(1);
     const [disableDevTools, setDisableDevTools] = useState<boolean>(false);
+    const [storageMaxImageSizeMB, setStorageMaxImageSizeMB] = useState<number>(5);
+    const [storageMaxVideoSizeMB, setStorageMaxVideoSizeMB] = useState<number>(20);
+    const [storageDefaultProjectQuotaMB, setStorageDefaultProjectQuotaMB] = useState<number>(100);
 
     useEffect(() => {
         fetchSettings();
@@ -79,6 +85,9 @@ export default function AdminSettingsPage() {
             setRequireOrgApproval(data.settings.requireOrgApproval ?? true);
             setMaxOrgsPerUser(data.settings.maxOrgsPerUser ?? 1);
             setDisableDevTools(data.settings.disableDevTools ?? false);
+            setStorageMaxImageSizeMB(data.settings.storageMaxImageSizeMB ?? 5);
+            setStorageMaxVideoSizeMB(data.settings.storageMaxVideoSizeMB ?? 20);
+            setStorageDefaultProjectQuotaMB(data.settings.storageDefaultProjectQuotaMB ?? 100);
         } catch (error) {
             console.error(error);
             toast.error("Failed to load settings");
@@ -105,6 +114,9 @@ export default function AdminSettingsPage() {
                     requireOrgApproval,
                     maxOrgsPerUser,
                     disableDevTools,
+                    storageMaxImageSizeMB,
+                    storageMaxVideoSizeMB,
+                    storageDefaultProjectQuotaMB,
                 }),
             });
 
@@ -445,6 +457,67 @@ export default function AdminSettingsPage() {
                         <p className="text-xs text-muted-foreground">
                             Maximum number of organizations a user can create. They can join unlimited organizations as members.
                         </p>
+                    </div>
+                </CardContent>
+            </Card>
+
+            {/* Storage Settings Card */}
+            <Card>
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                        <Cloud className="h-5 w-5" />
+                        Storage Settings
+                    </CardTitle>
+                    <CardDescription>
+                        Configure storage limits and quotas.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                    <div className="grid gap-6 md:grid-cols-3">
+                        {/* Max Image Size */}
+                        <div className="space-y-2">
+                            <Label htmlFor="max-image-size">Max Image Size (MB)</Label>
+                            <Input
+                                id="max-image-size"
+                                type="number"
+                                min="1"
+                                value={storageMaxImageSizeMB}
+                                onChange={(e) => setStorageMaxImageSizeMB(parseInt(e.target.value) || 5)}
+                            />
+                            <p className="text-xs text-muted-foreground">
+                                Maximum file size for image uploads.
+                            </p>
+                        </div>
+
+                        {/* Max Video Size */}
+                        <div className="space-y-2">
+                            <Label htmlFor="max-video-size">Max Video Size (MB)</Label>
+                            <Input
+                                id="max-video-size"
+                                type="number"
+                                min="1"
+                                value={storageMaxVideoSizeMB}
+                                onChange={(e) => setStorageMaxVideoSizeMB(parseInt(e.target.value) || 20)}
+                            />
+                            <p className="text-xs text-muted-foreground">
+                                Maximum file size for video uploads.
+                            </p>
+                        </div>
+
+                        {/* Default Project Quota */}
+                        <div className="space-y-2">
+                            <Label htmlFor="default-quota">Default Project Quota (MB)</Label>
+                            <Input
+                                id="default-quota"
+                                type="number"
+                                min="1"
+                                value={storageDefaultProjectQuotaMB}
+                                onChange={(e) => setStorageDefaultProjectQuotaMB(parseInt(e.target.value) || 100)}
+                            />
+                            <p className="text-xs text-muted-foreground">
+                                Default storage quota for new projects.
+                            </p>
+                        </div>
                     </div>
                 </CardContent>
             </Card>
