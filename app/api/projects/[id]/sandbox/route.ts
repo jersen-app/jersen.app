@@ -65,7 +65,7 @@ async function getSandboxSettings(orgId: string) {
     };
 }
 
-// Check if user has Vercel connected and get credentials
+// Check if user has Vercel connected and get credentials for sandbox
 async function getVercelCredentials(userId: string, orgId: string | null) {
     const integration = await VercelIntegration.findOne({
         userId,
@@ -76,10 +76,23 @@ async function getVercelCredentials(userId: string, orgId: string | null) {
         return null;
     }
 
+    // For sandbox, we need the sandboxAccessToken (personal access token)
+    // The OAuth accessToken is for deployments, not sandbox
+    if (!integration.sandboxAccessToken) {
+        return {
+            connected: true,
+            hasSandboxToken: false,
+            teamId: integration.vercelTeamId || undefined,
+            vercelUserId: integration.vercelUserId,
+        };
+    }
+
     return {
+        connected: true,
+        hasSandboxToken: true,
         teamId: integration.vercelTeamId || undefined,
         projectId: integration.sandboxProjectId || undefined,
-        token: integration.accessToken,
+        token: integration.sandboxAccessToken,
         vercelUserId: integration.vercelUserId,
         integrationId: integration._id,
     };
@@ -495,12 +508,34 @@ async function createVercelSandboxInternal(
     userId: string,
     orgId: string,
     files?: Record<string, string>,
-    credentials?: { teamId?: string; projectId?: string; token: string; vercelUserId: string; integrationId?: unknown },
+    credentials?: { 
+        connected?: boolean;
+        hasSandboxToken?: boolean;
+        teamId?: string; 
+        projectId?: string; 
+        token?: string; 
+        vercelUserId?: string; 
+        integrationId?: unknown 
+    },
     settings?: Awaited<ReturnType<typeof getSandboxSettings>>
 ) {
-    if (!credentials) {
+    if (!credentials || !credentials.connected) {
         return NextResponse.json(
-            { error: "Vercel credentials required" },
+            { 
+                error: "Vercel connection required. Please connect your Vercel account.",
+                code: "VERCEL_NOT_CONNECTED"
+            },
+            { status: 400 }
+        );
+    }
+
+    // Check if user has sandbox token
+    if (!credentials.hasSandboxToken || !credentials.token) {
+        return NextResponse.json(
+            { 
+                error: "Vercel Sandbox token required. Please add your Vercel access token in Settings.",
+                code: "VERCEL_SANDBOX_TOKEN_REQUIRED"
+            },
             { status: 400 }
         );
     }
@@ -584,86 +619,107 @@ async function createVercelSandboxInternal(
     }
 
     console.log(`Creating Vercel sandbox for project ${projectId} using Vercel project ${vercelProjectId}`);
+    console.log(`Vercel credentials: teamId=${credentials.teamId}, projectId=${vercelProjectId}, tokenLength=${credentials.token?.length}`);
 
     // Create the sandbox with the Vercel project ID
-    const sandbox = await VercelSandbox.create({
-        teamId: credentials.teamId,
-        projectId: vercelProjectId,
-        token: credentials.token,
-        timeout: timeoutMs,
-        ports: [3000],
-        runtime: "node22",
-    });
+    try {
+        const sandbox = await VercelSandbox.create({
+            teamId: credentials.teamId,
+            projectId: vercelProjectId,
+            token: credentials.token,
+            timeout: timeoutMs,
+            ports: [3000],
+            runtime: "node22",
+        });
 
-    console.log(`Created Vercel sandbox ${sandbox.sandboxId}`);
+        console.log(`Created Vercel sandbox ${sandbox.sandboxId}`);
 
-    // Write files to sandbox
-    const apiKey = (project as any).apiKey || '';
-    const processedFiles = injectCredentials(files || {}, apiKey, JERSEN_API_URL);
+        // Write files to sandbox
+        const apiKey = (project as any).apiKey || '';
+        const processedFiles = injectCredentials(files || {}, apiKey, JERSEN_API_URL);
 
-    if (Object.keys(processedFiles).length > 0) {
-        console.log(`Writing ${Object.keys(processedFiles).length} files to Vercel sandbox...`);
-        
-        const fileBuffers = Object.entries(processedFiles).map(([path, content]) => ({
-            path,
-            content: Buffer.from(content),
-        }));
-        
-        await sandbox.writeFiles(fileBuffers);
-    }
-
-    // Install dependencies
-    console.log("Installing dependencies in Vercel sandbox...");
-    const install = await sandbox.runCommand({
-        cmd: "npm",
-        args: ["install", "--force"],
-    });
-
-    if (install.exitCode !== 0) {
-        console.error("npm install failed in Vercel sandbox");
-    }
-
-    // Start dev server
-    console.log("Starting dev server in Vercel sandbox...");
-    await sandbox.runCommand({
-        cmd: "npm",
-        args: ["run", "dev"],
-        detached: true,
-    });
-
-    // Wait for server to start
-    await new Promise((resolve) => setTimeout(resolve, 3000));
-
-    const url = sandbox.domain(3000);
-
-    // Register sandbox in database
-    await registerSandbox(
-        orgId,
-        projectId,
-        sandbox.sandboxId,
-        url,
-        userId,
-        settings.vercelSandboxTimeout,
-        "vercel" // provider
-    );
-
-    // Save sandbox URL to project for CORS
-    await Project.updateOne(
-        { _id: projectId },
-        {
-            $set: { sandboxUrl: url },
-            $addToSet: { allowedOrigins: url },
+        if (Object.keys(processedFiles).length > 0) {
+            console.log(`Writing ${Object.keys(processedFiles).length} files to Vercel sandbox...`);
+            
+            const fileBuffers = Object.entries(processedFiles).map(([path, content]) => ({
+                path,
+                content: Buffer.from(content),
+            }));
+            
+            await sandbox.writeFiles(fileBuffers);
         }
-    );
 
-    console.log(`Vercel sandbox created: ${url}`);
+        // Install dependencies
+        console.log("Installing dependencies in Vercel sandbox...");
+        const install = await sandbox.runCommand({
+            cmd: "npm",
+            args: ["install", "--force"],
+        });
 
-    return NextResponse.json({
-        sandboxId: sandbox.sandboxId,
-        url,
-        status: "created",
-        provider: "vercel",
-    });
+        if (install.exitCode !== 0) {
+            console.error("npm install failed in Vercel sandbox");
+        }
+
+        // Start dev server
+        console.log("Starting dev server in Vercel sandbox...");
+        await sandbox.runCommand({
+            cmd: "npm",
+            args: ["run", "dev"],
+            detached: true,
+        });
+
+        // Wait for server to start
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+
+        const url = sandbox.domain(3000);
+
+        // Register sandbox in database
+        await registerSandbox(
+            orgId,
+            projectId,
+            sandbox.sandboxId,
+            url,
+            userId,
+            settings.vercelSandboxTimeout,
+            "vercel" // provider
+        );
+
+        // Save sandbox URL to project for CORS
+        await Project.updateOne(
+            { _id: projectId },
+            {
+                $set: { sandboxUrl: url },
+                $addToSet: { allowedOrigins: url },
+            }
+        );
+
+        console.log(`Vercel sandbox created: ${url}`);
+
+        return NextResponse.json({
+            sandboxId: sandbox.sandboxId,
+            url,
+            status: "created",
+            provider: "vercel",
+        });
+    } catch (error: unknown) {
+        console.error("Vercel Sandbox creation failed:", error);
+        
+        // Check for 403 error which means scope issue
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        const errorText = (error as any)?.text || "";
+        
+        if (errorMessage.includes("403") || errorText.includes("forbidden") || errorText.includes("permission")) {
+            return NextResponse.json(
+                { 
+                    error: "Vercel Sandbox permission denied. Your Vercel integration may not have the Sandbox scope enabled. Please reconnect your Vercel account or contact support.",
+                    code: "VERCEL_SANDBOX_FORBIDDEN"
+                },
+                { status: 403 }
+            );
+        }
+        
+        throw error; // Re-throw for general error handling
+    }
 }
 
 /**

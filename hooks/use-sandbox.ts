@@ -21,6 +21,7 @@ interface SandboxSettings {
 interface SandboxProviderConfig {
     sandboxProvider: "e2b" | "vercel" | "both";
     hasVercelConnected: boolean;
+    hasSandboxToken: boolean;
     requiresVercelConnection: boolean;
     activeProvider: "e2b" | "vercel";
 }
@@ -50,6 +51,7 @@ export function useSandbox({ projectId, autoCreate = false }: UseSandboxOptions)
     const [providerConfig, setProviderConfig] = useState<SandboxProviderConfig>({
         sandboxProvider: "e2b",
         hasVercelConnected: false,
+        hasSandboxToken: false,
         requiresVercelConnection: false,
         activeProvider: "e2b",
     });
@@ -87,6 +89,7 @@ export function useSandbox({ projectId, autoCreate = false }: UseSandboxOptions)
 
             let sandboxProvider: "e2b" | "vercel" | "both" = "e2b";
             let hasVercelConnected = false;
+            let hasSandboxToken = false;
 
             if (platformRes.ok) {
                 const { settings } = await platformRes.json();
@@ -94,8 +97,9 @@ export function useSandbox({ projectId, autoCreate = false }: UseSandboxOptions)
             }
 
             if (vercelRes.ok) {
-                const { connected } = await vercelRes.json();
-                hasVercelConnected = connected;
+                const data = await vercelRes.json();
+                hasVercelConnected = data.connected;
+                hasSandboxToken = data.hasSandboxToken || false;
             }
 
             // Determine active provider and if connection is required
@@ -103,18 +107,21 @@ export function useSandbox({ projectId, autoCreate = false }: UseSandboxOptions)
             let requiresVercelConnection = false;
 
             if (sandboxProvider === "vercel") {
-                if (hasVercelConnected) {
+                // For Vercel-only mode, need both OAuth connection AND sandbox token
+                if (hasVercelConnected && hasSandboxToken) {
                     activeProvider = "vercel";
                 } else {
                     requiresVercelConnection = true;
                 }
             } else if (sandboxProvider === "both") {
-                activeProvider = hasVercelConnected ? "vercel" : "e2b";
+                // For "both" mode, prefer Vercel if fully configured, fallback to E2B
+                activeProvider = (hasVercelConnected && hasSandboxToken) ? "vercel" : "e2b";
             }
 
             setProviderConfig({
                 sandboxProvider,
                 hasVercelConnected,
+                hasSandboxToken,
                 requiresVercelConnection,
                 activeProvider,
             });
@@ -348,6 +355,8 @@ export function useSandbox({ projectId, autoCreate = false }: UseSandboxOptions)
         isLoading: state.status === "creating" || state.status === "updating",
         autoPreviewEnabled: settings.autoPreviewEnabled,
         requiresVercelConnection: providerConfig.requiresVercelConnection,
+        hasVercelConnected: providerConfig.hasVercelConnected,
+        hasSandboxToken: providerConfig.hasSandboxToken,
         activeProvider: providerConfig.activeProvider,
     };
 }

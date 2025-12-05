@@ -28,6 +28,8 @@ interface PreviewPanelProps {
     isLoading: boolean;
     needsSync?: boolean;
     requiresVercelConnection?: boolean;
+    hasVercelConnected?: boolean;
+    hasSandboxToken?: boolean;
 }
 
 type ViewportSize = "mobile" | "tablet" | "desktop";
@@ -48,6 +50,8 @@ export function PreviewPanel({
     isLoading,
     needsSync = false,
     requiresVercelConnection = false,
+    hasVercelConnected = false,
+    hasSandboxToken = false,
 }: PreviewPanelProps) {
     const [viewport, setViewport] = useState<ViewportSize>("desktop");
     const [iframeKey, setIframeKey] = useState(0);
@@ -265,7 +269,7 @@ export function PreviewPanel({
                         <X className="h-12 w-12 mx-auto mb-4 opacity-50" />
                         <p className="text-sm font-medium">Failed to start sandbox</p>
                         <p className="text-xs mt-1 opacity-80">{error}</p>
-                        {requiresVercelConnection ? (
+                        {requiresVercelConnection && !hasVercelConnected ? (
                             <Button
                                 size="sm"
                                 variant="default"
@@ -274,6 +278,15 @@ export function PreviewPanel({
                             >
                                 <Link2 className="mr-2 h-4 w-4" />
                                 Connect Vercel Account
+                            </Button>
+                        ) : requiresVercelConnection && hasVercelConnected && !hasSandboxToken ? (
+                            <Button
+                                size="sm"
+                                variant="default"
+                                onClick={() => window.location.href = "/dashboard/settings"}
+                                className="mt-4"
+                            >
+                                Configure Sandbox Token
                             </Button>
                         ) : (
                             <Button

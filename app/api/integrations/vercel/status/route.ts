@@ -38,5 +38,6 @@ export async function GET() {
         teamSlug: integration.vercelTeamSlug || null,
         tokenExpired: isExpired,
         connectedAt: integration.connectedAt,
+        hasSandboxToken: !!integration.sandboxAccessToken,
     });
 }

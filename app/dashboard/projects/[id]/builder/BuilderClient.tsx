@@ -519,6 +519,8 @@ export default function BuilderClient({
                                     isLoading={sandbox.isLoading}
                                     needsSync={needsSync}
                                     requiresVercelConnection={sandbox.requiresVercelConnection}
+                                    hasVercelConnected={sandbox.hasVercelConnected}
+                                    hasSandboxToken={sandbox.hasSandboxToken}
                                 />
                             )}
                         </div>
@@ -593,6 +595,8 @@ export default function BuilderClient({
                                 isLoading={sandbox.isLoading}
                                 needsSync={needsSync}
                                 requiresVercelConnection={sandbox.requiresVercelConnection}
+                                hasVercelConnected={sandbox.hasVercelConnected}
+                                hasSandboxToken={sandbox.hasSandboxToken}
                             />
                         )}
                     </div>

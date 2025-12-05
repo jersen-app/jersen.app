@@ -3,12 +3,13 @@ import mongoose, { Schema, model, models } from "mongoose";
 export interface IVercelIntegration {
     userId: string; // Clerk user ID
     orgId?: string; // Optional organization ID
-    accessToken: string;
+    accessToken: string; // OAuth access token (for deployments)
     refreshToken?: string;
     vercelUserId: string;
     vercelTeamId?: string;
     vercelTeamSlug?: string;
     sandboxProjectId?: string; // Vercel project ID used for sandboxes
+    sandboxAccessToken?: string; // Personal access token for sandbox (user creates this manually)
     tokenExpiresAt?: Date;
     connectedAt: Date;
     updatedAt: Date;
@@ -44,6 +45,9 @@ const VercelIntegrationSchema = new Schema<IVercelIntegration>(
         },
         sandboxProjectId: {
             type: String,
+        },
+        sandboxAccessToken: {
+            type: String, // Personal access token for sandbox API
         },
         tokenExpiresAt: {
             type: Date,
