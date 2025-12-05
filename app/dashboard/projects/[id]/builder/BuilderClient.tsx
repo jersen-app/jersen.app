@@ -38,6 +38,7 @@ export default function BuilderClient({
     const [needsSync, setNeedsSync] = useState(false);
     const [initialPrompt, setInitialPrompt] = useState<string | undefined>(undefined);
     const [initialAttachments, setInitialAttachments] = useState<Array<{type: string; url?: string; base64?: string; name: string}> | undefined>(undefined);
+    const [deploymentUrl, setDeploymentUrl] = useState<string | undefined>(vercelDeploymentUrl);
     
     const isMobile = useIsMobile();
     
@@ -393,8 +394,9 @@ export default function BuilderClient({
                             projectId={projectId} 
                             projectName={projectName} 
                             hasFiles={files.length > 0}
-                            vercelDeploymentUrl={vercelDeploymentUrl}
+                            vercelDeploymentUrl={deploymentUrl}
                             lastDeployedAt={lastDeployedAt}
+                            onDeploySuccess={(url) => setDeploymentUrl(url)}
                         />
                         <Link
                             href={`/dashboard/projects/${projectId}/settings`}

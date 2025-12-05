@@ -57,7 +57,9 @@ export async function POST(
         const zipEntries = zip.getEntries();
 
         const newFiles: Array<{ path: string; content: string }> = [];
-        const newDependencies: Set<string> = new Set(project.dependencies || []);
+        // Reset dependencies - we will rebuild from package.json
+        const newDependencies: Set<string> = new Set();
+        let foundPackageJson = false;
 
         for (const entry of zipEntries) {
             if (entry.isDirectory) continue;
@@ -82,6 +84,7 @@ export async function POST(
             
             // If package.json, parse dependencies
             if (path === "package.json") {
+                foundPackageJson = true;
                 try {
                     const pkg = JSON.parse(content);
                     const deps = { ...pkg.dependencies, ...pkg.devDependencies };
@@ -89,19 +92,16 @@ export async function POST(
                     // Add new dependencies to the set
                     for (const [name, version] of Object.entries(deps)) {
                         // Skip standard Next.js deps that are always included
-                        if (["next", "react", "react-dom", "typescript", "@types/node", "@types/react", "@types/react-dom", "lucide-react", "tailwindcss", "postcss", "autoprefixer"].includes(name)) {
+                        if (["next", "react", "react-dom", "typescript", "@types/node", "@types/react", "@types/react-dom", "lucide-react", "tailwindcss", "postcss", "autoprefixer", "eslint", "eslint-config-next"].includes(name)) {
                             continue;
                         }
                         
-                        // Format: name@version or just name
-                        // We'll store just the name for simplicity as the sandbox installer handles versions via package.json
-                        // But wait, our system stores dependencies as strings in the DB.
-                        // Let's store "name@version" if version is specific, or just "name"
-                        
-                        // Actually, our system seems to store just names usually, or name@version.
-                        // Let's just store the name to be safe and let package.json handle versions
-                        // But if we overwrite package.json, we need to make sure we track these deps so we can re-inject them later if needed.
-                        newDependencies.add(name);
+                        // Store as name@version to preserve versioning
+                        if (typeof version === 'string') {
+                            newDependencies.add(`${name}@${version}`);
+                        } else {
+                            newDependencies.add(name);
+                        }
                     }
                 } catch (e) {
                     console.error("Failed to parse imported package.json", e);
@@ -127,7 +127,12 @@ export async function POST(
         }));
 
         project.files = projectFiles;
-        project.dependencies = Array.from(newDependencies);
+        
+        // Only update dependencies if we found a package.json
+        if (foundPackageJson) {
+            project.dependencies = Array.from(newDependencies);
+        }
+        
         await project.save();
 
         // Create a snapshot of the NEW state

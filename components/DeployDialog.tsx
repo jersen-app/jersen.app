@@ -27,6 +27,7 @@ interface DeployDialogProps {
     hasFiles: boolean;
     vercelDeploymentUrl?: string;
     lastDeployedAt?: string;
+    onDeploySuccess?: (url: string) => void;
 }
 
 interface DeploymentResult {
@@ -51,6 +52,7 @@ export function DeployDialog({
     hasFiles,
     vercelDeploymentUrl,
     lastDeployedAt,
+    onDeploySuccess,
 }: DeployDialogProps) {
     const isAlreadyDeployed = !!vercelDeploymentUrl;
     const [open, setOpen] = useState(false);
@@ -113,6 +115,11 @@ export function DeployDialog({
 
             setDeployment(data.deployment);
             setDeployState("success");
+            
+            if (onDeploySuccess) {
+                onDeploySuccess(data.deployment.url);
+            }
+
             toast.success("Deployed to Vercel!", {
                 action: {
                     label: "View",
