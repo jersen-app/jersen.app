@@ -37,6 +37,7 @@ export async function PATCH(request: NextRequest) {
             aiModel, 
             sandboxProvider,
             vercelSandboxTimeout,
+            e2bTemplateId,
             maxSandboxesPerOrg, 
             sandboxTimeoutMinutes, 
             autoPreviewEnabled,
@@ -124,6 +125,7 @@ export async function PATCH(request: NextRequest) {
         if (aiModel !== undefined) updateData.aiModel = aiModel;
         if (sandboxProvider !== undefined) updateData.sandboxProvider = sandboxProvider;
         if (vercelSandboxTimeout !== undefined) updateData.vercelSandboxTimeout = vercelSandboxTimeout;
+        if (e2bTemplateId !== undefined) updateData.e2bTemplateId = e2bTemplateId;
         if (maxSandboxesPerOrg !== undefined) updateData.maxSandboxesPerOrg = maxSandboxesPerOrg;
         if (sandboxTimeoutMinutes !== undefined) updateData.sandboxTimeoutMinutes = sandboxTimeoutMinutes;
         if (autoPreviewEnabled !== undefined) updateData.autoPreviewEnabled = autoPreviewEnabled;

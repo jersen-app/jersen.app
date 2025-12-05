@@ -248,8 +248,8 @@ function validateReactPatterns(code: string, filepath: string): ValidationWarnin
 /**
  * Validate Next.js specific patterns
  */
-function validateNextJsPatterns(code: string, filepath: string): ValidationWarning[] {
-    const warnings: ValidationWarning[] = [];
+function validateNextJsPatterns(code: string, filepath: string): (ValidationWarning | ValidationError)[] {
+    const warnings: (ValidationWarning | ValidationError)[] = [];
     const lines = code.split('\n');
     
     // Check for correct async patterns in pages (Next.js 15+)
@@ -358,12 +358,15 @@ export async function validateCode(
     
     // Add React/Next.js pattern warnings
     const reactWarnings = filepath.endsWith('.tsx') ? validateReactPatterns(code, filepath) : [];
-    const nextWarnings = filepath.startsWith('app/') ? validateNextJsPatterns(code, filepath) : [];
+    const nextResults = filepath.startsWith('app/') ? validateNextJsPatterns(code, filepath) : [];
     const jersenWarnings = validateJersenPatterns(code, filepath);
     
+    const nextErrors = nextResults.filter(r => r.severity === 'error') as ValidationError[];
+    const nextWarnings = nextResults.filter(r => r.severity === 'warning') as ValidationWarning[];
+    
     return {
-        valid: true,
-        errors: [],
+        valid: nextErrors.length === 0,
+        errors: nextErrors,
         warnings: [...syntaxResult.warnings, ...reactWarnings, ...nextWarnings, ...jersenWarnings],
     };
 }

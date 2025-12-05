@@ -26,6 +26,7 @@ interface PlatformSettings {
     aiModel: string;
     sandboxProvider: string;
     vercelSandboxTimeout: number;
+    e2bTemplateId: string;
     maxSandboxesPerOrg: number;
     sandboxTimeoutMinutes: number;
     autoPreviewEnabled: boolean;
@@ -50,6 +51,7 @@ export default function AdminSettingsPage() {
     const [selectedModel, setSelectedModel] = useState<string>("");
     const [selectedSandboxProvider, setSelectedSandboxProvider] = useState<string>("e2b");
     const [vercelSandboxTimeout, setVercelSandboxTimeout] = useState<number>(10);
+    const [e2bTemplateId, setE2bTemplateId] = useState<string>("nextjs-developer-song-dev");
     const [maxSandboxes, setMaxSandboxes] = useState<number>(1);
     const [sandboxTimeout, setSandboxTimeout] = useState<number>(10);
     const [autoPreview, setAutoPreview] = useState<boolean>(true);
@@ -77,6 +79,7 @@ export default function AdminSettingsPage() {
             setSelectedModel(data.settings.aiModel);
             setSelectedSandboxProvider(data.settings.sandboxProvider || "e2b");
             setVercelSandboxTimeout(data.settings.vercelSandboxTimeout ?? 10);
+            setE2bTemplateId(data.settings.e2bTemplateId || "nextjs-developer-song-dev");
             setMaxSandboxes(data.settings.maxSandboxesPerOrg ?? 1);
             setSandboxTimeout(data.settings.sandboxTimeoutMinutes ?? 10);
             setAutoPreview(data.settings.autoPreviewEnabled ?? true);
@@ -106,6 +109,7 @@ export default function AdminSettingsPage() {
                     aiModel: selectedModel,
                     sandboxProvider: selectedSandboxProvider,
                     vercelSandboxTimeout,
+                    e2bTemplateId,
                     maxSandboxesPerOrg: maxSandboxes,
                     sandboxTimeoutMinutes: sandboxTimeout,
                     autoPreviewEnabled: autoPreview,
@@ -296,6 +300,20 @@ export default function AdminSettingsPage() {
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
+                    {/* E2B Template ID */}
+                    <div className="space-y-2">
+                        <Label htmlFor="e2b-template-id">E2B Template ID</Label>
+                        <Input
+                            id="e2b-template-id"
+                            value={e2bTemplateId}
+                            onChange={(e) => setE2bTemplateId(e.target.value)}
+                            placeholder="nextjs-developer-song-dev"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                            The E2B template ID to use for sandboxes. Must be a valid template ID.
+                        </p>
+                    </div>
+
                     {/* Max Sandboxes Per Org */}
                     <div className="space-y-2">
                         <Label htmlFor="max-sandboxes">Max Sandboxes per Organization</Label>

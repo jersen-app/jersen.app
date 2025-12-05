@@ -18,8 +18,6 @@ import { sandboxRatelimit, checkRateLimit, getRateLimitIdentifier } from "@/lib/
 
 export const maxDuration = 300;
 
-const TEMPLATE_ID = "nextjs-developer-song-dev";
-
 // Get the Jersen API URL based on environment
 function getJersenApiUrl(): string {
     let url = '';
@@ -62,6 +60,7 @@ async function getSandboxSettings(orgId: string) {
         autoPreviewEnabled: orgSettings?.autoPreviewEnabled ?? platformSettings.autoPreviewEnabled ?? true,
         sandboxProvider: platformSettings.sandboxProvider ?? "e2b",
         vercelSandboxTimeout: platformSettings.vercelSandboxTimeout ?? 10,
+        e2bTemplateId: platformSettings.e2bTemplateId || "nextjs-developer-song-dev",
     };
 }
 
@@ -422,7 +421,7 @@ async function createE2BSandbox(
     console.log(`Project ${projectId} has dependencies:`, (project as any).dependencies || []);
 
     // Create new sandbox
-    const sandbox = await Sandbox.create(TEMPLATE_ID, {
+    const sandbox = await Sandbox.create(settings.e2bTemplateId, {
         metadata: {
             projectId,
             userId,

@@ -36,6 +36,7 @@ export interface IPlatformSettings {
     sandboxProvider: SandboxProvider; // Which sandbox provider to use
     vercelSandboxTimeout: number; // Vercel sandbox timeout in minutes (max 45 for hobby, 300 for pro)
     // Sandbox settings (E2B)
+    e2bTemplateId: string; // E2B template ID to use for sandboxes
     maxSandboxesPerOrg: number; // Max concurrent sandboxes per organization (default: 1)
     sandboxTimeoutMinutes: number; // Sandbox auto-kill timeout in minutes (default: 10)
     autoPreviewEnabled: boolean; // Whether to auto-start preview after AI generates files
@@ -76,6 +77,10 @@ const PlatformSettingsSchema = new Schema<IPlatformSettings>(
             default: 10,
             min: 5,
             max: 10, // Keep short for preview (5-10 min)
+        },
+        e2bTemplateId: {
+            type: String,
+            default: "nextjs-developer-song-dev",
         },
         maxSandboxesPerOrg: {
             type: Number,
@@ -155,6 +160,7 @@ export async function getPlatformSettings(): Promise<IPlatformSettings> {
         aiModel: "gemini-2.5-flash",
         sandboxProvider: "e2b",
         vercelSandboxTimeout: 10,
+        e2bTemplateId: "nextjs-developer-song-dev",
         maxSandboxesPerOrg: 1,
         sandboxTimeoutMinutes: 10,
         autoPreviewEnabled: true,
