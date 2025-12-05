@@ -253,15 +253,24 @@ function validateNextJsPatterns(code: string, filepath: string): ValidationWarni
     const lines = code.split('\n');
     
     // Check for correct async patterns in pages (Next.js 15+)
-    if (filepath.includes('/page.') || filepath.includes('/layout.')) {
+    if (filepath.includes('/page.') || filepath.includes('/layout.') || filepath.includes('/route.')) {
         // Check if params are properly awaited
         if (code.includes('params:') && !code.includes('await params') && code.includes('params.')) {
             const lineNum = lines.findIndex(l => l.includes('params.')) + 1;
             warnings.push({
                 line: lineNum,
                 column: 1,
-                message: 'In Next.js 15+, params should be awaited: const { id } = await params',
-                severity: 'warning',
+                message: 'CRITICAL: In Next.js 15+, params is a Promise and MUST be awaited: const { id } = await params',
+                severity: 'error', // Upgraded to error
+            });
+        } else if (code.match(/params\s*:\s*{\s*\w+\s*:\s*string\s*}/)) {
+             // Check for type definition like { params: { id: string } } which is wrong now
+             const lineNum = lines.findIndex(l => l.match(/params\s*:\s*{\s*\w+\s*:\s*string\s*}/)) + 1;
+             warnings.push({
+                line: lineNum,
+                column: 1,
+                message: 'CRITICAL: In Next.js 15+, params type is Promise<{ id: string }>. Update your type definition.',
+                severity: 'error',
             });
         }
         
@@ -271,8 +280,8 @@ function validateNextJsPatterns(code: string, filepath: string): ValidationWarni
             warnings.push({
                 line: lineNum,
                 column: 1,
-                message: 'In Next.js 15+, searchParams should be awaited: const { query } = await searchParams',
-                severity: 'warning',
+                message: 'CRITICAL: In Next.js 15+, searchParams is a Promise and MUST be awaited: const { query } = await searchParams',
+                severity: 'error', // Upgraded to error
             });
         }
     }
@@ -285,11 +294,50 @@ function validateNextJsPatterns(code: string, filepath: string): ValidationWarni
                 line: lineNum,
                 column: 1,
                 message: 'cookies() and headers() only work in Server Components, not Client Components',
-                severity: 'warning',
+                severity: 'error', // Upgraded to error
+            });
+        }
+        
+        // Check if awaited (Next.js 15+ cookies/headers are async)
+        if ((code.includes('cookies()') && !code.includes('await cookies()')) || 
+            (code.includes('headers()') && !code.includes('await headers()'))) {
+             const lineNum = lines.findIndex(l => l.includes('cookies()') || l.includes('headers()')) + 1;
+             warnings.push({
+                line: lineNum,
+                column: 1,
+                message: 'CRITICAL: In Next.js 15+, cookies() and headers() are async and MUST be awaited.',
+                severity: 'error',
             });
         }
     }
     
+    return warnings;
+}
+
+/**
+ * Validate Jersen Platform specific patterns
+ */
+function validateJersenPatterns(code: string, filepath: string): ValidationWarning[] {
+    const warnings: ValidationWarning[] = [];
+    const lines = code.split('\n');
+
+    // Check for cookies() usage in Auth context
+    // Jersen Auth uses localStorage, so cookies() should not be used for auth tokens
+    if (code.includes('cookies()')) {
+        const lowerCode = code.toLowerCase();
+        const isAuthContext = lowerCode.includes('auth') || lowerCode.includes('session') || lowerCode.includes('login') || lowerCode.includes('user');
+        
+        if (isAuthContext) {
+             const lineNum = lines.findIndex(l => l.includes('cookies()')) + 1;
+             warnings.push({
+                line: lineNum,
+                column: 1,
+                message: 'POTENTIAL ISSUE: Jersen Auth uses localStorage (client-side), not cookies. Ensure you are not trying to read auth tokens from cookies.',
+                severity: 'warning',
+            });
+        }
+    }
+
     return warnings;
 }
 
@@ -311,11 +359,12 @@ export async function validateCode(
     // Add React/Next.js pattern warnings
     const reactWarnings = filepath.endsWith('.tsx') ? validateReactPatterns(code, filepath) : [];
     const nextWarnings = filepath.startsWith('app/') ? validateNextJsPatterns(code, filepath) : [];
+    const jersenWarnings = validateJersenPatterns(code, filepath);
     
     return {
         valid: true,
         errors: [],
-        warnings: [...syntaxResult.warnings, ...reactWarnings, ...nextWarnings],
+        warnings: [...syntaxResult.warnings, ...reactWarnings, ...nextWarnings, ...jersenWarnings],
     };
 }
 
