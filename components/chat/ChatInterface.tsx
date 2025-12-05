@@ -1,12 +1,14 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { MessageSquarePlus, Trash2, Loader2, AlertCircle, Brain, Sparkles } from "lucide-react";
+import { MessageSquarePlus, Trash2, Loader2, AlertCircle, Brain, Sparkles, Download } from "lucide-react";
 import type { Message, FileData, ParsedBlock, Attachment, ToolCall } from "./types";
 import { generateId, parseAIResponse, containsRawDiffMarkers, isIncompleteFile } from "./utils";
 import { applyDiffBlocks } from "@/lib/ai/diff";
 import { MessageList } from "./MessageList";
 import { ChatInput } from "./ChatInput";
+import { SnapshotDialog } from "./SnapshotDialog";
+import { ImportDialog } from "./ImportDialog";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -685,6 +687,23 @@ export function ChatInterface({
           <CreditDisplay variant="minimal" />
         </div>
         <div className="flex items-center gap-1">
+          <ImportDialog projectId={projectId} />
+          <SnapshotDialog projectId={projectId} />
+          
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                onClick={() => window.open(`/api/projects/${projectId}/download`, '_blank')}
+              >
+                <Download className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Download Source Code</TooltipContent>
+          </Tooltip>
+
           <Tooltip>
             <TooltipTrigger asChild>
               <Button

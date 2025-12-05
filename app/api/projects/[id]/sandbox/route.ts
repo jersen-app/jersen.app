@@ -438,18 +438,26 @@ async function createE2BSandbox(
     const apiKey = (project as any).apiKey || '';
     const processedFiles = injectCredentials(files || {}, apiKey, JERSEN_API_URL);
     
-    // Write files to sandbox one by one
+    // Write files to sandbox in parallel for speed
     // Note: nextjs-developer template uses /home/user as working directory
     if (Object.keys(processedFiles).length > 0) {
         console.log(`Writing ${Object.keys(processedFiles).length} files to sandbox...`);
-        for (const [path, content] of Object.entries(processedFiles)) {
-            const fullPath = `/home/user/${path}`;
-            try {
-                await sandbox.files.write(fullPath, content);
-                console.log(`Wrote: ${fullPath}`);
-            } catch (error) {
-                console.error(`Failed to write ${fullPath}:`, error);
-            }
+        
+        // Group files into batches to avoid overwhelming the sandbox connection
+        const BATCH_SIZE = 5;
+        const fileEntries = Object.entries(processedFiles);
+        
+        for (let i = 0; i < fileEntries.length; i += BATCH_SIZE) {
+            const batch = fileEntries.slice(i, i + BATCH_SIZE);
+            await Promise.all(batch.map(async ([path, content]) => {
+                const fullPath = `/home/user/${path}`;
+                try {
+                    await sandbox.files.write(fullPath, content);
+                    console.log(`Wrote: ${fullPath}`);
+                } catch (error) {
+                    console.error(`Failed to write ${fullPath}:`, error);
+                }
+            }));
         }
     }
     
