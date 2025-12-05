@@ -44,6 +44,21 @@ export async function POST(
     }
 
     if (action === "create") {
+        // Limit snapshots to 10 per project
+        const snapshotCount = await ProjectSnapshot.countDocuments({ projectId });
+        if (snapshotCount >= 10) {
+            const oldestSnapshots = await ProjectSnapshot.find({ projectId })
+                .sort({ createdAt: 1 })
+                .limit(snapshotCount - 9) // Keep 9, so we can add 1
+                .select("_id");
+            
+            if (oldestSnapshots.length > 0) {
+                await ProjectSnapshot.deleteMany({
+                    _id: { $in: oldestSnapshots.map(s => s._id) }
+                });
+            }
+        }
+
         // Create a new snapshot
         const snapshot = await ProjectSnapshot.create({
             projectId,
@@ -70,6 +85,21 @@ export async function POST(
         }
 
         // Create a backup of current state before restoring
+        // Limit snapshots to 10 per project
+        const snapshotCount = await ProjectSnapshot.countDocuments({ projectId });
+        if (snapshotCount >= 10) {
+            const oldestSnapshots = await ProjectSnapshot.find({ projectId })
+                .sort({ createdAt: 1 })
+                .limit(snapshotCount - 9)
+                .select("_id");
+            
+            if (oldestSnapshots.length > 0) {
+                await ProjectSnapshot.deleteMany({
+                    _id: { $in: oldestSnapshots.map(s => s._id) }
+                });
+            }
+        }
+
         await ProjectSnapshot.create({
             projectId,
             name: `Auto-backup before restore ${new Date().toLocaleString()}`,

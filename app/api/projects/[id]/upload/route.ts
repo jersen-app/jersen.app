@@ -31,6 +31,21 @@ export async function POST(
         }
 
         // Create a backup snapshot before importing
+        // Limit snapshots to 10 per project
+        const snapshotCount = await ProjectSnapshot.countDocuments({ projectId });
+        if (snapshotCount >= 10) {
+            const oldestSnapshots = await ProjectSnapshot.find({ projectId })
+                .sort({ createdAt: 1 })
+                .limit(snapshotCount - 9)
+                .select("_id");
+            
+            if (oldestSnapshots.length > 0) {
+                await ProjectSnapshot.deleteMany({
+                    _id: { $in: oldestSnapshots.map(s => s._id) }
+                });
+            }
+        }
+
         await ProjectSnapshot.create({
             projectId,
             name: `Backup before import ${new Date().toLocaleString()}`,
