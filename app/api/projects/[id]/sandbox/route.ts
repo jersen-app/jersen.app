@@ -186,8 +186,11 @@ async function determineProvider(
     
     if (sandboxProvider === "vercel") {
         // Vercel only mode - require connection AND sandbox token
-        if (!vercelCredentials || !vercelCredentials.hasSandboxToken || !vercelCredentials.token) {
+        if (!vercelCredentials) {
             throw new Error("VERCEL_NOT_CONNECTED");
+        }
+        if (!vercelCredentials.hasSandboxToken || !vercelCredentials.token) {
+            throw new Error("SANDBOX_TOKEN_REQUIRED");
         }
         return { 
             provider: "vercel", 
@@ -280,6 +283,17 @@ export async function POST(
                 { 
                     error: "Vercel connection required. Please connect your Vercel account to preview projects.",
                     code: "VERCEL_NOT_CONNECTED"
+                },
+                { status: 400 }
+            );
+        }
+        
+        // Handle sandbox token required error
+        if (error instanceof Error && error.message === "SANDBOX_TOKEN_REQUIRED") {
+            return NextResponse.json(
+                { 
+                    error: "Sandbox access token required. Please add your Vercel personal access token in Settings → Integrations.",
+                    code: "SANDBOX_TOKEN_REQUIRED"
                 },
                 { status: 400 }
             );

@@ -269,7 +269,16 @@ export function PreviewPanel({
                         <X className="h-12 w-12 mx-auto mb-4 opacity-50" />
                         <p className="text-sm font-medium">Failed to start sandbox</p>
                         <p className="text-xs mt-1 opacity-80">{error}</p>
-                        {requiresVercelConnection && !hasVercelConnected ? (
+                        {error?.includes("Sandbox access token required") || (requiresVercelConnection && hasVercelConnected && !hasSandboxToken) ? (
+                            <Button
+                                size="sm"
+                                variant="default"
+                                onClick={() => window.location.href = "/dashboard/settings"}
+                                className="mt-4"
+                            >
+                                Configure Sandbox Token
+                            </Button>
+                        ) : error?.includes("Vercel connection required") || (requiresVercelConnection && !hasVercelConnected) ? (
                             <Button
                                 size="sm"
                                 variant="default"
@@ -278,15 +287,6 @@ export function PreviewPanel({
                             >
                                 <Link2 className="mr-2 h-4 w-4" />
                                 Connect Vercel Account
-                            </Button>
-                        ) : requiresVercelConnection && hasVercelConnected && !hasSandboxToken ? (
-                            <Button
-                                size="sm"
-                                variant="default"
-                                onClick={() => window.location.href = "/dashboard/settings"}
-                                className="mt-4"
-                            >
-                                Configure Sandbox Token
                             </Button>
                         ) : (
                             <Button
