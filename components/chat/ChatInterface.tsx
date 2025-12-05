@@ -71,17 +71,26 @@ export function ChatInterface({
   // Keep a ref to existing files so we can apply diffs
   const filesRef = useRef<Map<string, string>>(new Map());
   
+  // Clear files when project changes
+  useEffect(() => {
+    filesRef.current.clear();
+  }, [projectId]);
+  
   // Update files ref when existingFiles changes
   useEffect(() => {
     existingFiles.forEach(file => {
-      filesRef.current.set(file.path, file.content);
+      // Only update if we don't have this file in our local state
+      // This prevents overwriting pending AI edits with stale server state
+      if (!filesRef.current.has(file.path)) {
+        filesRef.current.set(file.path, file.content);
+      }
     });
   }, [existingFiles]);
 
   /**
    * Process files - apply diffs to existing files or use new content
    */
-  const processFiles = useCallback((rawFiles: FileData[]): FileData[] => {
+  const processFiles = useCallback((rawFiles: FileData[], onFailure?: (file: FileData) => void): FileData[] => {
     return rawFiles.map(file => {
       // Handle file deletions
       if (file.isDelete) {
@@ -102,6 +111,7 @@ export function ChatInterface({
       if (!existingContent) {
         // No existing file - this is an error in the AI output, but we can't apply a diff
         console.warn(`Cannot apply diff to ${file.path} - file does not exist`);
+        if (onFailure) onFailure(file);
         return file;
       }
       
@@ -110,6 +120,7 @@ export function ChatInterface({
       
       if (!result.success) {
         console.warn(`Failed to apply some diff blocks to ${file.path}:`, result.failedBlocks);
+        if (onFailure) onFailure(file);
       }
       
       // Update our ref with the new content
@@ -526,8 +537,15 @@ export function ChatInterface({
       // Parse the final content
       const { blocks, files } = parseAIResponse(fullContent);
       
+      // Track failed diffs
+      const failedFiles: string[] = [];
+      
       // Process all files (apply diffs to existing files)
-      const processedFiles = processFiles(files);
+      const processedFiles = processFiles(files, (failedFile) => {
+        if (!failedFiles.includes(failedFile.path)) {
+          failedFiles.push(failedFile.path);
+        }
+      });
 
       const assistantMessage: Message = {
         id: generateId(),
@@ -542,6 +560,18 @@ export function ChatInterface({
       setStreamingContent("");
       setStreamingBlocks(null);
       setActiveToolCalls([]);
+
+      // Handle failed diffs by requesting full file regeneration
+      if (failedFiles.length > 0) {
+        console.log(`[ChatInterface] Diff application failed for: ${failedFiles.join(', ')}. Requesting regeneration.`);
+        const failureMessage = `The diffs for the following files failed to apply: ${failedFiles.join(', ')}. Please regenerate the FULL content of these files (do not use diffs).`;
+        
+        // Send hidden system message to trigger regeneration
+        // We use a small timeout to let the UI settle
+        setTimeout(() => {
+          sendMessage(undefined, failureMessage);
+        }, 500);
+      }
 
       // Final file notification with processed files (filter out any with raw diff markers or incomplete)
       const validProcessedFiles = processedFiles.filter(f => {

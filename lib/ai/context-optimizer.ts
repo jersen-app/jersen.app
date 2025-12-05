@@ -87,7 +87,12 @@ export function compressProviderDocs(docs: string, targetTokens: number): string
     const codeBlockRegex = /```(?:typescript|tsx|ts|javascript|jsx)?\n([\s\S]*?)```/g;
     const compressionRatio = targetTokens / currentTokens;
     
-    if (compressionRatio < 0.7) {
+    // PROTECT JERSEN PROVIDER DOCS:
+    // If the docs contain "Jersen Auth", "Jersen Storage", or "Jersen Database", 
+    // we should be very careful about stripping code blocks as they contain critical integration patterns.
+    const isJersenDocs = docs.includes("Jersen Auth") || docs.includes("Jersen Storage") || docs.includes("Jersen Database");
+
+    if (compressionRatio < 0.7 && !isJersenDocs) {
         // Heavy compression: Replace large code blocks with summaries
         compressed = compressed.replace(codeBlockRegex, (match, code) => {
             const lines = code.split('\n');
