@@ -8,6 +8,7 @@ export interface IVercelIntegration {
     vercelUserId: string;
     vercelTeamId?: string;
     vercelTeamSlug?: string;
+    sandboxProjectId?: string; // Vercel project ID used for sandboxes
     tokenExpiresAt?: Date;
     connectedAt: Date;
     updatedAt: Date;
@@ -39,6 +40,9 @@ const VercelIntegrationSchema = new Schema<IVercelIntegration>(
             type: String,
         },
         vercelTeamSlug: {
+            type: String,
+        },
+        sandboxProjectId: {
             type: String,
         },
         tokenExpiresAt: {

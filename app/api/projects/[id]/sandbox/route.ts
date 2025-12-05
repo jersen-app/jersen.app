@@ -78,9 +78,80 @@ async function getVercelCredentials(userId: string, orgId: string | null) {
 
     return {
         teamId: integration.vercelTeamId || undefined,
+        projectId: integration.sandboxProjectId || undefined,
         token: integration.accessToken,
         vercelUserId: integration.vercelUserId,
+        integrationId: integration._id,
     };
+}
+
+// Create a Vercel project for sandboxes if one doesn't exist
+async function ensureVercelSandboxProject(
+    token: string,
+    teamId?: string,
+    integrationId?: string
+): Promise<string> {
+    const projectName = "jersen-sandbox";
+    
+    // Check if project already exists
+    const listUrl = teamId 
+        ? `https://api.vercel.com/v9/projects?teamId=${teamId}`
+        : `https://api.vercel.com/v9/projects`;
+    
+    const listRes = await fetch(listUrl, {
+        headers: { Authorization: `Bearer ${token}` },
+    });
+    
+    if (listRes.ok) {
+        const data = await listRes.json();
+        const existingProject = data.projects?.find((p: any) => p.name === projectName);
+        if (existingProject) {
+            // Update integration with project ID if not already stored
+            if (integrationId) {
+                await VercelIntegration.updateOne(
+                    { _id: integrationId },
+                    { $set: { sandboxProjectId: existingProject.id } }
+                );
+            }
+            return existingProject.id;
+        }
+    }
+    
+    // Create new project
+    const createUrl = teamId
+        ? `https://api.vercel.com/v10/projects?teamId=${teamId}`
+        : `https://api.vercel.com/v10/projects`;
+    
+    const createRes = await fetch(createUrl, {
+        method: "POST",
+        headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+            name: projectName,
+            framework: "nextjs",
+        }),
+    });
+    
+    if (!createRes.ok) {
+        const error = await createRes.text();
+        console.error("Failed to create Vercel project:", error);
+        throw new Error(`Failed to create Vercel sandbox project: ${error}`);
+    }
+    
+    const newProject = await createRes.json();
+    
+    // Update integration with project ID
+    if (integrationId) {
+        await VercelIntegration.updateOne(
+            { _id: integrationId },
+            { $set: { sandboxProjectId: newProject.id } }
+        );
+    }
+    
+    console.log(`Created Vercel project "${projectName}" with ID: ${newProject.id}`);
+    return newProject.id;
 }
 
 // Determine which provider to use
@@ -424,7 +495,7 @@ async function createVercelSandboxInternal(
     userId: string,
     orgId: string,
     files?: Record<string, string>,
-    credentials?: { teamId?: string; token: string; vercelUserId: string },
+    credentials?: { teamId?: string; projectId?: string; token: string; vercelUserId: string; integrationId?: unknown },
     settings?: Awaited<ReturnType<typeof getSandboxSettings>>
 ) {
     if (!credentials) {
@@ -443,6 +514,17 @@ async function createVercelSandboxInternal(
         return NextResponse.json({ error: "Project not found" }, { status: 404 });
     }
 
+    // Ensure we have a Vercel project for sandboxes
+    let vercelProjectId = credentials.projectId;
+    if (!vercelProjectId) {
+        console.log("No Vercel project ID found, creating one...");
+        vercelProjectId = await ensureVercelSandboxProject(
+            credentials.token,
+            credentials.teamId,
+            credentials.integrationId?.toString()
+        );
+    }
+
     const timeoutMs = settings.vercelSandboxTimeout * 60 * 1000;
 
     // Check if existing Vercel sandbox for this project
@@ -452,6 +534,7 @@ async function createVercelSandboxInternal(
             const sandbox = await VercelSandbox.get({
                 sandboxId: existingProjectSandbox.sandboxId,
                 teamId: credentials.teamId,
+                projectId: vercelProjectId,
                 token: credentials.token,
             });
 
@@ -490,6 +573,7 @@ async function createVercelSandboxInternal(
             const oldSandbox = await VercelSandbox.get({
                 sandboxId: existingVercelSandbox.sandboxId,
                 teamId: credentials.teamId,
+                projectId: vercelProjectId,
                 token: credentials.token,
             });
             await oldSandbox.stop();
@@ -499,17 +583,12 @@ async function createVercelSandboxInternal(
         await unregisterSandbox(existingVercelSandbox.projectId);
     }
 
-    console.log(`Creating Vercel sandbox for project ${projectId}`);
+    console.log(`Creating Vercel sandbox for project ${projectId} using Vercel project ${vercelProjectId}`);
 
-    // For Vercel Sandbox, we need a project ID in the user's Vercel account
-    // We'll use their vercelUserId to create sandboxes under their account
-    // Note: Vercel Sandbox requires a projectId - we'll need to create one or use a default
-    
-    // Create the sandbox
-    // Note: projectId here refers to Vercel's project, not our internal project
-    // For now, we'll create without projectId and use team-level auth
+    // Create the sandbox with the Vercel project ID
     const sandbox = await VercelSandbox.create({
         teamId: credentials.teamId,
+        projectId: vercelProjectId,
         token: credentials.token,
         timeout: timeoutMs,
         ports: [3000],
@@ -714,10 +793,21 @@ async function updateVercelSandboxInternal(
         );
     }
 
+    // Ensure we have a Vercel project ID
+    let vercelProjectId = credentials.projectId;
+    if (!vercelProjectId) {
+        vercelProjectId = await ensureVercelSandboxProject(
+            credentials.token,
+            credentials.teamId,
+            credentials.integrationId?.toString()
+        );
+    }
+
     try {
         const sandbox = await VercelSandbox.get({
             sandboxId: existing.sandboxId,
             teamId: credentials.teamId,
+            projectId: vercelProjectId,
             token: credentials.token,
         });
 
@@ -769,9 +859,20 @@ async function destroySandbox(
         if (provider === "vercel") {
             const credentials = await getVercelCredentials(userId, orgId);
             if (credentials) {
+                // Ensure we have a Vercel project ID
+                let vercelProjectId = credentials.projectId;
+                if (!vercelProjectId) {
+                    vercelProjectId = await ensureVercelSandboxProject(
+                        credentials.token,
+                        credentials.teamId,
+                        credentials.integrationId?.toString()
+                    );
+                }
+
                 const sandbox = await VercelSandbox.get({
                     sandboxId: existing.sandboxId,
                     teamId: credentials.teamId,
+                    projectId: vercelProjectId,
                     token: credentials.token,
                 });
                 await sandbox.stop();
