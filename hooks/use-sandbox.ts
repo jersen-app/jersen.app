@@ -9,12 +9,20 @@ interface SandboxState {
     error: string | null;
     expiresAt: number | null;
     warning: string | null;
+    provider: "e2b" | "vercel" | null;
 }
 
 interface SandboxSettings {
     maxSandboxesPerOrg: number;
     sandboxTimeoutMinutes: number;
     autoPreviewEnabled: boolean;
+}
+
+interface SandboxProviderConfig {
+    sandboxProvider: "e2b" | "vercel" | "both";
+    hasVercelConnected: boolean;
+    requiresVercelConnection: boolean;
+    activeProvider: "e2b" | "vercel";
 }
 
 interface UseSandboxOptions {
@@ -30,6 +38,7 @@ export function useSandbox({ projectId, autoCreate = false }: UseSandboxOptions)
         error: null,
         expiresAt: null,
         warning: null,
+        provider: null,
     });
 
     const [settings, setSettings] = useState<SandboxSettings>({
@@ -37,6 +46,16 @@ export function useSandbox({ projectId, autoCreate = false }: UseSandboxOptions)
         sandboxTimeoutMinutes: 10,
         autoPreviewEnabled: true,
     });
+
+    const [providerConfig, setProviderConfig] = useState<SandboxProviderConfig>({
+        sandboxProvider: "e2b",
+        hasVercelConnected: false,
+        requiresVercelConnection: false,
+        activeProvider: "e2b",
+    });
+
+    // Track if config has been loaded to prevent race conditions
+    const [configLoaded, setConfigLoaded] = useState(false);
 
     const filesRef = useRef<Record<string, string>>({});
 
@@ -58,21 +77,95 @@ export function useSandbox({ projectId, autoCreate = false }: UseSandboxOptions)
         }
     }, [projectId]);
 
+    // Fetch provider config (platform settings + user's Vercel status)
+    const fetchProviderConfig = useCallback(async () => {
+        try {
+            const [platformRes, vercelRes] = await Promise.all([
+                fetch("/api/platform/settings"),
+                fetch("/api/integrations/vercel/status"),
+            ]);
+
+            let sandboxProvider: "e2b" | "vercel" | "both" = "e2b";
+            let hasVercelConnected = false;
+
+            if (platformRes.ok) {
+                const { settings } = await platformRes.json();
+                sandboxProvider = settings?.sandboxProvider || "e2b";
+            }
+
+            if (vercelRes.ok) {
+                const { connected } = await vercelRes.json();
+                hasVercelConnected = connected;
+            }
+
+            // Determine active provider and if connection is required
+            let activeProvider: "e2b" | "vercel" = "e2b";
+            let requiresVercelConnection = false;
+
+            if (sandboxProvider === "vercel") {
+                if (hasVercelConnected) {
+                    activeProvider = "vercel";
+                } else {
+                    requiresVercelConnection = true;
+                }
+            } else if (sandboxProvider === "both") {
+                activeProvider = hasVercelConnected ? "vercel" : "e2b";
+            }
+
+            setProviderConfig({
+                sandboxProvider,
+                hasVercelConnected,
+                requiresVercelConnection,
+                activeProvider,
+            });
+        } catch {
+            // Use defaults on error
+        } finally {
+            // Mark config as loaded even if there was an error
+            setConfigLoaded(true);
+        }
+    }, []);
+
     // Fetch settings on mount
     useEffect(() => {
         fetchSettings();
-    }, [fetchSettings]);
+        fetchProviderConfig();
+    }, [fetchSettings, fetchProviderConfig]);
 
     // Create sandbox
     const create = useCallback(
         async (files?: Record<string, string>) => {
+            // Wait for config to be loaded before proceeding
+            if (!configLoaded) {
+                setState((prev) => ({
+                    ...prev,
+                    status: "error",
+                    error: "Loading configuration...",
+                }));
+                return null;
+            }
+
+            // Check if Vercel connection is required but not connected
+            if (providerConfig.requiresVercelConnection) {
+                setState((prev) => ({
+                    ...prev,
+                    status: "error",
+                    error: "Vercel connection required. Please connect your Vercel account to preview projects.",
+                }));
+                return null;
+            }
+
             setState((prev) => ({ ...prev, status: "creating", error: null }));
 
             try {
                 const response = await fetch(`/api/projects/${projectId}/sandbox`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ action: "create", files }),
+                    body: JSON.stringify({ 
+                        action: "create", 
+                        files,
+                        provider: providerConfig.activeProvider,
+                    }),
                 });
 
                 if (!response.ok) {
@@ -92,7 +185,8 @@ export function useSandbox({ projectId, autoCreate = false }: UseSandboxOptions)
                     status: "running",
                     error: null,
                     expiresAt: Date.now() + settings.sandboxTimeoutMinutes * 60 * 1000,
-                    warning: null,
+                    warning: data.warning || null,
+                    provider: data.provider || providerConfig.activeProvider,
                 });
 
                 return data;
@@ -106,7 +200,7 @@ export function useSandbox({ projectId, autoCreate = false }: UseSandboxOptions)
                 throw error;
             }
         },
-        [projectId, settings.sandboxTimeoutMinutes]
+        [projectId, settings.sandboxTimeoutMinutes, providerConfig, configLoaded]
     );
 
     // Update files in sandbox
@@ -123,7 +217,11 @@ export function useSandbox({ projectId, autoCreate = false }: UseSandboxOptions)
                 const response = await fetch(`/api/projects/${projectId}/sandbox`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ action: "update", files }),
+                    body: JSON.stringify({ 
+                        action: "update", 
+                        files,
+                        provider: state.provider || providerConfig.activeProvider,
+                    }),
                 });
 
                 if (!response.ok) {
@@ -155,7 +253,7 @@ export function useSandbox({ projectId, autoCreate = false }: UseSandboxOptions)
                 throw error;
             }
         },
-        [projectId, state.status, create]
+        [projectId, state.status, state.provider, create, providerConfig.activeProvider]
     );
 
     // Create or update sandbox (auto-preview helper)
@@ -176,7 +274,10 @@ export function useSandbox({ projectId, autoCreate = false }: UseSandboxOptions)
             await fetch(`/api/projects/${projectId}/sandbox`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ action: "destroy" }),
+                body: JSON.stringify({ 
+                    action: "destroy",
+                    provider: state.provider || providerConfig.activeProvider,
+                }),
             });
 
             setState({
@@ -186,13 +287,14 @@ export function useSandbox({ projectId, autoCreate = false }: UseSandboxOptions)
                 error: null,
                 expiresAt: null,
                 warning: null,
+                provider: null,
             });
 
             filesRef.current = {};
         } catch (error) {
             console.error("Failed to destroy sandbox:", error);
         }
-    }, [projectId]);
+    }, [projectId, state.provider, providerConfig.activeProvider]);
 
     // Get current URL
     const getUrl = useCallback(async () => {
@@ -236,6 +338,8 @@ export function useSandbox({ projectId, autoCreate = false }: UseSandboxOptions)
     return {
         ...state,
         settings,
+        providerConfig,
+        configLoaded,
         create,
         update,
         createOrUpdate,
@@ -243,5 +347,7 @@ export function useSandbox({ projectId, autoCreate = false }: UseSandboxOptions)
         getUrl,
         isLoading: state.status === "creating" || state.status === "updating",
         autoPreviewEnabled: settings.autoPreviewEnabled,
+        requiresVercelConnection: providerConfig.requiresVercelConnection,
+        activeProvider: providerConfig.activeProvider,
     };
 }

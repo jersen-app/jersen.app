@@ -13,6 +13,7 @@ import {
     Maximize,
     Minimize,
     RotateCw,
+    Link2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -26,6 +27,7 @@ interface PreviewPanelProps {
     onStop: () => void;
     isLoading: boolean;
     needsSync?: boolean;
+    requiresVercelConnection?: boolean;
 }
 
 type ViewportSize = "mobile" | "tablet" | "desktop";
@@ -45,12 +47,20 @@ export function PreviewPanel({
     onStop,
     isLoading,
     needsSync = false,
+    requiresVercelConnection = false,
 }: PreviewPanelProps) {
     const [viewport, setViewport] = useState<ViewportSize>("desktop");
     const [iframeKey, setIframeKey] = useState(0);
     const [iframeLoading, setIframeLoading] = useState(true);
     const [isFullscreen, setIsFullscreen] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
+
+    // Handle Vercel OAuth redirect
+    const connectVercel = () => {
+        // Store current URL so user returns here after OAuth
+        sessionStorage.setItem("vercel_return_url", window.location.href);
+        window.location.href = "/api/integrations/vercel";
+    };
 
     // Reset iframe loading state when URL changes or iframe key changes
     useEffect(() => {
@@ -255,14 +265,26 @@ export function PreviewPanel({
                         <X className="h-12 w-12 mx-auto mb-4 opacity-50" />
                         <p className="text-sm font-medium">Failed to start sandbox</p>
                         <p className="text-xs mt-1 opacity-80">{error}</p>
-                        <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={onStart}
-                            className="mt-4"
-                        >
-                            Try Again
-                        </Button>
+                        {requiresVercelConnection ? (
+                            <Button
+                                size="sm"
+                                variant="default"
+                                onClick={connectVercel}
+                                className="mt-4"
+                            >
+                                <Link2 className="mr-2 h-4 w-4" />
+                                Connect Vercel Account
+                            </Button>
+                        ) : (
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={onStart}
+                                className="mt-4"
+                            >
+                                Try Again
+                            </Button>
+                        )}
                     </div>
                 )}
 

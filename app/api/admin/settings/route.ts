@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import connectToDatabase from "@/lib/db";
-import PlatformSettings, { AI_MODELS, getPlatformSettings } from "@/models/PlatformSettings";
+import PlatformSettings, { AI_MODELS, SANDBOX_PROVIDERS, getPlatformSettings } from "@/models/PlatformSettings";
 
 const SUPER_ADMIN_USER_ID = process.env.SUPER_ADMIN_USER_ID;
 
@@ -19,6 +19,7 @@ export async function GET() {
     return NextResponse.json({
         settings,
         availableModels: AI_MODELS,
+        sandboxProviders: SANDBOX_PROVIDERS,
     });
 }
 
@@ -34,6 +35,8 @@ export async function PATCH(request: NextRequest) {
         const body = await request.json();
         const { 
             aiModel, 
+            sandboxProvider,
+            vercelSandboxTimeout,
             maxSandboxesPerOrg, 
             sandboxTimeoutMinutes, 
             autoPreviewEnabled,
@@ -48,6 +51,22 @@ export async function PATCH(request: NextRequest) {
         if (aiModel && !AI_MODELS.some(m => m.id === aiModel)) {
             return NextResponse.json(
                 { error: "Invalid AI model" },
+                { status: 400 }
+            );
+        }
+
+        // Validate sandbox provider
+        if (sandboxProvider && !SANDBOX_PROVIDERS.some(p => p.id === sandboxProvider)) {
+            return NextResponse.json(
+                { error: "Invalid sandbox provider" },
+                { status: 400 }
+            );
+        }
+
+        // Validate Vercel sandbox timeout (5-10 min for preview)
+        if (vercelSandboxTimeout !== undefined && (vercelSandboxTimeout < 5 || vercelSandboxTimeout > 10)) {
+            return NextResponse.json(
+                { error: "Vercel sandbox timeout must be between 5 and 10 minutes" },
                 { status: 400 }
             );
         }
@@ -78,6 +97,8 @@ export async function PATCH(request: NextRequest) {
 
         const updateData: Record<string, unknown> = {};
         if (aiModel !== undefined) updateData.aiModel = aiModel;
+        if (sandboxProvider !== undefined) updateData.sandboxProvider = sandboxProvider;
+        if (vercelSandboxTimeout !== undefined) updateData.vercelSandboxTimeout = vercelSandboxTimeout;
         if (maxSandboxesPerOrg !== undefined) updateData.maxSandboxesPerOrg = maxSandboxesPerOrg;
         if (sandboxTimeoutMinutes !== undefined) updateData.sandboxTimeoutMinutes = sandboxTimeoutMinutes;
         if (autoPreviewEnabled !== undefined) updateData.autoPreviewEnabled = autoPreviewEnabled;

@@ -6,6 +6,7 @@ export interface IActiveSandbox {
     sandboxId: string;
     url: string;
     userId: string; // User who created the sandbox
+    provider: "e2b" | "vercel"; // Sandbox provider
     expiresAt: Date;
     createdAt: Date;
     updatedAt: Date;
@@ -35,6 +36,11 @@ const ActiveSandboxSchema = new Schema<IActiveSandbox>(
         userId: {
             type: String,
             required: true,
+        },
+        provider: {
+            type: String,
+            enum: ["e2b", "vercel"],
+            default: "e2b",
         },
         expiresAt: {
             type: Date,
@@ -88,7 +94,8 @@ export async function registerSandbox(
     sandboxId: string,
     url: string,
     userId: string,
-    timeoutMinutes: number
+    timeoutMinutes: number,
+    provider: "e2b" | "vercel" = "e2b"
 ): Promise<IActiveSandbox> {
     const expiresAt = new Date(Date.now() + timeoutMinutes * 60 * 1000);
     
@@ -100,6 +107,7 @@ export async function registerSandbox(
             sandboxId,
             url,
             userId,
+            provider,
             expiresAt,
         },
         { upsert: true, new: true }

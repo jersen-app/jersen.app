@@ -1,10 +1,12 @@
 import { Sandbox } from "@e2b/code-interpreter";
+import { Sandbox as VercelSandbox } from "@vercel/sandbox";
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import connectToDatabase from "@/lib/db";
 import Project from "@/models/Project";
 import { getPlatformSettings } from "@/models/PlatformSettings";
 import OrganizationSettings from "@/models/OrganizationSettings";
+import VercelIntegration from "@/models/VercelIntegration";
 import ActiveSandbox, { 
     getOrgActiveSandboxes, 
     getProjectSandbox, 
@@ -58,7 +60,60 @@ async function getSandboxSettings(orgId: string) {
         maxSandboxesPerOrg: orgSettings?.maxSandboxesPerOrg ?? platformSettings.maxSandboxesPerOrg ?? 1,
         sandboxTimeoutMinutes: orgSettings?.sandboxTimeoutMinutes ?? platformSettings.sandboxTimeoutMinutes ?? 10,
         autoPreviewEnabled: orgSettings?.autoPreviewEnabled ?? platformSettings.autoPreviewEnabled ?? true,
+        sandboxProvider: platformSettings.sandboxProvider ?? "e2b",
+        vercelSandboxTimeout: platformSettings.vercelSandboxTimeout ?? 10,
     };
+}
+
+// Check if user has Vercel connected and get credentials
+async function getVercelCredentials(userId: string, orgId: string | null) {
+    const integration = await VercelIntegration.findOne({
+        userId,
+        orgId: orgId || null,
+    });
+
+    if (!integration) {
+        return null;
+    }
+
+    return {
+        teamId: integration.vercelTeamId || undefined,
+        token: integration.accessToken,
+        vercelUserId: integration.vercelUserId,
+    };
+}
+
+// Determine which provider to use
+async function determineProvider(
+    userId: string, 
+    orgId: string | null, 
+    requestedProvider?: string
+): Promise<{ provider: "e2b" | "vercel"; credentials?: { teamId?: string; token: string; vercelUserId: string } }> {
+    const platformSettings = await getPlatformSettings();
+    const sandboxProvider = platformSettings.sandboxProvider || "e2b";
+    
+    // If E2B only, always use E2B
+    if (sandboxProvider === "e2b") {
+        return { provider: "e2b" };
+    }
+    
+    // Check if user has Vercel connected
+    const vercelCredentials = await getVercelCredentials(userId, orgId);
+    
+    if (sandboxProvider === "vercel") {
+        // Vercel only mode - require connection
+        if (!vercelCredentials) {
+            throw new Error("VERCEL_NOT_CONNECTED");
+        }
+        return { provider: "vercel", credentials: vercelCredentials };
+    }
+    
+    // Both mode - use Vercel if connected, otherwise E2B
+    if (vercelCredentials) {
+        return { provider: "vercel", credentials: vercelCredentials };
+    }
+    
+    return { provider: "e2b" };
 }
 
 // Kill a sandbox by its ID
@@ -77,7 +132,7 @@ export async function POST(
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        const { userId } = await auth();
+        const { userId, orgId } = await auth();
         if (!userId) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
@@ -88,19 +143,19 @@ export async function POST(
         if (rateLimited) return rateLimited;
 
         const { id: projectId } = await params;
-        const { action, files } = await request.json();
+        const { action, files, provider: requestedProvider } = await request.json();
 
         await connectToDatabase();
 
         switch (action) {
             case "create":
-                return await createSandbox(projectId, userId, files);
+                return await createSandbox(projectId, userId, orgId || null, files, requestedProvider);
 
             case "update":
-                return await updateSandbox(projectId, files);
+                return await updateSandbox(projectId, userId, orgId || null, files, requestedProvider);
 
             case "destroy":
-                return await destroySandbox(projectId);
+                return await destroySandbox(projectId, userId, orgId || null, requestedProvider);
 
             case "get-url":
                 return await getSandboxUrl(projectId);
@@ -115,7 +170,19 @@ export async function POST(
                 );
         }
     } catch (error: unknown) {
-        console.error("E2B Sandbox Error:", error);
+        console.error("Sandbox Error:", error);
+        
+        // Handle Vercel connection required error
+        if (error instanceof Error && error.message === "VERCEL_NOT_CONNECTED") {
+            return NextResponse.json(
+                { 
+                    error: "Vercel connection required. Please connect your Vercel account to preview projects.",
+                    code: "VERCEL_NOT_CONNECTED"
+                },
+                { status: 400 }
+            );
+        }
+        
         const message = error instanceof Error ? error.message : "Failed to manage sandbox";
         return NextResponse.json({ error: message }, { status: 500 });
     }
@@ -136,7 +203,9 @@ async function getSettings(projectId: string) {
 async function createSandbox(
     projectId: string,
     userId: string,
-    files?: Record<string, string>
+    orgId: string | null,
+    files?: Record<string, string>,
+    requestedProvider?: string
 ) {
     // Fetch project to get API key, dependencies, and org
     const project = await Project.findById(projectId).lean();
@@ -145,8 +214,45 @@ async function createSandbox(
         return NextResponse.json({ error: "Project not found" }, { status: 404 });
     }
     
-    const orgId = (project as any).orgId;
-    const settings = await getSandboxSettings(orgId);
+    const projectOrgId = (project as any).orgId;
+    const settings = await getSandboxSettings(projectOrgId);
+    
+    // Determine which provider to use
+    const { provider, credentials } = await determineProvider(userId, orgId, requestedProvider);
+    
+    console.log(`Creating sandbox for project ${projectId} using provider: ${provider}`);
+    
+    if (provider === "vercel") {
+        return await createVercelSandboxInternal(
+            projectId, 
+            userId, 
+            projectOrgId, 
+            files, 
+            credentials!, 
+            settings
+        );
+    }
+    
+    // E2B sandbox (existing logic)
+    return await createE2BSandbox(projectId, userId, projectOrgId, files, settings);
+}
+
+async function createE2BSandbox(
+    projectId: string,
+    userId: string,
+    orgId: string,
+    files?: Record<string, string>,
+    settings?: Awaited<ReturnType<typeof getSandboxSettings>>
+) {
+    if (!settings) {
+        settings = await getSandboxSettings(orgId);
+    }
+    
+    const project = await Project.findById(projectId).lean();
+    if (!project) {
+        return NextResponse.json({ error: "Project not found" }, { status: 404 });
+    }
+    
     const sandboxTimeoutMs = settings.sandboxTimeoutMinutes * 60 * 1000;
 
     // Check if sandbox already exists for this project
@@ -281,7 +387,8 @@ async function createSandbox(
         sandbox.sandboxId,
         url,
         userId,
-        settings.sandboxTimeoutMinutes
+        settings.sandboxTimeoutMinutes,
+        "e2b" // provider
     );
     
     // Save sandbox URL to project for CORS whitelist
@@ -302,9 +409,181 @@ async function createSandbox(
         sandboxId: sandbox.sandboxId,
         url,
         status: "created",
+        provider: "e2b",
         warning: isLocalhost ? 
             "Auth, Storage, and Database providers will not work because NEXT_PUBLIC_APP_URL is set to localhost. Use ngrok or a tunnel service to expose your local server." : 
             undefined,
+    });
+}
+
+/**
+ * Create a Vercel Sandbox for the project
+ */
+async function createVercelSandboxInternal(
+    projectId: string,
+    userId: string,
+    orgId: string,
+    files?: Record<string, string>,
+    credentials?: { teamId?: string; token: string; vercelUserId: string },
+    settings?: Awaited<ReturnType<typeof getSandboxSettings>>
+) {
+    if (!credentials) {
+        return NextResponse.json(
+            { error: "Vercel credentials required" },
+            { status: 400 }
+        );
+    }
+
+    if (!settings) {
+        settings = await getSandboxSettings(orgId);
+    }
+
+    const project = await Project.findById(projectId).lean();
+    if (!project) {
+        return NextResponse.json({ error: "Project not found" }, { status: 404 });
+    }
+
+    const timeoutMs = settings.vercelSandboxTimeout * 60 * 1000;
+
+    // Check if existing Vercel sandbox for this project
+    const existingProjectSandbox = await getProjectSandbox(projectId);
+    if (existingProjectSandbox && existingProjectSandbox.provider === "vercel") {
+        try {
+            const sandbox = await VercelSandbox.get({
+                sandboxId: existingProjectSandbox.sandboxId,
+                teamId: credentials.teamId,
+                token: credentials.token,
+            });
+
+            // If files were passed, sync them
+            if (files && Object.keys(files).length > 0) {
+                const apiKey = (project as any).apiKey || '';
+                const processedFiles = injectCredentials(files, apiKey, JERSEN_API_URL);
+
+                for (const [path, content] of Object.entries(processedFiles)) {
+                    await sandbox.writeFiles([
+                        { path, content: Buffer.from(content) }
+                    ]);
+                }
+            }
+
+            const url = sandbox.domain(3000);
+            return NextResponse.json({
+                sandboxId: sandbox.sandboxId,
+                url,
+                status: "existing",
+                provider: "vercel",
+            });
+        } catch {
+            // Sandbox expired, remove from DB
+            await unregisterSandbox(projectId);
+        }
+    }
+
+    // Kill any existing Vercel sandbox from other projects in this org (one at a time)
+    const orgSandboxes = await getOrgActiveSandboxes(orgId);
+    const existingVercelSandbox = orgSandboxes.find(s => s.provider === "vercel" && s.projectId !== projectId);
+    
+    if (existingVercelSandbox) {
+        console.log(`Killing existing Vercel sandbox for project ${existingVercelSandbox.projectId} to make room for ${projectId}`);
+        try {
+            const oldSandbox = await VercelSandbox.get({
+                sandboxId: existingVercelSandbox.sandboxId,
+                teamId: credentials.teamId,
+                token: credentials.token,
+            });
+            await oldSandbox.stop();
+        } catch (error) {
+            console.error("Failed to stop old Vercel sandbox:", error);
+        }
+        await unregisterSandbox(existingVercelSandbox.projectId);
+    }
+
+    console.log(`Creating Vercel sandbox for project ${projectId}`);
+
+    // For Vercel Sandbox, we need a project ID in the user's Vercel account
+    // We'll use their vercelUserId to create sandboxes under their account
+    // Note: Vercel Sandbox requires a projectId - we'll need to create one or use a default
+    
+    // Create the sandbox
+    // Note: projectId here refers to Vercel's project, not our internal project
+    // For now, we'll create without projectId and use team-level auth
+    const sandbox = await VercelSandbox.create({
+        teamId: credentials.teamId,
+        token: credentials.token,
+        timeout: timeoutMs,
+        ports: [3000],
+        runtime: "node22",
+    });
+
+    console.log(`Created Vercel sandbox ${sandbox.sandboxId}`);
+
+    // Write files to sandbox
+    const apiKey = (project as any).apiKey || '';
+    const processedFiles = injectCredentials(files || {}, apiKey, JERSEN_API_URL);
+
+    if (Object.keys(processedFiles).length > 0) {
+        console.log(`Writing ${Object.keys(processedFiles).length} files to Vercel sandbox...`);
+        
+        const fileBuffers = Object.entries(processedFiles).map(([path, content]) => ({
+            path,
+            content: Buffer.from(content),
+        }));
+        
+        await sandbox.writeFiles(fileBuffers);
+    }
+
+    // Install dependencies
+    console.log("Installing dependencies in Vercel sandbox...");
+    const install = await sandbox.runCommand({
+        cmd: "npm",
+        args: ["install", "--force"],
+    });
+
+    if (install.exitCode !== 0) {
+        console.error("npm install failed in Vercel sandbox");
+    }
+
+    // Start dev server
+    console.log("Starting dev server in Vercel sandbox...");
+    await sandbox.runCommand({
+        cmd: "npm",
+        args: ["run", "dev"],
+        detached: true,
+    });
+
+    // Wait for server to start
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+
+    const url = sandbox.domain(3000);
+
+    // Register sandbox in database
+    await registerSandbox(
+        orgId,
+        projectId,
+        sandbox.sandboxId,
+        url,
+        userId,
+        settings.vercelSandboxTimeout,
+        "vercel" // provider
+    );
+
+    // Save sandbox URL to project for CORS
+    await Project.updateOne(
+        { _id: projectId },
+        {
+            $set: { sandboxUrl: url },
+            $addToSet: { allowedOrigins: url },
+        }
+    );
+
+    console.log(`Vercel sandbox created: ${url}`);
+
+    return NextResponse.json({
+        sandboxId: sandbox.sandboxId,
+        url,
+        status: "created",
+        provider: "vercel",
     });
 }
 
@@ -333,7 +612,10 @@ function injectCredentials(
 
 async function updateSandbox(
     projectId: string,
-    files?: Record<string, string>
+    userId: string,
+    orgId: string | null,
+    files?: Record<string, string>,
+    requestedProvider?: string
 ) {
     const existing = await getProjectSandbox(projectId);
 
@@ -344,6 +626,13 @@ async function updateSandbox(
         );
     }
 
+    const provider = existing.provider || "e2b";
+
+    if (provider === "vercel") {
+        return await updateVercelSandboxInternal(projectId, userId, orgId, existing, files);
+    }
+
+    // E2B sandbox update
     try {
         const sandbox = await Sandbox.connect(existing.sandboxId);
 
@@ -398,6 +687,7 @@ async function updateSandbox(
             sandboxId: sandbox.sandboxId,
             url,
             status: "updated",
+            provider: "e2b",
         });
     } catch (error) {
         console.error("Failed to update sandbox:", error);
@@ -409,21 +699,92 @@ async function updateSandbox(
     }
 }
 
-async function destroySandbox(projectId: string) {
+async function updateVercelSandboxInternal(
+    projectId: string,
+    userId: string,
+    orgId: string | null,
+    existing: { sandboxId: string },
+    files?: Record<string, string>
+) {
+    const credentials = await getVercelCredentials(userId, orgId);
+    if (!credentials) {
+        return NextResponse.json(
+            { error: "Vercel connection required" },
+            { status: 400 }
+        );
+    }
+
+    try {
+        const sandbox = await VercelSandbox.get({
+            sandboxId: existing.sandboxId,
+            teamId: credentials.teamId,
+            token: credentials.token,
+        });
+
+        const project = await Project.findById(projectId);
+        const apiKey = (project as any)?.apiKey || '';
+        const processedFiles = files ? injectCredentials(files, apiKey, JERSEN_API_URL) : {};
+
+        if (Object.keys(processedFiles).length > 0) {
+            const fileBuffers = Object.entries(processedFiles).map(([path, content]) => ({
+                path,
+                content: Buffer.from(content),
+            }));
+            await sandbox.writeFiles(fileBuffers);
+        }
+
+        const url = sandbox.domain(3000);
+
+        return NextResponse.json({
+            sandboxId: sandbox.sandboxId,
+            url,
+            status: "updated",
+            provider: "vercel",
+        });
+    } catch (error) {
+        console.error("Failed to update Vercel sandbox:", error);
+        await unregisterSandbox(projectId);
+        return NextResponse.json(
+            { error: "Vercel sandbox connection failed. Please create a new one." },
+            { status: 404 }
+        );
+    }
+}
+
+async function destroySandbox(
+    projectId: string,
+    userId: string,
+    orgId: string | null,
+    requestedProvider?: string
+) {
     const existing = await getProjectSandbox(projectId);
 
     if (!existing) {
         return NextResponse.json({ status: "not-found" });
     }
 
+    const provider = existing.provider || "e2b";
+
     try {
-        await killSandboxById(existing.sandboxId);
+        if (provider === "vercel") {
+            const credentials = await getVercelCredentials(userId, orgId);
+            if (credentials) {
+                const sandbox = await VercelSandbox.get({
+                    sandboxId: existing.sandboxId,
+                    teamId: credentials.teamId,
+                    token: credentials.token,
+                });
+                await sandbox.stop();
+            }
+        } else {
+            await killSandboxById(existing.sandboxId);
+        }
     } catch (error) {
-        console.error("Failed to destroy sandbox:", error);
+        console.error(`Failed to destroy ${provider} sandbox:`, error);
     }
 
     await unregisterSandbox(projectId);
-    console.log(`Destroyed sandbox for project ${projectId}`);
+    console.log(`Destroyed ${provider} sandbox for project ${projectId}`);
 
     return NextResponse.json({ status: "destroyed" });
 }
@@ -438,7 +799,21 @@ async function getSandboxUrl(projectId: string) {
         );
     }
 
+    const provider = (existing as any).provider || "e2b";
+
     try {
+        if (provider === "vercel") {
+            // Vercel sandbox - the URL is stored directly in the database
+            // No need to "connect" - just return the stored URL
+            return NextResponse.json({
+                sandboxId: existing.sandboxId,
+                url: existing.url,
+                expiresAt: existing.expiresAt.getTime(),
+                provider: "vercel",
+            });
+        }
+
+        // E2B sandbox - connect to get the URL
         const sandbox = await Sandbox.connect(existing.sandboxId);
         const url = `https://${sandbox.getHost(3000)}`;
 
@@ -446,6 +821,7 @@ async function getSandboxUrl(projectId: string) {
             sandboxId: existing.sandboxId,
             url,
             expiresAt: existing.expiresAt.getTime(),
+            provider: "e2b",
         });
     } catch {
         await unregisterSandbox(projectId);

@@ -518,6 +518,7 @@ export default function BuilderClient({
                                     onStop={sandbox.destroy}
                                     isLoading={sandbox.isLoading}
                                     needsSync={needsSync}
+                                    requiresVercelConnection={sandbox.requiresVercelConnection}
                                 />
                             )}
                         </div>
@@ -591,6 +592,7 @@ export default function BuilderClient({
                                 onStop={sandbox.destroy}
                                 isLoading={sandbox.isLoading}
                                 needsSync={needsSync}
+                                requiresVercelConnection={sandbox.requiresVercelConnection}
                             />
                         )}
                     </div>

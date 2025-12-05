@@ -22,10 +22,21 @@ function isValidE2BSandbox(origin: string | null): boolean {
            origin.includes('.e2b.app');
 }
 
-// Check if origin is allowed (production domains or E2B sandboxes)
+// Check if origin is a valid Vercel Sandbox URL
+function isValidVercelSandbox(origin: string | null): boolean {
+    if (!origin) return false;
+    // Vercel Sandbox URLs follow patterns like:
+    // https://{sandboxId}-{port}.vercel.run
+    return /^https:\/\/[a-z0-9-]+-\d+\.vercel\.run$/i.test(origin) ||
+           origin.includes('.vercel.run');
+}
+
+// Check if origin is allowed (production domains, E2B or Vercel sandboxes)
 function isOriginAllowed(origin: string | null): boolean {
     if (!origin) return false;
-    return ALLOWED_PRODUCTION_ORIGINS.includes(origin) || isValidE2BSandbox(origin);
+    return ALLOWED_PRODUCTION_ORIGINS.includes(origin) || 
+           isValidE2BSandbox(origin) ||
+           isValidVercelSandbox(origin);
 }
 
 // Get CORS headers for allowed origins (without project context)

@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, CheckCircle2, Settings2, Box, Play, Users, Building2, Shield, Bug } from "lucide-react";
+import { Loader2, CheckCircle2, Settings2, Box, Play, Users, Building2, Shield, Bug, Cloud, Server } from "lucide-react";
 import { toast } from "sonner";
 
 interface AIModel {
@@ -16,8 +16,16 @@ interface AIModel {
     description: string;
 }
 
+interface SandboxProviderOption {
+    id: string;
+    name: string;
+    description: string;
+}
+
 interface PlatformSettings {
     aiModel: string;
+    sandboxProvider: string;
+    vercelSandboxTimeout: number;
     maxSandboxesPerOrg: number;
     sandboxTimeoutMinutes: number;
     autoPreviewEnabled: boolean;
@@ -31,11 +39,14 @@ interface PlatformSettings {
 export default function AdminSettingsPage() {
     const [settings, setSettings] = useState<PlatformSettings | null>(null);
     const [availableModels, setAvailableModels] = useState<AIModel[]>([]);
+    const [sandboxProviders, setSandboxProviders] = useState<SandboxProviderOption[]>([]);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     
     // Form state
     const [selectedModel, setSelectedModel] = useState<string>("");
+    const [selectedSandboxProvider, setSelectedSandboxProvider] = useState<string>("e2b");
+    const [vercelSandboxTimeout, setVercelSandboxTimeout] = useState<number>(10);
     const [maxSandboxes, setMaxSandboxes] = useState<number>(1);
     const [sandboxTimeout, setSandboxTimeout] = useState<number>(10);
     const [autoPreview, setAutoPreview] = useState<boolean>(true);
@@ -56,7 +67,10 @@ export default function AdminSettingsPage() {
             const data = await res.json();
             setSettings(data.settings);
             setAvailableModels(data.availableModels);
+            setSandboxProviders(data.sandboxProviders || []);
             setSelectedModel(data.settings.aiModel);
+            setSelectedSandboxProvider(data.settings.sandboxProvider || "e2b");
+            setVercelSandboxTimeout(data.settings.vercelSandboxTimeout ?? 10);
             setMaxSandboxes(data.settings.maxSandboxesPerOrg ?? 1);
             setSandboxTimeout(data.settings.sandboxTimeoutMinutes ?? 10);
             setAutoPreview(data.settings.autoPreviewEnabled ?? true);
@@ -81,6 +95,8 @@ export default function AdminSettingsPage() {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ 
                     aiModel: selectedModel,
+                    sandboxProvider: selectedSandboxProvider,
+                    vercelSandboxTimeout,
                     maxSandboxesPerOrg: maxSandboxes,
                     sandboxTimeoutMinutes: sandboxTimeout,
                     autoPreviewEnabled: autoPreview,
@@ -114,6 +130,8 @@ export default function AdminSettingsPage() {
     }
 
     const hasChanges = settings?.aiModel !== selectedModel || 
+        settings?.sandboxProvider !== selectedSandboxProvider ||
+        settings?.vercelSandboxTimeout !== vercelSandboxTimeout ||
         settings?.maxSandboxesPerOrg !== maxSandboxes ||
         settings?.sandboxTimeoutMinutes !== sandboxTimeout ||
         settings?.autoPreviewEnabled !== autoPreview ||
@@ -169,15 +187,100 @@ export default function AdminSettingsPage() {
                 </CardContent>
             </Card>
 
+            {/* Sandbox Provider Card */}
+            <Card>
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                        <Cloud className="h-5 w-5" />
+                        Sandbox Provider
+                    </CardTitle>
+                    <CardDescription>
+                        Choose which sandbox provider to use for project previews.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                    {/* Provider Selection */}
+                    <div className="space-y-3">
+                        <Label>Sandbox Provider</Label>
+                        <div className="grid gap-3 sm:grid-cols-3">
+                            {sandboxProviders.map((provider) => (
+                                <button
+                                    key={provider.id}
+                                    type="button"
+                                    onClick={() => setSelectedSandboxProvider(provider.id)}
+                                    className={`rounded-lg border p-4 text-left transition-colors ${
+                                        selectedSandboxProvider === provider.id
+                                            ? "border-violet-500 bg-violet-50 dark:bg-violet-950"
+                                            : "hover:border-gray-300 dark:hover:border-gray-600"
+                                    }`}
+                                >
+                                    <div className="flex items-center gap-2 mb-1">
+                                        {provider.id === "e2b" && <Server className="h-4 w-4" />}
+                                        {provider.id === "vercel" && <Cloud className="h-4 w-4" />}
+                                        {provider.id === "both" && (
+                                            <div className="flex -space-x-1">
+                                                <Cloud className="h-4 w-4" />
+                                                <Server className="h-4 w-4" />
+                                            </div>
+                                        )}
+                                        <span className="font-medium">{provider.name}</span>
+                                    </div>
+                                    <p className="text-xs text-muted-foreground">
+                                        {provider.description}
+                                    </p>
+                                </button>
+                            ))}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                            Current: <code className="bg-muted px-1 py-0.5 rounded">{settings?.sandboxProvider || "e2b"}</code>
+                        </p>
+                    </div>
+
+                    {/* Vercel Sandbox Timeout (only show if vercel or both is selected) */}
+                    {(selectedSandboxProvider === "vercel" || selectedSandboxProvider === "both") && (
+                        <div className="space-y-2">
+                            <Label htmlFor="vercel-timeout">Vercel Sandbox Timeout</Label>
+                            <div className="flex items-center gap-3">
+                                <Input
+                                    id="vercel-timeout"
+                                    type="number"
+                                    min={5}
+                                    max={10}
+                                    value={vercelSandboxTimeout}
+                                    onChange={(e) => setVercelSandboxTimeout(parseInt(e.target.value) || 10)}
+                                    className="w-24"
+                                />
+                                <span className="text-sm text-muted-foreground">
+                                    minutes
+                                </span>
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                                Preview timeout: 5-10 minutes. Short timeouts encourage efficient development.
+                            </p>
+                        </div>
+                    )}
+
+                    {/* Info Box */}
+                    <div className="rounded-lg bg-blue-50 dark:bg-blue-950 p-4 text-sm">
+                        <p className="font-medium text-blue-800 dark:text-blue-200 mb-2">How it works:</p>
+                        <ul className="space-y-1 text-blue-700 dark:text-blue-300">
+                            <li>• <strong>E2B Only:</strong> All previews use E2B sandbox (billed to platform)</li>
+                            <li>• <strong>Vercel Only:</strong> Users must connect their Vercel account to preview</li>
+                            <li>• <strong>Both:</strong> Uses Vercel if user connected, otherwise falls back to E2B</li>
+                        </ul>
+                    </div>
+                </CardContent>
+            </Card>
+
             {/* Sandbox Settings Card */}
             <Card>
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                         <Box className="h-5 w-5" />
-                        Sandbox Settings
+                        E2B Sandbox Settings
                     </CardTitle>
                     <CardDescription>
-                        Configure E2B sandbox defaults for all organizations. These can be overridden per-organization.
+                        Configure E2B sandbox defaults. These apply when using E2B as the sandbox provider.
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">

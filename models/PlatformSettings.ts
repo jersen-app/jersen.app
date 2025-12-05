@@ -8,10 +8,34 @@ export const AI_MODELS = [
 
 export type AIModelId = typeof AI_MODELS[number]["id"];
 
+// Sandbox provider options
+export type SandboxProvider = "e2b" | "vercel" | "both";
+
+export const SANDBOX_PROVIDERS = [
+    { 
+        id: "e2b" as const, 
+        name: "E2B Only", 
+        description: "Use E2B sandbox for all users (platform cost)" 
+    },
+    { 
+        id: "vercel" as const, 
+        name: "Vercel Sandbox Only", 
+        description: "Require users to connect Vercel account for preview" 
+    },
+    { 
+        id: "both" as const, 
+        name: "Both (Recommended)", 
+        description: "Vercel if connected, E2B as fallback" 
+    },
+] as const;
+
 export interface IPlatformSettings {
     _id: string;
     aiModel: AIModelId;
-    // Sandbox settings
+    // Sandbox provider settings
+    sandboxProvider: SandboxProvider; // Which sandbox provider to use
+    vercelSandboxTimeout: number; // Vercel sandbox timeout in minutes (max 45 for hobby, 300 for pro)
+    // Sandbox settings (E2B)
     maxSandboxesPerOrg: number; // Max concurrent sandboxes per organization (default: 1)
     sandboxTimeoutMinutes: number; // Sandbox auto-kill timeout in minutes (default: 10)
     autoPreviewEnabled: boolean; // Whether to auto-start preview after AI generates files
@@ -36,6 +60,18 @@ const PlatformSettingsSchema = new Schema<IPlatformSettings>(
             type: String,
             enum: AI_MODELS.map(m => m.id),
             default: "gemini-2.5-flash",
+        },
+        // Sandbox provider
+        sandboxProvider: {
+            type: String,
+            enum: ["e2b", "vercel", "both"],
+            default: "e2b",
+        },
+        vercelSandboxTimeout: {
+            type: Number,
+            default: 10,
+            min: 5,
+            max: 10, // Keep short for preview (5-10 min)
         },
         maxSandboxesPerOrg: {
             type: Number,
@@ -100,6 +136,8 @@ export async function getPlatformSettings(): Promise<IPlatformSettings> {
     const defaultSettings = await PlatformSettings.create({
         _id: "platform_settings",
         aiModel: "gemini-2.5-flash",
+        sandboxProvider: "e2b",
+        vercelSandboxTimeout: 10,
         maxSandboxesPerOrg: 1,
         sandboxTimeoutMinutes: 10,
         autoPreviewEnabled: true,
