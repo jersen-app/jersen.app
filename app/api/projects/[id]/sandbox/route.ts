@@ -172,7 +172,7 @@ async function determineProvider(
     userId: string, 
     orgId: string | null, 
     requestedProvider?: string
-): Promise<{ provider: "e2b" | "vercel"; credentials?: { teamId?: string; token: string; vercelUserId: string } }> {
+): Promise<{ provider: "e2b" | "vercel"; credentials?: { teamId?: string; token: string; vercelUserId: string; projectId?: string; integrationId?: unknown } }> {
     const platformSettings = await getPlatformSettings();
     const sandboxProvider = platformSettings.sandboxProvider || "e2b";
     
@@ -185,16 +185,34 @@ async function determineProvider(
     const vercelCredentials = await getVercelCredentials(userId, orgId);
     
     if (sandboxProvider === "vercel") {
-        // Vercel only mode - require connection
-        if (!vercelCredentials) {
+        // Vercel only mode - require connection AND sandbox token
+        if (!vercelCredentials || !vercelCredentials.hasSandboxToken || !vercelCredentials.token) {
             throw new Error("VERCEL_NOT_CONNECTED");
         }
-        return { provider: "vercel", credentials: vercelCredentials };
+        return { 
+            provider: "vercel", 
+            credentials: {
+                teamId: vercelCredentials.teamId,
+                token: vercelCredentials.token,
+                vercelUserId: vercelCredentials.vercelUserId,
+                projectId: vercelCredentials.projectId,
+                integrationId: vercelCredentials.integrationId,
+            }
+        };
     }
     
-    // Both mode - use Vercel if connected, otherwise E2B
-    if (vercelCredentials) {
-        return { provider: "vercel", credentials: vercelCredentials };
+    // Both mode - use Vercel if connected with sandbox token, otherwise E2B
+    if (vercelCredentials?.hasSandboxToken && vercelCredentials.token) {
+        return { 
+            provider: "vercel", 
+            credentials: {
+                teamId: vercelCredentials.teamId,
+                token: vercelCredentials.token,
+                vercelUserId: vercelCredentials.vercelUserId,
+                projectId: vercelCredentials.projectId,
+                integrationId: vercelCredentials.integrationId,
+            }
+        };
     }
     
     return { provider: "e2b" };
