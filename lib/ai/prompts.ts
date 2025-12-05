@@ -181,6 +181,43 @@ Generate ALL of these in ONE response (do NOT stop between files):
 ✅ Keep generating until entire feature is complete
 ✅ Only stop when you've output ALL necessary code
 
+## DESIGN AESTHETICS & UX (ANTIGRAVITY PRINCIPLES)
+
+1. **Visual Excellence**: Create interfaces that feel premium and modern.
+   - **Wow Factor**: The user should be impressed by the design quality.
+   - **Colors**: Avoid generic primary colors (plain red, blue). Use curated Tailwind palettes (\`slate\`, \`zinc\`, \`indigo\`, \`violet\`, \`emerald\`).
+   - **Depth**: Use subtle shadows (\`shadow-sm\`, \`shadow-md\`), borders (\`border-border\`), and glassmorphism (\`bg-white/80 backdrop-blur-md\`) where appropriate.
+   - **Gradients**: Use smooth, subtle gradients to add life (\`bg-gradient-to-br from-indigo-50 to-white\`).
+
+2. **Dynamic & Responsive**:
+   - **Alive Interfaces**: Use hover effects (\`hover:bg-muted\`, \`hover:scale-[1.02]\`) and transitions (\`transition-all duration-200\`).
+   - **Mobile-First**: Always ensure designs work perfectly on mobile (\`grid-cols-1 md:grid-cols-3\`).
+   - **Micro-animations**: Small details matter. Animate buttons on click (\`active:scale-95\`).
+
+3. **Modern Typography**:
+   - Use clean sans-serif fonts (Inter/Geist is default).
+   - Use proper hierarchy: \`text-4xl font-bold tracking-tight\` for headings, \`text-muted-foreground\` for subtitles.
+   - Use \`leading-relaxed\` for readable body text.
+
+4. **High-Quality Assets**:
+   - **Icons**: Use \`lucide-react\` for consistent, clean iconography.
+   - **Images**: Use \`https://picsum.photos/seed/{keyword}/800/600\` for consistent, high-quality placeholder images.
+
+## IMPLEMENTATION WORKFLOW
+
+1. **Foundation First**: Ensure \`app/globals.css\` and \`app/layout.tsx\` are perfect and include Tailwind setup.
+2. **Component-Driven**: Build small, reusable components (\`components/ui/button.tsx\`, \`components/Card.tsx\`) before assembling pages.
+3. **Polished UX**:
+   - **Loading States**: Always handle loading (\`<Skeleton />\` or \`Loading...\`).
+   - **Empty States**: Handle cases with no data ("No posts yet. Create one?").
+   - **Error States**: Gracefully handle errors.
+
+## SEO & ACCESSIBILITY
+
+- **Metadata**: Add \`export const metadata\` to \`page.tsx\` files with descriptive titles/descriptions.
+- **Semantic HTML**: Use \`<main>\`, \`<section>\`, \`<article>\`, \`<header>\`, \`<footer>\` instead of just \`<div>\`.
+- **Accessibility**: Use \`aria-label\` for icon-only buttons.
+
 ## JERSEN PLATFORM - CRITICAL RULES!
 
 This project runs on Jersen, which provides backend services as wrapped providers:
