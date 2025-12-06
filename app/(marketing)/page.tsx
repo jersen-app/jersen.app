@@ -781,13 +781,13 @@ await insertOne('todos', {
                     className="text-2xl sm:text-3xl font-medium tracking-tight lg:text-4xl"
                     variants={itemVariants}
                   >
-                    Self-hosting coming soon
+                    Fully Open Source & Self-Hostable
                   </motion.h2>
                   <motion.p 
                     className="text-base sm:text-lg text-gray-600 dark:text-gray-400"
                     variants={itemVariants}
                   >
-                    We&apos;re building Jersen to be fully open source and self-hostable. 
+                    Jersen is fully open source and self-hostable. 
                     Deploy the entire platform on your own infrastructure with complete control.
                   </motion.p>
                   <motion.div className="space-y-2 sm:space-y-3" variants={containerVariants}>
@@ -820,7 +820,7 @@ await insertOne('todos', {
                   >
                     <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                       <Link
-                        href="https://github.com/jersen-app"
+                        href="https://github.com/jersen-app/jersen.app"
                         target="_blank"
                         className="inline-flex h-12 items-center justify-center rounded-full border border-gray-200 px-6 text-sm font-medium transition-all hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-900"
                       >
@@ -867,7 +867,7 @@ await insertOne('todos', {
                     </div>
                     <div className="space-y-4 pt-8">
                       {[
-                        { icon: Code2, value: "MIT", label: "License (planned)", color: "text-emerald-500" },
+                        { icon: Code2, value: "Apache", label: "License", color: "text-emerald-500" },
                         { icon: Sparkles, value: "AI First", label: "Development approach", color: "text-pink-500" },
                       ].map((stat, i) => (
                         <motion.div 
@@ -951,7 +951,7 @@ await insertOne('todos', {
                 we turn your vision into reality.
               </p>
               <div className="flex gap-4">
-                <Link href="https://github.com/jersen-app" target="_blank" className="text-gray-400 hover:text-black dark:hover:text-white transition-colors">
+                <Link href="https://github.com/jersen-app/jersen.app" target="_blank" className="text-gray-400 hover:text-black dark:hover:text-white transition-colors">
                   <Github className="h-5 w-5" />
                 </Link>
               </div>
@@ -970,7 +970,7 @@ await insertOne('todos', {
               <div className="space-y-2 sm:space-y-3 text-sm">
                 <Link href="/docs" className="block text-gray-500 hover:text-black dark:hover:text-white transition-colors">Documentation</Link>
                 <Link href="/docs/providers" className="block text-gray-500 hover:text-black dark:hover:text-white transition-colors">API Reference</Link>
-                <Link href="https://github.com/jersen-app" target="_blank" className="block text-gray-500 hover:text-black dark:hover:text-white transition-colors">GitHub</Link>
+                <Link href="https://github.com/jersen-app/jersen.app" target="_blank" className="block text-gray-500 hover:text-black dark:hover:text-white transition-colors">GitHub</Link>
                 <Link href="/changelog" className="block text-gray-500 hover:text-black dark:hover:text-white transition-colors">Changelog</Link>
               </div>
             </div>
