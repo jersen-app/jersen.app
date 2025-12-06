@@ -503,26 +503,49 @@ export function parseAIResponse(content: string): {
     '\n>>>>>>> REPLACE'
   );
   
-  // Pre-process: Handle "diff\n\n<<<<<<< SEARCH" pattern (diff label without filepath)
-  // This happens when AI doesn't include the filepath line
-  processedContent = processedContent.replace(
-    /\bdiff\s*\n+\s*(<<<<<<<?:?\s*SEARCH)/gi,
-    '```diff\nfilepath: unknown\n$1'
-  );
+
   
   // Pre-process: If we see raw diff content that starts with <<<<<<< SEARCH but isn't in a code fence,
   // try to wrap it. This catches orphan diff blocks.
   if (processedContent.includes('<<<<<<< SEARCH') && !processedContent.match(/```(?:diff)?\s*\n[^`]*<<<<<<< SEARCH/)) {
     // Find raw diff blocks and wrap them (handle both >>>>>>> REPLACE and just REPLACE)
+    // We look for the block, and then inspect the text before it to find a filename
     processedContent = processedContent.replace(
-      /(?:^|\n)(?!```)([^\n]*?)(<<<<<<<?:?\s*SEARCH[\s\S]*?(?:>>>>>>>?:?\s*REPLACE|(?:\n|\s)REPLACE\s*))/gim,
-      (match, prefix, diffContent) => {
-        const trimmedPrefix = prefix.trim();
-        // If prefix looks like a filepath
-        if (trimmedPrefix.match(/^[\w\-\/\.]+\.(tsx?|jsx?|css|json|md)$/i)) {
-          return `\n\`\`\`diff\nfilepath: ${trimmedPrefix}\n${diffContent}\n\`\`\``;
+      /((?:^|\n)\s*)?((?:<<<<<<<?:?\s*SEARCH)[\s\S]*?(?:>>>>>>>?:?\s*REPLACE|(?:\n|\s)REPLACE\s*))/gim,
+      (match, prefix, diffContent, offset, fullString) => {
+        // Check if this match is already inside a code block
+        const textBefore = fullString.slice(0, offset);
+        const openTicks = (textBefore.match(/```/g) || []).length;
+        if (openTicks % 2 !== 0) {
+          return match; // It's inside a code block, leave it alone
         }
-        return `\n\`\`\`diff\nfilepath: unknown\n${diffContent}\n\`\`\``;
+
+        // Look for a filename in the text immediately preceding the block
+        // We look at the last 5 lines before the block to find context
+        const precedingLines = textBefore.split('\n').slice(-5);
+        let filename = 'unknown';
+        
+        for (const line of precedingLines.reverse()) {
+            const trimmed = line.trim();
+            if (!trimmed) continue;
+
+            // Check for "filepath: path/to/file"
+            const explicitMatch = trimmed.match(/filepath:\s*([\w\-\/\.]+\.(tsx?|jsx?|css|json|md|ts|js|html|mjs|yml|yaml))/i);
+            if (explicitMatch) {
+                filename = explicitMatch[1];
+                break;
+            }
+            
+            // Check for "update path/to/file" or just "path/to/file"
+            // We look for common file extensions
+            const fileMatch = trimmed.match(/(?:^|\s)([\w\-\/\.]+\.(tsx?|jsx?|css|json|md|ts|js|html|mjs|yml|yaml))\b/i);
+            if (fileMatch) {
+                filename = fileMatch[1];
+                break;
+            }
+        }
+
+        return `\n\`\`\`diff\nfilepath: ${filename}\n${diffContent.trim()}\n\`\`\``;
       }
     );
   }
