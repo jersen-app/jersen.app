@@ -447,35 +447,44 @@ interface FileUrlResult {
   error?: string;
 }
 
-export async function uploadFile(file: File, key: string): Promise<UploadResult> {
+export async function uploadFile(file: File, key: string, token?: string): Promise<UploadResult> {
   const formData = new FormData();
   formData.append('file', file);
   formData.append('key', key);
+
+  const authToken = token || (typeof window !== 'undefined' ? localStorage.getItem('jersen_session') : null);
 
   const res = await fetch(\`\${API_URL}/api/providers/storage\`, {
     method: 'POST',
     headers: {
       'x-jersen-api-key': API_KEY,
+      ...(authToken ? { 'Authorization': \`Bearer \${authToken}\` } : {}),
     },
     body: formData,
   });
   return res.json();
 }
 
-export async function getFileUrl(key: string): Promise<FileUrlResult> {
+export async function getFileUrl(key: string, token?: string): Promise<FileUrlResult> {
+  const authToken = token || (typeof window !== 'undefined' ? localStorage.getItem('jersen_session') : null);
+
   const res = await fetch(\`\${API_URL}/api/providers/storage?key=\${encodeURIComponent(key)}\`, {
     headers: {
       'x-jersen-api-key': API_KEY,
+      ...(authToken ? { 'Authorization': \`Bearer \${authToken}\` } : {}),
     },
   });
   return res.json();
 }
 
-export async function deleteFile(key: string): Promise<{ success: boolean; error?: string }> {
+export async function deleteFile(key: string, token?: string): Promise<{ success: boolean; error?: string }> {
+  const authToken = token || (typeof window !== 'undefined' ? localStorage.getItem('jersen_session') : null);
+
   const res = await fetch(\`\${API_URL}/api/providers/storage?key=\${encodeURIComponent(key)}\`, {
     method: 'DELETE',
     headers: {
       'x-jersen-api-key': API_KEY,
+      ...(authToken ? { 'Authorization': \`Bearer \${authToken}\` } : {}),
     },
   });
   return res.json();
@@ -910,13 +919,17 @@ interface DeleteResult {
 // Body: { collection, document }
 export async function insertOne<T extends Record<string, any>>(
   collection: string, 
-  document: T
+  document: T,
+  token?: string
 ): Promise<InsertResult> {
+  const authToken = token || (typeof window !== 'undefined' ? localStorage.getItem('jersen_session') : null);
+
   const res = await fetch(\`\${API_URL}/api/providers/database\`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'x-jersen-api-key': API_KEY,
+      ...(authToken ? { 'Authorization': \`Bearer \${authToken}\` } : {}),
     },
     body: JSON.stringify({ collection, document }),
   });
@@ -928,8 +941,11 @@ export async function insertOne<T extends Record<string, any>>(
 export async function find<T = any>(
   collection: string, 
   query: Record<string, any> = {}, 
-  limit = 100
+  limit = 100,
+  token?: string
 ): Promise<FindResult<T>> {
+  const authToken = token || (typeof window !== 'undefined' ? localStorage.getItem('jersen_session') : null);
+
   const params = new URLSearchParams({
     collection,
     query: JSON.stringify(query),
@@ -939,6 +955,7 @@ export async function find<T = any>(
   const res = await fetch(\`\${API_URL}/api/providers/database?\${params}\`, {
     headers: {
       'x-jersen-api-key': API_KEY,
+      ...(authToken ? { 'Authorization': \`Bearer \${authToken}\` } : {}),
     },
   });
   return res.json();
@@ -950,13 +967,17 @@ export async function find<T = any>(
 export async function updateMany(
   collection: string,
   query: Record<string, any>,
-  update: Record<string, any>
+  update: Record<string, any>,
+  token?: string
 ): Promise<UpdateResult> {
+  const authToken = token || (typeof window !== 'undefined' ? localStorage.getItem('jersen_session') : null);
+
   const res = await fetch(\`\${API_URL}/api/providers/database\`, {
     method: 'PATCH',
     headers: {
       'Content-Type': 'application/json',
       'x-jersen-api-key': API_KEY,
+      ...(authToken ? { 'Authorization': \`Bearer \${authToken}\` } : {}),
     },
     body: JSON.stringify({ collection, query, update }),
   });
@@ -967,8 +988,11 @@ export async function updateMany(
 // Endpoint: DELETE /api/providers/database?collection=X&query={}
 export async function deleteMany(
   collection: string,
-  query: Record<string, any>
+  query: Record<string, any>,
+  token?: string
 ): Promise<DeleteResult> {
+  const authToken = token || (typeof window !== 'undefined' ? localStorage.getItem('jersen_session') : null);
+
   const params = new URLSearchParams({
     collection,
     query: JSON.stringify(query),
@@ -978,6 +1002,7 @@ export async function deleteMany(
     method: 'DELETE',
     headers: {
       'x-jersen-api-key': API_KEY,
+      ...(authToken ? { 'Authorization': \`Bearer \${authToken}\` } : {}),
     },
   });
   return res.json();

@@ -1,5 +1,5 @@
 import { google } from "@ai-sdk/google";
-import { streamText, stepCountIs, type CoreMessage } from "ai";
+import { streamText, generateText, stepCountIs, type CoreMessage } from "ai";
 import { auth } from "@clerk/nextjs/server";
 import connectToDatabase from "@/lib/db";
 import ChatMessage from "@/models/ChatMessage";
@@ -349,6 +349,8 @@ ${optimizedContext.fileContext}`;
                     existingFilesMap[f.path] = f.content;
                 }
                 
+                const failedFiles: string[] = [];
+
                 for (const file of parsedFiles) {
                     let finalContent = file.content;
                     
@@ -379,6 +381,7 @@ ${optimizedContext.fileContext}`;
                                 // Ultimate fallback - use the REPLACE content as the new file
                                 console.warn(`All recovery strategies failed for ${file.path}, using REPLACE content as full file`);
                                 finalContent = file.diffBlocks[file.diffBlocks.length - 1].replace;
+                                failedFiles.push(file.path);
                             }
                         }
                     }
@@ -390,6 +393,47 @@ ${optimizedContext.fileContext}`;
                         changeType: existingFiles.some(f => f.path === file.path) ? "modified" : "created",
                         description: `Generated ${file.path}`,
                     });
+                }
+
+                // Attempt to repair failed files
+                if (failedFiles.length > 0) {
+                    console.log(`Attempting to repair ${failedFiles.length} failed files: ${failedFiles.join(', ')}`);
+                    try {
+                        const repairPrompt = `The following files failed to apply diffs correctly: ${failedFiles.join(', ')}. 
+Please regenerate the FULL content for these files. Do not use diffs. Output the full file content for each file.`;
+                        
+                        const { text: repairText } = await generateText({
+                            model: google(modelId),
+                            messages: [
+                                ...allMessages,
+                                { role: 'assistant', content: text },
+                                { role: 'user', content: repairPrompt }
+                            ],
+                        });
+
+                        const repairedFiles = parseGeneratedFiles(repairText);
+                        for (const file of repairedFiles) {
+                            if (file.content) {
+                                console.log(`Repaired file: ${file.path}`);
+                                generatedFiles[file.path] = file.content;
+                                // Update fileChanges entry
+                                const changeIndex = fileChanges.findIndex(c => c.path === file.path);
+                                if (changeIndex >= 0) {
+                                    fileChanges[changeIndex].content = file.content;
+                                    fileChanges[changeIndex].description = `Repaired ${file.path}`;
+                                } else {
+                                    fileChanges.push({
+                                        path: file.path,
+                                        content: file.content,
+                                        changeType: existingFiles.some(f => f.path === file.path) ? "modified" : "created",
+                                        description: `Repaired ${file.path}`,
+                                    });
+                                }
+                            }
+                        }
+                    } catch (repairError) {
+                        console.error("Failed to repair files:", repairError);
+                    }
                 }
 
                 // Extract file deletions

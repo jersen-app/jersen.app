@@ -237,37 +237,41 @@ Response:
 const API_KEY = '__JERSEN_API_KEY__';
 const API_URL = '__JERSEN_URL__';
 
-export async function insertOne(collection: string, document: any) {
+export async function insertOne(collection: string, document: any, token?: string) {
+  const authToken = token || (typeof window !== 'undefined' ? localStorage.getItem('jersen_session') : null);
   const res = await fetch(`${API_URL}/api/providers/database`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-jersen-api-key': API_KEY },
+    headers: { 'Content-Type': 'application/json', 'x-jersen-api-key': API_KEY, ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {}) },
     body: JSON.stringify({ collection, document }),
   });
   return res.json();
 }
 
-export async function find(collection: string, query: any = {}) {
+export async function find(collection: string, query: any = {}, token?: string) {
+  const authToken = token || (typeof window !== 'undefined' ? localStorage.getItem('jersen_session') : null);
   const params = new URLSearchParams({ collection, query: JSON.stringify(query) });
   const res = await fetch(`${API_URL}/api/providers/database?${params}`, {
-    headers: { 'x-jersen-api-key': API_KEY },
+    headers: { 'x-jersen-api-key': API_KEY, ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {}) },
   });
   return res.json();
 }
 
-export async function updateOne(collection: string, query: any, update: any) {
+export async function updateOne(collection: string, query: any, update: any, token?: string) {
+  const authToken = token || (typeof window !== 'undefined' ? localStorage.getItem('jersen_session') : null);
   const res = await fetch(`${API_URL}/api/providers/database`, {
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', 'x-jersen-api-key': API_KEY },
+    headers: { 'Content-Type': 'application/json', 'x-jersen-api-key': API_KEY, ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {}) },
     body: JSON.stringify({ collection, query, update }),
   });
   return res.json();
 }
 
-export async function deleteOne(collection: string, query: any) {
+export async function deleteOne(collection: string, query: any, token?: string) {
+  const authToken = token || (typeof window !== 'undefined' ? localStorage.getItem('jersen_session') : null);
   const params = new URLSearchParams({ collection, query: JSON.stringify(query) });
   const res = await fetch(`${API_URL}/api/providers/database?${params}`, {
     method: 'DELETE',
-    headers: { 'x-jersen-api-key': API_KEY },
+    headers: { 'x-jersen-api-key': API_KEY, ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {}) },
   });
   return res.json();
 }
@@ -339,30 +343,33 @@ Response:
 const API_KEY = '__JERSEN_API_KEY__';
 const API_URL = '__JERSEN_URL__';
 
-export async function uploadFile(file: File, key: string) {
+export async function uploadFile(file: File, key: string, token?: string) {
   const formData = new FormData();
   formData.append('file', file);
   formData.append('key', key);
+  const authToken = token || (typeof window !== 'undefined' ? localStorage.getItem('jersen_session') : null);
 
   const res = await fetch(`${API_URL}/api/providers/storage`, {
     method: 'POST',
-    headers: { 'x-jersen-api-key': API_KEY },
+    headers: { 'x-jersen-api-key': API_KEY, ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {}) },
     body: formData,
   });
   return res.json();
 }
 
-export async function getFileUrl(key: string) {
+export async function getFileUrl(key: string, token?: string) {
+  const authToken = token || (typeof window !== 'undefined' ? localStorage.getItem('jersen_session') : null);
   const res = await fetch(`${API_URL}/api/providers/storage?key=${encodeURIComponent(key)}`, {
-    headers: { 'x-jersen-api-key': API_KEY },
+    headers: { 'x-jersen-api-key': API_KEY, ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {}) },
   });
   return res.json();
 }
 
-export async function deleteFile(key: string) {
+export async function deleteFile(key: string, token?: string) {
+  const authToken = token || (typeof window !== 'undefined' ? localStorage.getItem('jersen_session') : null);
   const res = await fetch(`${API_URL}/api/providers/storage?key=${encodeURIComponent(key)}`, {
     method: 'DELETE',
-    headers: { 'x-jersen-api-key': API_KEY },
+    headers: { 'x-jersen-api-key': API_KEY, ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {}) },
   });
   return res.json();
 }

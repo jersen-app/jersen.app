@@ -168,29 +168,32 @@ File storage via Cloudflare R2. Files served via public CDN.
 const API_KEY = '__JERSEN_API_KEY__';
 const API_URL = '__JERSEN_URL__';
 
-export async function uploadFile(file: File, key: string) {
+export async function uploadFile(file: File, key: string, token?: string) {
   const formData = new FormData();
   formData.append('file', file);
   formData.append('key', key);
+  const authToken = token || (typeof window !== 'undefined' ? localStorage.getItem('jersen_session') : null);
   const res = await fetch(\`\${API_URL}/api/providers/storage\`, {
     method: 'POST',
-    headers: { 'x-jersen-api-key': API_KEY },
+    headers: { 'x-jersen-api-key': API_KEY, ...(authToken ? { 'Authorization': \`Bearer \${authToken}\` } : {}) },
     body: formData,
   });
   return res.json(); // { success, key, url, size, error }
 }
 
-export async function getFileUrl(key: string) {
+export async function getFileUrl(key: string, token?: string) {
+  const authToken = token || (typeof window !== 'undefined' ? localStorage.getItem('jersen_session') : null);
   const res = await fetch(\`\${API_URL}/api/providers/storage?key=\${encodeURIComponent(key)}\`, {
-    headers: { 'x-jersen-api-key': API_KEY },
+    headers: { 'x-jersen-api-key': API_KEY, ...(authToken ? { 'Authorization': \`Bearer \${authToken}\` } : {}) },
   });
   return res.json(); // { success, url, error }
 }
 
-export async function deleteFile(key: string) {
+export async function deleteFile(key: string, token?: string) {
+  const authToken = token || (typeof window !== 'undefined' ? localStorage.getItem('jersen_session') : null);
   const res = await fetch(\`\${API_URL}/api/providers/storage?key=\${encodeURIComponent(key)}\`, {
     method: 'DELETE',
-    headers: { 'x-jersen-api-key': API_KEY },
+    headers: { 'x-jersen-api-key': API_KEY, ...(authToken ? { 'Authorization': \`Bearer \${authToken}\` } : {}) },
   });
   return res.json();
 }
@@ -222,37 +225,41 @@ MongoDB via REST API. **ONE endpoint: /api/providers/database**
 const API_KEY = '__JERSEN_API_KEY__';
 const API_URL = '__JERSEN_URL__';
 
-export async function insertOne<T extends Record<string, any>>(collection: string, document: T) {
+export async function insertOne<T extends Record<string, any>>(collection: string, document: T, token?: string) {
+  const authToken = token || (typeof window !== 'undefined' ? localStorage.getItem('jersen_session') : null);
   const res = await fetch(\`\${API_URL}/api/providers/database\`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-jersen-api-key': API_KEY },
+    headers: { 'Content-Type': 'application/json', 'x-jersen-api-key': API_KEY, ...(authToken ? { 'Authorization': \`Bearer \${authToken}\` } : {}) },
     body: JSON.stringify({ collection, document }),
   });
   return res.json(); // { success, insertedId, error }
 }
 
-export async function find<T = any>(collection: string, query: Record<string, any> = {}, limit = 100) {
+export async function find<T = any>(collection: string, query: Record<string, any> = {}, limit = 100, token?: string) {
+  const authToken = token || (typeof window !== 'undefined' ? localStorage.getItem('jersen_session') : null);
   const params = new URLSearchParams({ collection, query: JSON.stringify(query), limit: String(limit) });
   const res = await fetch(\`\${API_URL}/api/providers/database?\${params}\`, {
-    headers: { 'x-jersen-api-key': API_KEY },
+    headers: { 'x-jersen-api-key': API_KEY, ...(authToken ? { 'Authorization': \`Bearer \${authToken}\` } : {}) },
   });
   return res.json(); // { success, documents, count, error }
 }
 
-export async function updateOne(collection: string, query: Record<string, any>, update: Record<string, any>) {
+export async function updateOne(collection: string, query: Record<string, any>, update: Record<string, any>, token?: string) {
+  const authToken = token || (typeof window !== 'undefined' ? localStorage.getItem('jersen_session') : null);
   const res = await fetch(\`\${API_URL}/api/providers/database\`, {
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', 'x-jersen-api-key': API_KEY },
+    headers: { 'Content-Type': 'application/json', 'x-jersen-api-key': API_KEY, ...(authToken ? { 'Authorization': \`Bearer \${authToken}\` } : {}) },
     body: JSON.stringify({ collection, query, update }),
   });
   return res.json(); // { success, matchedCount, modifiedCount, error }
 }
 
-export async function deleteOne(collection: string, query: Record<string, any>) {
+export async function deleteOne(collection: string, query: Record<string, any>, token?: string) {
+  const authToken = token || (typeof window !== 'undefined' ? localStorage.getItem('jersen_session') : null);
   const params = new URLSearchParams({ collection, query: JSON.stringify(query) });
   const res = await fetch(\`\${API_URL}/api/providers/database?\${params}\`, {
     method: 'DELETE',
-    headers: { 'x-jersen-api-key': API_KEY },
+    headers: { 'x-jersen-api-key': API_KEY, ...(authToken ? { 'Authorization': \`Bearer \${authToken}\` } : {}) },
   });
   return res.json(); // { success, deletedCount, error }
 }
