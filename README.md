@@ -1,5 +1,5 @@
 # Jersen.app
-xxxxxxxxxxxxx
+
 > **AI-powered full-stack app builder with built-in Auth, Database, and Storage providers**
 
 Jersen is an open-source platform that lets users build full-stack web applications using AI. It provides instant preview in sandboxed environments and includes built-in backend services (Authentication, Database, Storage) so users can build complete apps without managing infrastructure.
