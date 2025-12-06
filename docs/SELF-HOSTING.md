@@ -21,7 +21,7 @@ This guide covers detailed configuration options for self-hosting Jersen.
 | CPU | 2 cores | 4+ cores |
 | RAM | 2GB | 4GB+ |
 | Storage | 10GB | 50GB+ |
-| Node.js | 18.x | 20.x LTS |
+| Node.js | 20.x | 22.x LTS |
 
 ### Required Accounts
 

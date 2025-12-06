@@ -1,6 +1,11 @@
 {
   "name": "jersen.app",
   "version": "0.1.0",
+  "description": "AI-powered full-stack app builder with built-in Auth, Database, and Storage providers",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jersen-app/jersen.app.git"
+  },
   "private": true,
   "scripts": {
     "dev": "next dev",
